@@ -4,7 +4,8 @@ import pandas as pd
 
 class MarketDataCache:
     """Simple disk cache. Keeps the first implementation lightweight and restart-safe."""
-    def __init__(self, root="data/cache"):
+    def __init__(self, root=None):
+        root = root or (Path(__file__).resolve().parents[2] / "data" / "cache")
         self.root=Path(root); self.root.mkdir(parents=True,exist_ok=True)
 
     def key(self,symbol,period,interval):

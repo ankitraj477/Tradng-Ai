@@ -26,11 +26,15 @@ class Universe:
         df=df[df["symbol"]!=""].drop_duplicates("symbol")
         for col in ["company","sector","industry"]:
             if col not in df: df[col]="Unknown" if col!="company" else ""
-        self.rows=[SymbolMeta(r.symbol,r.company,r.sector,r.industry) for r in df.itertuples()]
+        self.rows=[SymbolMeta(r.symbol,r.company,r.sector,r.industry, bool(getattr(r, "active", True))) for r in df.itertuples()]
         return self.rows
 
     def symbols(self):
         return [x.symbol for x in self.rows if x.active]
+
+    def validate(self, min_symbols=450):
+        count=len(self.symbols())
+        return count >= min_symbols, count
 
     def metadata(self):
         return {x.symbol:x for x in self.rows}

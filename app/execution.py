@@ -13,8 +13,8 @@ class PaperExecution:
         a=self.db.account(); fill=self._slip(p['price'],'BUY'); value=fill*qty; cost=self.cost(value,'BUY','INTRADAY')
         if value+cost>a['cash']: return False
         with self.db.conn() as c:
-            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector)
-                         VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'LONG',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown')))
+            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr)
+                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'LONG',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr')))
             c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(a['cash']-value-cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER BUY {p['symbol']} x{qty} @ {fill:.2f}"); return True
 
@@ -25,9 +25,11 @@ class PaperExecution:
         entry_cost=self.cost(notional,'SELL','INTRADAY')
         if margin+entry_cost>a['cash']: return False
         with self.db.conn() as c:
-            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector)
-                         VALUES(?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'SHORT',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown')))
-            c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(a['cash']-margin-entry_cost,datetime.now(timezone.utc).isoformat()))
+            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr)
+                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'SHORT',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr')))
+            # Margin is reserved against the account but is tracked separately in the position.
+            # Only actual entry costs leave cash; this keeps cash/equity accounting consistent.
+            c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(a['cash']-entry_cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER SHORT {p['symbol']} x{qty} @ {fill:.2f} margin={margin:.2f}"); return True
 
     def mark(self,quotes):
@@ -42,7 +44,7 @@ class PaperExecution:
             if side=='LONG':
                 gross=(fill-p['entry_price'])*p['qty']; released=fill*p['qty']; entry_cap=p['entry_price']*p['qty']
             else:
-                gross=(p['entry_price']-fill)*p['qty']; margin=p['entry_price']*p['qty']*self.cfg['execution'].get('short_margin_pct',0.25); released=margin+gross; entry_cap=p['entry_price']*p['qty']
+                gross=(p['entry_price']-fill)*p['qty']; released=gross; entry_cap=p['entry_price']*p['qty']
             exit_cost=self.cost(notional,'SELL' if side=='LONG' else 'BUY','INTRADAY')
             pnl=gross-exit_cost
             cash=self.db.account()['cash']+released-exit_cost

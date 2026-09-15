@@ -1,1 +1,1 @@
-from .engine import TradingEngine
+"""AI Trader application package."""

@@ -9,13 +9,11 @@ class Scanner:
     def scan(self, provider, cash):
         rows=[]
         metadata = provider.metadata() if hasattr(provider, "metadata") else {}
+        histories = provider.history_many(provider.symbols()) if hasattr(provider, "history_many") else {}
         for symbol in provider.symbols():
             try:
-                q=provider.quote(symbol)
-                if not q or q["price"] <= 0: continue
-                if q["price"] > cash: continue
-                df=provider.history(symbol)
-                if len(df)<60: continue
+                df=histories.get(symbol) if histories else provider.history(symbol)
+                if df is None or len(df)<60: continue
                 x=indicators(df)
                 if x.empty: continue
                 z=x.iloc[-1]
