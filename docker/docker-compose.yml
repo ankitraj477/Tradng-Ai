@@ -1,0 +1,15 @@
+services:
+  trader:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../data:/app/data
+    restart: unless-stopped
+    environment:
+      LIVE_DATA: "true"
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "5000"
+      DATA_MAX_AGE_SECONDS: "900"

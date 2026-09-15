@@ -1,0 +1,7 @@
+{
+  "minimum_trades_before_adaptation": 20,
+  "min_weight": 0.5,
+  "max_weight": 1.5,
+  "risk_rules_are_immutable": true,
+  "execution_rules_are_immutable": true
+}
