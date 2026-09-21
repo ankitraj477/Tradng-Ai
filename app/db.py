@@ -1,7 +1,6 @@
 import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
-SCHEMA=open(Path(__file__).with_name("schema.sql"),encoding="utf-8").read() if Path(__file__).with_name("schema.sql").exists() else ""
 def now(): return datetime.now(timezone.utc).isoformat()
 class DB:
     def __init__(self,path):

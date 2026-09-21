@@ -3,28 +3,31 @@
     "starting": 1000.0,
     "target": 100000.0
   },
+
   "risk": {
     "max_position_risk_pct": 0.02,
     "max_portfolio_invested_pct": 0.85,
-    "max_sector_exposure_pct": 0.4,
-    "emergency_drawdown_pct": 0.2,
+    "max_sector_exposure_pct": 0.40,
+    "emergency_drawdown_pct": 0.20,
     "min_risk_reward": 1.5,
     "max_drawdown_pct": 0.15,
     "kill_switch": false,
     "daily_loss_limit_pct": 0.05
   },
+
   "execution": {
     "slippage_bps": 8,
     "brokerage": 0.0,
     "sebi_turnover_fee_pct": 0.0001,
     "gst_pct": 0.18,
     "stamp_duty_non_delivery_pct": 0.003,
-    "stt_delivery_pct": 0.1,
+    "stt_delivery_pct": 0.10,
     "stt_intraday_sell_pct": 0.025,
     "short_margin_pct": 0.25,
     "trailing_stop_atr": 1.0,
     "max_hold_minutes": 390
   },
+
   "market": {
     "decision_interval_minutes": 5,
     "data_max_age_seconds": 900,
@@ -33,15 +36,23 @@
     "protection_interval_seconds": 30,
     "history_period": "60d"
   },
+
   "intelligence": {
     "news_enabled": true,
     "max_news_items": 50,
     "news_bias_cap": 10,
     "require_regime_alignment": true
   },
+
   "learning": {
     "min_trades": 20,
     "min_weight": 0.5,
     "max_weight": 1.5
-  }
+  },
+
+  "live_data": false,
+
+  "use_cpp_scanner": false,
+
+  "cpp_scanner_path": "cpp_scanner/build/scanner.exe"
 }

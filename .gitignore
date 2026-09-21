@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+*.key
+*.pem
+*.ppk
+*.p12
+
+# Runtime data
+data/*.db
+data/*.db-*
+data/cache/
+data/dataset_manifest.json
+
+# C++ build artifacts
+cpp/scanner
+cpp/scanner.exe
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
