@@ -31,8 +31,8 @@ class TradingEngine:
     def __init__(self, live=False):
         self.cfg = load_config()
 
-        # Explicit live=True can enable live market DATA,
-        # but execution remains paper-only.
+        # live=True enables live MARKET DATA only.
+        # Execution remains paper-only.
         self.cfg["live_data"] = (
             live or self.cfg["live_data"]
         )
@@ -51,7 +51,18 @@ class TradingEngine:
         # --------------------------------------------------
 
         if self.cfg["live_data"]:
-            self.provider = Nifty500Provider()
+            market_cfg = self.cfg["market"]
+
+            self.provider = Nifty500Provider(
+                max_age_seconds=market_cfg.get(
+                    "live_data_max_age_seconds",
+                    420,
+                ),
+                min_fresh_data_coverage_pct=market_cfg.get(
+                    "min_fresh_data_coverage_pct",
+                    0.70,
+                ),
+            )
         else:
             self.provider = DemoProvider()
 
@@ -103,9 +114,7 @@ class TradingEngine:
             self.cfg,
         )
 
-        # IMPORTANT:
-        # This is always PaperExecution.
-        # There is no broker execution.
+        # Paper-only execution.
         self.exec = PaperExecution(
             self.db,
             self.cfg,
@@ -192,6 +201,156 @@ class TradingEngine:
             )
 
     # ======================================================
+    # LIVE DATA DIAGNOSTICS
+    # ======================================================
+
+    def _log_live_data_stats(self):
+        """
+        Log diagnostics produced by the latest
+        live history_many() request.
+        """
+
+        if not self.cfg["live_data"]:
+            return
+
+        stats = getattr(
+            self.provider,
+            "last_batch_stats",
+            None,
+        )
+
+        if not stats:
+            return
+
+        requested = int(
+            stats.get(
+                "requested",
+                0,
+            )
+        )
+
+        fresh = int(
+            stats.get(
+                "fresh_valid",
+                0,
+            )
+        )
+
+        stale = int(
+            stats.get(
+                "stale",
+                0,
+            )
+        )
+
+        unavailable = int(
+            stats.get(
+                "unavailable",
+                0,
+            )
+        )
+
+        invalid = int(
+            stats.get(
+                "invalid",
+                0,
+            )
+        )
+
+        coverage = float(
+            stats.get(
+                "coverage_pct",
+                0.0,
+            )
+        )
+
+        self.db.log(
+            "INFO",
+            "LIVE DATA: "
+            f"requested={requested} "
+            f"fresh={fresh} "
+            f"stale={stale} "
+            f"unavailable={unavailable} "
+            f"invalid={invalid} "
+            f"coverage={coverage * 100:.1f}%",
+        )
+
+    # ======================================================
+    # FRESH DATA COVERAGE
+    # ======================================================
+
+    def _fresh_data_coverage_ok(self):
+        """
+        Check whether enough of the requested universe
+        has fresh valid market data.
+
+        This only controls NEW trades.
+        Existing positions are managed separately.
+        """
+
+        if not self.cfg["live_data"]:
+            return True, "demo data"
+
+        stats = getattr(
+            self.provider,
+            "last_batch_stats",
+            None,
+        )
+
+        if not stats:
+            return (
+                False,
+                "no live-data batch diagnostics available",
+            )
+
+        requested = int(
+            stats.get(
+                "requested",
+                0,
+            )
+        )
+
+        fresh = int(
+            stats.get(
+                "fresh_valid",
+                0,
+            )
+        )
+
+        coverage = float(
+            stats.get(
+                "coverage_pct",
+                0.0,
+            )
+        )
+
+        minimum = float(
+            self.cfg["market"].get(
+                "min_fresh_data_coverage_pct",
+                0.70,
+            )
+        )
+
+        if requested <= 0:
+            return (
+                False,
+                "live-data batch requested zero symbols",
+            )
+
+        if coverage < minimum:
+            return (
+                False,
+                (
+                    "fresh-data coverage below minimum: "
+                    f"{fresh}/{requested} "
+                    f"({coverage * 100:.1f}%) < "
+                    f"{minimum * 100:.1f}%"
+                ),
+            )
+
+        return True, "ok"
+
+    # ======================================================
     # MARKET CONTEXT
     # ======================================================
 
@@ -199,8 +358,6 @@ class TradingEngine:
 
         try:
 
-            # Yahoo intraday 5m data has a limited
-            # historical lookback.
             df = self.provider.history(
                 "^NSEI",
                 period=self.cfg[
@@ -277,22 +434,71 @@ class TradingEngine:
 
     def cycle(self):
 
-        # Revalidate live universe on every cycle.
+        # --------------------------------------------------
+        # MARKET CLOSED
+        # --------------------------------------------------
+        #
+        # IMPORTANT:
+        # Check market status BEFORE requesting fresh
+        # live 5-minute data.
+        #
+        # After NSE closes, yesterday's/latest session
+        # candle will naturally become older than the
+        # live freshness threshold.
+        #
+        # That is normal and must not be treated as a
+        # live-data outage.
+        # --------------------------------------------------
+
+        if (
+            self.cfg["live_data"]
+            and not market_open()
+        ):
+
+            phase = market_phase()
+            holiday = holiday_name()
+
+            self.db.set_market(
+                "CLOSED",
+                "N/A",
+                None,
+                True,
+            )
+
+            self.db.log(
+                "INFO",
+                "Indian market "
+                f"{phase.lower()}: "
+                "analysis/preparation cycle."
+                + (
+                    f" Holiday={holiday}"
+                    if holiday
+                    else ""
+                ),
+            )
+
+            self.db.log(
+                "INFO",
+                "Learning snapshot: "
+                f"{self.learning.recommendation()}",
+            )
+
+            self.db.log(
+                "INFO",
+                "News items available: "
+                "market closed",
+            )
+
+            self.snapshot()
+
+            return
+
+        # --------------------------------------------------
+        # REVALIDATE LIVE UNIVERSE
+        # --------------------------------------------------
+
         if self.cfg["live_data"]:
             self.refresh_universe_guard()
-
-        # --------------------------------------------------
-        # MARKET CONTEXT
-        # --------------------------------------------------
-
-        ctx = self.market_context()
-
-        self.db.set_market(
-            ctx["regime"],
-            ctx["sentiment"],
-            ctx["nifty"],
-            ctx["ok"],
-        )
 
         # --------------------------------------------------
         # UNIVERSE KILL SWITCH
@@ -316,44 +522,17 @@ class TradingEngine:
             return
 
         # --------------------------------------------------
-        # MARKET CLOSED
+        # MARKET CONTEXT
         # --------------------------------------------------
 
-        if (
-            self.cfg["live_data"]
-            and not market_open()
-        ):
+        ctx = self.market_context()
 
-            phase = market_phase()
-            holiday = holiday_name()
-
-            self.db.log(
-                "INFO",
-                "Indian market "
-                f"{phase.lower()}: "
-                "analysis/preparation cycle."
-                + (
-                    f" Holiday={holiday}"
-                    if holiday
-                    else ""
-                ),
-            )
-
-            self.db.log(
-                "INFO",
-                "Learning snapshot: "
-                f"{self.learning.recommendation()}",
-            )
-
-            self.db.log(
-                "INFO",
-                "News items available: "
-                f"{ctx.get('news_count', 0)}",
-            )
-
-            self.snapshot()
-
-            return
+        self.db.set_market(
+            ctx["regime"],
+            ctx["sentiment"],
+            ctx["nifty"],
+            ctx["ok"],
+        )
 
         # --------------------------------------------------
         # DATA KILL SWITCH
@@ -382,8 +561,7 @@ class TradingEngine:
             self.risk.trading_allowed()
         )
 
-        # Always manage existing positions
-        # before considering new entries.
+        # Existing positions are always handled separately.
         self.positions.manage()
 
         if not allowed:
@@ -408,14 +586,32 @@ class TradingEngine:
             account["cash"],
         )
 
-        metadata = (
-            self.provider.metadata()
-            if hasattr(
-                self.provider,
-                "metadata",
+        # Scanner uses provider.history_many().
+        # The provider should have populated last_batch_stats.
+        if self.cfg["live_data"]:
+
+            self._log_live_data_stats()
+
+            coverage_ok, coverage_reason = (
+                self._fresh_data_coverage_ok()
             )
-            else {}
-        )
+
+            if not coverage_ok:
+
+                self.db.log(
+                    "WARN",
+                    "FRESH-DATA COVERAGE GATE: "
+                    f"{coverage_reason}. "
+                    "No new trades.",
+                )
+
+                self.snapshot()
+
+                return
+
+        # --------------------------------------------------
+        # ENRICH CANDIDATES
+        # --------------------------------------------------
 
         enriched = [
             self.intel.enrich(
@@ -460,10 +656,6 @@ class TradingEngine:
             decision = "PENDING"
             qty = 0
 
-            # ----------------------------------------------
-            # ONLY BUY / SHORT CAN OPEN POSITIONS
-            # ----------------------------------------------
-
             if proposal["action"] in {
                 "BUY",
                 "SHORT",
@@ -486,10 +678,7 @@ class TradingEngine:
                         )
                     )
 
-            # ----------------------------------------------
-            # JOURNAL EVERY AI DECISION
-            # ----------------------------------------------
-
+            # Persist every AI decision.
             self.db.add_decision(
                 {
                     **proposal,
@@ -665,9 +854,9 @@ class TradingEngine:
 
             now = time.time()
 
-            # ----------------------------------------------
+            # --------------------------------------------------
             # FULL AI DECISION CYCLE
-            # ----------------------------------------------
+            # --------------------------------------------------
 
             if now >= next_decision:
 
@@ -688,23 +877,15 @@ class TradingEngine:
                     + 1
                 ) * decision_interval
 
-            # ----------------------------------------------
+            # --------------------------------------------------
             # FAST POSITION PROTECTION LOOP
-            # ----------------------------------------------
+            # --------------------------------------------------
 
             else:
 
                 try:
 
-                    if (
-                        self.db.positions()
-                        and (
-                            not self.cfg[
-                                "live_data"
-                            ]
-                            or market_open()
-                        )
-                    ):
+                    if self.db.positions():
 
                         self.positions.manage()
 
@@ -729,10 +910,6 @@ class TradingEngine:
                 sleep_for
             )
 
-
-# ==========================================================
-# DIRECT EXECUTION
-# ==========================================================
 
 if __name__ == "__main__":
 
