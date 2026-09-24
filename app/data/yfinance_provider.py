@@ -1,22 +1,25 @@
 import time
+from pathlib import Path
 
 import pandas as pd
 
 from .cache import MarketDataCache
 from .manifest import DatasetManifest
-from ..universe import Universe
+from .provider import MarketDataProvider
 from .validator import validate_history
+from ..universe import Universe
 
 
-class YFinanceProvider:
+class YFinanceProvider(MarketDataProvider):
     """
-    Yahoo Finance market-data provider.
+    Free public market-data provider using yfinance.
 
-    Important live-data rules:
-
-    - Live decisions only use fresh data.
+    Live-trading safety:
+    - Only valid OHLCV data is accepted.
+    - Live data must pass the freshness check.
     - Stale cached data is never silently used for live decisions.
-    - Batch diagnostics retain the reason each requested symbol failed.
+    - Full-universe downloads are split into small chunks.
+    - Every requested symbol gets a diagnostic classification.
     """
 
     def __init__(
@@ -27,6 +30,9 @@ class YFinanceProvider:
         retries=2,
         max_age_seconds=420,
         min_fresh_data_coverage_pct=0.70,
+        batch_size=50,
+        batch_period="5d",
+        batch_interval="5m",
     ):
         if symbols is None:
             try:
@@ -41,7 +47,10 @@ class YFinanceProvider:
 
         self._symbols = list(symbols)
 
-        self.cache = cache or MarketDataCache()
+        self.cache = (
+            cache or MarketDataCache()
+        )
+
         self.manifest = DatasetManifest()
 
         self.retries = max(
@@ -64,16 +73,38 @@ class YFinanceProvider:
             ),
         )
 
+        self.batch_size = max(
+            1,
+            int(batch_size),
+        )
+
+        self.batch_period = str(
+            batch_period
+        )
+
+        self.batch_interval = str(
+            batch_interval
+        )
+
         self.last_batch_stats = (
-            self._empty_batch_stats()
+            self._empty_batch_stats(0)
         )
 
     def symbols(self):
         return self._symbols
 
-    def _empty_batch_stats(self):
+    # ======================================================
+    # BATCH DIAGNOSTICS
+    # ======================================================
+
+    @staticmethod
+    def _empty_batch_stats(
+        requested
+    ):
         return {
-            "requested": 0,
+            "requested": int(
+                requested
+            ),
             "fresh_valid": 0,
             "stale": 0,
             "unavailable": 0,
@@ -86,19 +117,162 @@ class YFinanceProvider:
             "invalid_symbols": [],
         }
 
+    def _record_failure(
+        self,
+        stats,
+        symbol,
+        kind,
+    ):
+        stats[kind] += 1
+        stats[
+            f"{kind}_symbols"
+        ].append(symbol)
+
+    # ======================================================
+    # DATA NORMALIZATION
+    # ======================================================
+
     @staticmethod
-    def _failure_symbol_list(stats):
-        return sorted(
-            set(
-                stats["stale_symbols"]
-            )
-            | set(
-                stats["unavailable_symbols"]
-            )
-            | set(
-                stats["invalid_symbols"]
-            )
+    def _normalize(df):
+        if (
+            df is None
+            or df.empty
+        ):
+            return None
+
+        required = {
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume",
+        }
+
+        # yfinance can return either:
+        #
+        # ('Ticker', 'Price')
+        #
+        # or:
+        #
+        # ('Price', 'Ticker')
+        #
+        # depending on the request/version.
+        if isinstance(
+            df.columns,
+            pd.MultiIndex,
+        ):
+            flattened = []
+
+            for column in df.columns:
+                chosen = None
+
+                for value in column:
+                    value = str(value)
+
+                    if value in required:
+                        chosen = value
+                        break
+
+                flattened.append(
+                    chosen
+                    if chosen is not None
+                    else str(
+                        column[-1]
+                    )
+                )
+
+            df = df.copy()
+            df.columns = flattened
+
+        else:
+            df = df.copy()
+
+            df.columns = [
+                str(column)
+                for column in df.columns
+            ]
+
+        if not required.issubset(
+            df.columns
+        ):
+            return None
+
+        df = (
+            df[
+                [
+                    "Open",
+                    "High",
+                    "Low",
+                    "Close",
+                    "Volume",
+                ]
+            ]
+            .dropna()
+            .copy()
         )
+
+        if df.empty:
+            return None
+
+        if not isinstance(
+            df.index,
+            pd.DatetimeIndex,
+        ):
+            df.index = pd.to_datetime(
+                df.index,
+                errors="coerce",
+            )
+
+        df = df[
+            ~df.index.isna()
+        ].copy()
+
+        if df.empty:
+            return None
+
+        # Normalize timestamps to UTC.
+        if (
+            getattr(
+                df.index,
+                "tz",
+                None,
+            )
+            is None
+        ):
+            df.index = (
+                df.index.tz_localize(
+                    "UTC"
+                )
+            )
+        else:
+            df.index = (
+                df.index.tz_convert(
+                    "UTC"
+                )
+            )
+
+        df = df.sort_index()
+
+        return df
+
+    def _validate(
+        self,
+        df,
+        require_fresh=True,
+    ):
+        return validate_history(
+            df,
+            max_age_seconds=(
+                self.max_age_seconds
+            ),
+            require_fresh=(
+                require_fresh
+            ),
+        )
+
+    # ======================================================
+    # SINGLE SYMBOL DOWNLOAD
+    # ======================================================
 
     def _download(
         self,
@@ -132,9 +306,13 @@ class YFinanceProvider:
             except Exception as exc:
                 last_error = exc
 
-            if attempt < self.retries:
+            if (
+                attempt
+                < self.retries
+            ):
                 time.sleep(
-                    0.5 * (attempt + 1)
+                    0.5
+                    * (attempt + 1)
                 )
 
         if last_error is not None:
@@ -142,79 +320,9 @@ class YFinanceProvider:
 
         return None
 
-    @staticmethod
-    def _normalize(df):
-        if df is None or df.empty:
-            return None
-
-        if hasattr(
-            df.columns,
-            "levels",
-        ):
-            df = df.copy()
-
-            df.columns = [
-                column[0]
-                if isinstance(
-                    column,
-                    tuple,
-                )
-                else column
-                for column in df.columns
-            ]
-
-        required = [
-            "Open",
-            "High",
-            "Low",
-            "Close",
-            "Volume",
-        ]
-
-        if not set(required).issubset(
-            df.columns
-        ):
-            return None
-
-        df = (
-            df[required]
-            .dropna()
-            .copy()
-        )
-
-        if df.empty:
-            return None
-
-        if not isinstance(
-            df.index,
-            pd.DatetimeIndex,
-        ):
-            df.index = pd.to_datetime(
-                df.index,
-                errors="coerce",
-            )
-
-        df = df[
-            ~df.index.isna()
-        ].copy()
-
-        if df.empty:
-            return None
-
-        df = df.sort_index()
-
-        return df
-
-    def _validate(
-        self,
-        df,
-        require_fresh=True,
-    ):
-        return validate_history(
-            df,
-            max_age_seconds=self.max_age_seconds,
-            require_fresh=require_fresh,
-        )
+    # ======================================================
+    # SINGLE SYMBOL HISTORY
+    # ======================================================
 
     def history(
         self,
@@ -225,8 +333,8 @@ class YFinanceProvider:
         """
         Return fresh live history.
 
-        A stale price is never returned as a
-        live trading input.
+        Stale cached data is NEVER used as a
+        replacement for fresh live data.
         """
 
         try:
@@ -236,23 +344,28 @@ class YFinanceProvider:
                 interval,
             )
 
-            df = self._normalize(df)
+            df = self._normalize(
+                df
+            )
 
             if df is None:
                 raise RuntimeError(
-                    f"empty or invalid live data "
-                    f"for {symbol}"
+                    "empty or invalid "
+                    f"live data for {symbol}"
                 )
 
-            ok, message = self._validate(
-                df,
-                require_fresh=True,
+            ok, message = (
+                self._validate(
+                    df,
+                    require_fresh=True,
+                )
             )
 
             if not ok:
                 raise RuntimeError(
-                    "live data rejected for "
-                    f"{symbol}: {message}"
+                    "live data rejected "
+                    f"for {symbol}: "
+                    f"{message}"
                 )
 
             self.cache.save(
@@ -276,66 +389,150 @@ class YFinanceProvider:
 
         except Exception as exc:
             raise RuntimeError(
-                "no fresh live data available "
-                f"for {symbol}: {exc}"
+                "no fresh live data "
+                f"available for {symbol}: "
+                f"{exc}"
             ) from exc
+
+    # ======================================================
+    # EXTRACT ONE SYMBOL FROM BATCH
+    # ======================================================
 
     @staticmethod
     def _extract_symbol_frame(
         df,
         symbol,
     ):
-        if df is None or df.empty:
+        if (
+            df is None
+            or df.empty
+        ):
             return None
 
-        if not hasattr(
+        if isinstance(
             df.columns,
-            "levels",
+            pd.MultiIndex,
         ):
-            return df.copy()
+            for level in range(
+                df.columns.nlevels
+            ):
+                values = {
+                    str(value)
+                    for value in (
+                        df.columns
+                        .get_level_values(
+                            level
+                        )
+                    )
+                }
 
-        levels = df.columns.levels
+                if symbol not in values:
+                    continue
 
-        for level in range(
-            len(levels)
-        ):
-            values = set(
-                levels[level].astype(str)
-            )
-
-            if symbol in values:
                 try:
-                    return df.xs(
+                    part = df.xs(
                         symbol,
                         axis=1,
                         level=level,
-                    ).copy()
+                    )
+
+                    return part.copy()
+
                 except (
                     KeyError,
                     IndexError,
                 ):
-                    pass
+                    continue
+
+            return None
+
+        return df.copy()
+
+    # ======================================================
+    # CHUNK DOWNLOAD
+    # ======================================================
+
+    def _download_many_chunk(
+        self,
+        symbols,
+        period,
+        interval,
+    ):
+        import yfinance as yf
+
+        last_error = None
+
+        for attempt in range(
+            self.retries + 1
+        ):
+            try:
+                df = yf.download(
+                    symbols,
+                    period=period,
+                    interval=interval,
+                    auto_adjust=False,
+                    progress=False,
+                    threads=True,
+                    group_by="ticker",
+                )
+
+                if (
+                    df is not None
+                    and not df.empty
+                ):
+                    return df
+
+            except Exception as exc:
+                last_error = exc
+
+            if (
+                attempt
+                < self.retries
+            ):
+                time.sleep(
+                    0.5
+                    * (attempt + 1)
+                )
+
+        if last_error is not None:
+            raise last_error
 
         return None
+
+    @staticmethod
+    def _is_stale_failure(
+        message
+    ):
+        return str(
+            message
+        ).startswith(
+            "stale data:"
+        )
+
+    # ======================================================
+    # BATCH HISTORY
+    # ======================================================
 
     def history_many(
         self,
         symbols,
-        period="60d",
-        interval="5m",
+        period=None,
+        interval=None,
     ):
         """
-        Batch-download many symbols and retain
-        diagnostics for every request.
+        Fetch many symbols using small yfinance chunks.
 
-        Returned data contains only symbols that
-        independently pass:
+        Default live scanner request:
 
-        - OHLCV validation
-        - timestamp validation
-        - freshness validation
+            5 days
+            5 minute bars
+            50 symbols per batch
 
-        No stale cache is used to fill failures.
+        This is intentionally different from history(),
+        because the scanner needs recent intraday bars rather
+        than 60 days of data for every symbol on every cycle.
+
+        No stale cache fallback is allowed.
         """
 
         requested = list(
@@ -344,178 +541,184 @@ class YFinanceProvider:
             )
         )
 
-        stats = (
-            self._empty_batch_stats()
+        period = str(
+            period
+            or self.batch_period
         )
 
-        stats["requested"] = len(
-            requested
+        interval = str(
+            interval
+            or self.batch_interval
+        )
+
+        stats = (
+            self._empty_batch_stats(
+                len(requested)
+            )
         )
 
         self.last_batch_stats = stats
 
         if not requested:
-            stats["coverage_ok"] = True
-            return {}
-
-        try:
-            import yfinance as yf
-
-            df = yf.download(
-                requested,
-                period=period,
-                interval=interval,
-                auto_adjust=False,
-                progress=False,
-                threads=True,
-                group_by="ticker",
-            )
-
-        except Exception as exc:
-            stats["unavailable"] = len(
-                requested
-            )
+            stats[
+                "coverage_pct"
+            ] = 1.0
 
             stats[
-                "unavailable_symbols"
-            ] = requested.copy()
-
-            stats[
-                "failed_symbols"
-            ] = requested.copy()
-
-            stats["coverage_pct"] = 0.0
-            stats["coverage_ok"] = False
-            stats["error"] = repr(exc)
-
-            return {}
-
-        if df is None or df.empty:
-            stats["unavailable"] = len(
-                requested
-            )
-
-            stats[
-                "unavailable_symbols"
-            ] = requested.copy()
-
-            stats[
-                "failed_symbols"
-            ] = requested.copy()
-
-            stats["coverage_pct"] = 0.0
-            stats["coverage_ok"] = False
+                "coverage_ok"
+            ] = True
 
             return {}
 
         output = {}
 
-        for symbol in requested:
+        # --------------------------------------------------
+        # PROCESS SMALL CHUNKS
+        # --------------------------------------------------
+
+        for start in range(
+            0,
+            len(requested),
+            self.batch_size,
+        ):
+            chunk = requested[
+                start:
+                start + self.batch_size
+            ]
+
             try:
-                part = (
-                    self._extract_symbol_frame(
-                        df,
-                        symbol,
+                raw = (
+                    self._download_many_chunk(
+                        chunk,
+                        period,
+                        interval,
                     )
                 )
-
-                if part is None:
-                    stats[
-                        "unavailable"
-                    ] += 1
-
-                    stats[
-                        "unavailable_symbols"
-                    ].append(symbol)
-
-                    continue
-
-                part = self._normalize(
-                    part
-                )
-
-                if part is None:
-                    stats[
-                        "invalid"
-                    ] += 1
-
-                    stats[
-                        "invalid_symbols"
-                    ].append(symbol)
-
-                    continue
-
-                ok, message = (
-                    self._validate(
-                        part,
-                        require_fresh=True,
-                    )
-                )
-
-                if not ok:
-                    message = str(
-                        message
-                    )
-
-                    if message.startswith(
-                        "stale data:"
-                    ):
-                        stats[
-                            "stale"
-                        ] += 1
-
-                        stats[
-                            "stale_symbols"
-                        ].append(symbol)
-
-                    else:
-                        stats[
-                            "invalid"
-                        ] += 1
-
-                        stats[
-                            "invalid_symbols"
-                        ].append(symbol)
-
-                    continue
-
-                self.cache.save(
-                    symbol,
-                    period,
-                    interval,
-                    part,
-                )
-
-                self.manifest.record(
-                    "yfinance",
-                    "ohlcv",
-                    symbol,
-                    part.index.min(),
-                    part.index.max(),
-                    len(part),
-                    adjusted=False,
-                )
-
-                output[symbol] = part
 
             except Exception:
-                if (
-                    symbol
-                    not in self._failure_symbol_list(
-                        stats
+                # Entire failed chunk is considered
+                # unavailable.
+                #
+                # We deliberately do not use cache here.
+                for symbol in chunk:
+                    self._record_failure(
+                        stats,
+                        symbol,
+                        "unavailable",
                     )
-                ):
+
+                continue
+
+            # --------------------------------------------------
+            # VALIDATE EVERY SYMBOL IN THE CHUNK
+            # --------------------------------------------------
+
+            for symbol in chunk:
+
+                try:
+                    part = (
+                        self._extract_symbol_frame(
+                            raw,
+                            symbol,
+                        )
+                    )
+
+                    if (
+                        part is None
+                        or part.empty
+                    ):
+                        self._record_failure(
+                            stats,
+                            symbol,
+                            "unavailable",
+                        )
+
+                        continue
+
+                    normalized = (
+                        self._normalize(
+                            part
+                        )
+                    )
+
+                    if (
+                        normalized is None
+                    ):
+                        self._record_failure(
+                            stats,
+                            symbol,
+                            "unavailable",
+                        )
+
+                        continue
+
+                    ok, message = (
+                        self._validate(
+                            normalized,
+                            require_fresh=True,
+                        )
+                    )
+
+                    if not ok:
+
+                        if (
+                            self._is_stale_failure(
+                                message
+                            )
+                        ):
+                            self._record_failure(
+                                stats,
+                                symbol,
+                                "stale",
+                            )
+                        else:
+                            self._record_failure(
+                                stats,
+                                symbol,
+                                "invalid",
+                            )
+
+                        continue
+
+                    # --------------------------------------------------
+                    # FRESH DATA ONLY
+                    # --------------------------------------------------
+
+                    self.cache.save(
+                        symbol,
+                        period,
+                        interval,
+                        normalized,
+                    )
+
+                    self.manifest.record(
+                        "yfinance",
+                        "ohlcv",
+                        symbol,
+                        normalized.index.min(),
+                        normalized.index.max(),
+                        len(normalized),
+                        adjusted=False,
+                    )
+
+                    output[
+                        symbol
+                    ] = normalized
+
                     stats[
-                        "unavailable"
+                        "fresh_valid"
                     ] += 1
 
-                    stats[
-                        "unavailable_symbols"
-                    ].append(symbol)
+                except Exception:
+                    self._record_failure(
+                        stats,
+                        symbol,
+                        "unavailable",
+                    )
 
-        stats[
-            "fresh_valid"
-        ] = len(output)
+        # --------------------------------------------------
+        # FINAL DIAGNOSTICS
+        # --------------------------------------------------
 
         stats[
             "failed_symbols"
@@ -525,12 +728,14 @@ class YFinanceProvider:
                     "stale_symbols"
                 ]
             )
-            | set(
+            |
+            set(
                 stats[
                     "unavailable_symbols"
                 ]
             )
-            | set(
+            |
+            set(
                 stats[
                     "invalid_symbols"
                 ]
@@ -540,24 +745,41 @@ class YFinanceProvider:
         stats[
             "coverage_pct"
         ] = (
-            stats["fresh_valid"]
-            / stats["requested"]
-            if stats["requested"]
+            stats[
+                "fresh_valid"
+            ]
+            / stats[
+                "requested"
+            ]
+            if stats[
+                "requested"
+            ]
             else 1.0
         )
 
         stats[
             "coverage_ok"
         ] = (
-            stats["coverage_pct"]
+            stats[
+                "coverage_pct"
+            ]
             >= self.min_fresh_data_coverage_pct
         )
 
-        self.last_batch_stats = stats
+        self.last_batch_stats = (
+            stats
+        )
 
         return output
 
-    def quote(self, symbol):
+    # ======================================================
+    # QUOTE
+    # ======================================================
+
+    def quote(
+        self,
+        symbol,
+    ):
         """
         Return the latest fresh 5-minute quote.
 
@@ -570,27 +792,45 @@ class YFinanceProvider:
             interval="5m",
         )
 
-        if df is None or df.empty:
+        if (
+            df is None
+            or df.empty
+        ):
             raise RuntimeError(
-                f"no quote data available "
-                f"for {symbol}"
+                "no quote data "
+                f"available for {symbol}"
             )
 
-        timestamp = df.index[-1]
+        timestamp = (
+            df.index[-1]
+        )
 
-        if getattr(
-            timestamp,
-            "tzinfo",
-            None,
-        ) is None:
-            timestamp = timestamp.tz_localize(
-                "UTC"
+        if (
+            getattr(
+                timestamp,
+                "tzinfo",
+                None,
+            )
+            is None
+        ):
+            timestamp = (
+                timestamp.tz_localize(
+                    "UTC"
+                )
+            )
+        else:
+            timestamp = (
+                timestamp.tz_convert(
+                    "UTC"
+                )
             )
 
         return {
             "symbol": symbol,
             "price": float(
-                df["Close"].iloc[-1]
+                df[
+                    "Close"
+                ].iloc[-1]
             ),
             "timestamp": (
                 timestamp.to_pydatetime()
