@@ -16,9 +16,10 @@ class NewsItem:
     materiality: str
     sentiment: str
     symbols: tuple = ()
+    event_type: str = "GENERAL"
 
 class NewsProvider:
-    """Free RSS news layer with conservative company-name/symbol matching."""
+    """Free RSS news layer with conservative company-name/symbol matching and event classification."""
     FEEDS = {
         "Google News Finance":
         "https://news.google.com/rss/search?q=Indian%20stock%20market&hl=en-IN&gl=IN&ceid=IN:en"
@@ -28,6 +29,11 @@ class NewsProvider:
                 "strong results","beats","expansion")
     NEGATIVE = ("loss","downgrade","fraud","ban","fall","crisis","probe",
                 "weak results","misses","default")
+
+    def __init__(self, archive=None, resolver=None, classifier=None):
+        self.archive = archive
+        self.resolver = resolver
+        self.classifier = classifier
 
     def recent(self, limit=20, universe=None):
         if feedparser is None:
@@ -45,19 +51,34 @@ class NewsProvider:
                     if not title:
                         continue
                     matches=self.match_symbols(title, universe)
-                    items.append(NewsItem(
+                    ev_type = "GENERAL"
+                    mat = self.materiality(title)
+                    sent = self.sentiment(title)
+                    if self.classifier:
+                        clf = self.classifier.classify(title)
+                        ev_type = clf["event_type"]
+                        mat = clf["materiality"].lower()
+                        sent = clf["sentiment"].lower()
+                    item = NewsItem(
                         title=title, url=e.get("link",""), source=source,
                         published=e.get("published",""),
-                        materiality=self.materiality(title),
-                        sentiment=self.sentiment(title),
-                        symbols=tuple(matches)
-                    ))
+                        materiality=mat,
+                        sentiment=sent,
+                        symbols=tuple(matches),
+                        event_type=ev_type
+                    )
+                    items.append(item)
+                    if self.archive:
+                        self.archive.archive_item(source, title, e.get("link",""), e.get("published",""), matches, ev_type, sent, mat)
             except Exception:
                 continue
         return items[:limit]
 
     def match_symbols(self, title, universe):
         """Only return matches when a symbol or company name is explicitly present."""
+        if self.resolver:
+            res = self.resolver.resolve(title)
+            if res: return res
         t=title.lower()
         found=[]
         for symbol, meta in universe.items():
