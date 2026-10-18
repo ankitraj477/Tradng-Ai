@@ -57,10 +57,31 @@ class DB:
             if "entry_cost" not in cols:
                 c.execute("ALTER TABLE positions ADD COLUMN entry_cost REAL DEFAULT 0")
 
-    def log(self,level,message,max_rows=2000):
-        with self.conn() as c:
-            c.execute("INSERT INTO events(level,message,created_at) VALUES(?,?,?)",(level,message,now()))
-            c.execute("DELETE FROM events WHERE id <= (SELECT id FROM events ORDER BY id DESC LIMIT 1 OFFSET ?)",(max_rows,))
+    def log(self, level, message, max_rows=2000):
+        # 1. Stream to rotating log file and console
+        try:
+            from .logger import get_logger
+            import logging
+            lvl_name = str(level).lower()
+            if lvl_name == "warn":
+                lvl_name = "warning"
+            log_fn = getattr(get_logger("db"), lvl_name, None)
+            if callable(log_fn):
+                log_fn(message)
+            else:
+                get_logger("db").info(f"[{level}] {message}")
+        except Exception:
+            pass
+
+        # 2. Persist to SQLite events table with concurrency retry
+        def _write():
+            with self.conn() as c:
+                c.execute("INSERT INTO events(level,message,created_at) VALUES(?,?,?)", (level, message, now()))
+                c.execute("DELETE FROM events WHERE id <= (SELECT id FROM events ORDER BY id DESC LIMIT 1 OFFSET ?)", (max_rows,))
+        try:
+            self.execute_with_retry(_write)
+        except Exception:
+            pass
     def account(self):
         with self.conn() as c:
             r=c.execute("SELECT * FROM account WHERE id=1").fetchone(); return dict(r) if r else None

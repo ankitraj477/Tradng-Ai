@@ -1271,6 +1271,17 @@ def create_app(db, cfg=None, provider=None):
         kill_switch.reset()
         return jsonify({"status": "reset"})
 
+    @flask_app.get("/api/logs")
+    def stream_logs():
+        from flask import request
+        from .logger import read_recent_logs
+        try:
+            n = int(request.args.get("lines", 100))
+        except (ValueError, TypeError):
+            n = 100
+        logs = read_recent_logs(max_lines=min(500, max(10, n)))
+        return jsonify({"logs": logs, "count": len(logs)})
+
     @flask_app.get("/api/state")
     def state():
         account = db.account()

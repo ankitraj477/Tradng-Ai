@@ -1,12 +1,15 @@
 import argparse, threading, os
+from .logger import setup_logging
 from .engine import TradingEngine
 from .dashboard import create_app
 
-p=argparse.ArgumentParser()
-p.add_argument("--live",action="store_true",help="use public market-data provider for paper trading")
-args=p.parse_args()
+p = argparse.ArgumentParser()
+p.add_argument("--live", action="store_true", help="use public market-data provider for paper trading")
+p.add_argument("--log-level", default=None, choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="set logging level")
+args = p.parse_args()
 
-engine=TradingEngine(live=args.live)
+setup_logging(log_level=args.log_level)
+engine = TradingEngine(live=args.live)
 if os.getenv("REQUIRE_PREFLIGHT", "true").lower() == "true" and not engine.preflight["ok"]:
     print("STARTUP PREFLIGHT FAILED:")
     for check in engine.preflight["checks"]:
