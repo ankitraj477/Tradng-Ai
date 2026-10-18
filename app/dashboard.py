@@ -140,6 +140,48 @@ HTML = r"""<!doctype html>
             0%, 100% { transform: scale(0.9); opacity: 0.7; }
             50% { transform: scale(1.25); opacity: 1; }
         }
+        .auto-trade-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-family: var(--font-sans);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            background: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+            white-space: nowrap;
+        }
+        .auto-trade-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 10px rgba(16, 185, 129, 0.2);
+        }
+        .auto-trade-btn.paused {
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            background: rgba(245, 158, 11, 0.12);
+            color: #fbbf24;
+        }
+        .auto-trade-btn.paused:hover {
+            box-shadow: 0 2px 10px rgba(245, 158, 11, 0.2);
+        }
+        .auto-trade-dot {
+            width: 7px;
+            height: 7px;
+            background: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse 2s infinite ease-in-out;
+            flex-shrink: 0;
+        }
+        .auto-trade-btn.paused .auto-trade-dot {
+            background: #f59e0b;
+            box-shadow: 0 0 6px #f59e0b;
+            animation: none;
+        }
 
         /* Main Container */
         main {
@@ -629,6 +671,10 @@ HTML = r"""<!doctype html>
             </div>
         </div>
         <div class="header-meta">
+            <button id="auto-trade-btn" class="auto-trade-btn active" onclick="toggleAutoTrading()" title="Click to Pause / Resume Auto-Trading">
+                <span class="auto-trade-dot"></span>
+                <span id="auto-trade-label">AUTO TRADING ON</span>
+            </button>
             <div id="pulse-box" class="pulse-indicator">
                 <span class="pulse-dot"></span>
                 <span id="market-phase-badge">MARKET CHECKING</span>
@@ -892,6 +938,31 @@ HTML = r"""<!doctype html>
 const formatMoney = val => '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPct = val => (Number(val || 0) >= 0 ? '+' : '') + Number(val || 0).toFixed(2) + '%';
 
+let autoTradingActive = true;
+
+async function toggleAutoTrading() {
+    const btn = document.getElementById('auto-trade-btn');
+    const label = document.getElementById('auto-trade-label');
+    autoTradingActive = !autoTradingActive;
+    if (btn && label) {
+        btn.className = 'auto-trade-btn' + (autoTradingActive ? ' active' : ' paused');
+        label.textContent = autoTradingActive ? 'AUTO TRADING ON' : 'AUTO TRADING OFF';
+    }
+    try {
+        const res = await fetch('/api/auto-trading/toggle', { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            autoTradingActive = !!data.auto_trading;
+            if (btn && label) {
+                btn.className = 'auto-trade-btn' + (autoTradingActive ? ' active' : ' paused');
+                label.textContent = autoTradingActive ? 'AUTO TRADING ON' : 'AUTO TRADING OFF';
+            }
+        }
+    } catch (e) {
+        console.error('Failed to toggle auto-trading:', e);
+    }
+}
+
 function switchTab(tab) {
     document.getElementById('tab-live').style.display = (tab === 'live') ? 'flex' : 'none';
     document.getElementById('tab-research').style.display = (tab === 'research') ? 'flex' : 'none';
@@ -935,6 +1006,17 @@ async function updateDashboard() {
         const res = await fetch('/api/state', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
+
+        // Auto-trading Button Sync
+        if (data.auto_trading !== undefined) {
+            autoTradingActive = !!data.auto_trading;
+            const btn = document.getElementById('auto-trade-btn');
+            const label = document.getElementById('auto-trade-label');
+            if (btn && label) {
+                btn.className = 'auto-trade-btn' + (autoTradingActive ? ' active' : ' paused');
+                label.textContent = autoTradingActive ? 'AUTO TRADING ON' : 'AUTO TRADING OFF';
+            }
+        }
 
         // Header and Clock
         const clockEl = document.getElementById('clock');
@@ -1157,6 +1239,18 @@ def create_app(db, cfg=None, provider=None):
     def learning_state():
         return jsonify(learning.recommendation())
 
+    @flask_app.get("/api/auto-trading")
+    def auto_trading_status():
+        return jsonify({"auto_trading": db.is_auto_trading_enabled()})
+
+    @flask_app.post("/api/auto-trading/toggle")
+    def toggle_auto_trading():
+        current = db.is_auto_trading_enabled()
+        new_state = not current
+        db.set_auto_trading(new_state)
+        db.log("INFO", f"Auto-trading {'resumed' if new_state else 'paused'} by user from dashboard.")
+        return jsonify({"auto_trading": new_state})
+
     @flask_app.get("/api/state")
     def state():
         account = db.account()
@@ -1183,6 +1277,7 @@ def create_app(db, cfg=None, provider=None):
 
         return jsonify({
             "paper_only": True,
+            "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
             "cash": metrics["cash"],
             "available_cash": metrics["available_cash"],

@@ -691,52 +691,57 @@ class TradingEngine:
         # --------------------------------------------------
 
         if proposals:
-
-            ranked_inputs = []
-
-            for proposal, qty in proposals:
-
-                ranked_inputs.append(
-                    {
-                        **proposal,
-                        "best_strategy":
-                            proposal["strategy"],
-                        "qty": qty,
-                        "current_price":
-                            proposal["price"],
-                    }
+            if not self.db.is_auto_trading_enabled():
+                self.db.log(
+                    "INFO",
+                    "Auto-trading PAUSED. Background analysis and news monitoring active; order execution suspended.",
                 )
+            else:
+                ranked_inputs = []
 
-            ranked = self.selector.rank(
-                ranked_inputs,
-                self.db.positions(),
-                ctx["regime"],
-                self.pm.metrics()["equity"],
-            )
+                for proposal, qty in proposals:
 
-            for chosen in ranked:
-                proposal, qty = next(
-                    (
-                        item
-                        for item in proposals
-                        if item[0]["symbol"]
-                        == chosen["symbol"]
-                    ),
-                    (None, 0),
-                )
-                if not proposal or qty <= 0:
-                    continue
-                ok = self.exec.buy(proposal, qty, ctx["regime"]) if proposal["action"] == "BUY" else self.exec.short(proposal, qty, ctx["regime"])
-                if ok:
-                    self.db.log(
-                        "INFO",
-                        "Selected paper trade: "
-                        f"{proposal['symbol']} "
-                        f"x{qty} "
-                        f"strategy="
-                        f"{proposal['strategy']}",
+                    ranked_inputs.append(
+                        {
+                            **proposal,
+                            "best_strategy":
+                                proposal["strategy"],
+                            "qty": qty,
+                            "current_price":
+                                proposal["price"],
+                        }
                     )
-                    break
+
+                ranked = self.selector.rank(
+                    ranked_inputs,
+                    self.db.positions(),
+                    ctx["regime"],
+                    self.pm.metrics()["equity"],
+                )
+
+                for chosen in ranked:
+                    proposal, qty = next(
+                        (
+                            item
+                            for item in proposals
+                            if item[0]["symbol"]
+                            == chosen["symbol"]
+                        ),
+                        (None, 0),
+                    )
+                    if not proposal or qty <= 0:
+                        continue
+                    ok = self.exec.buy(proposal, qty, ctx["regime"]) if proposal["action"] == "BUY" else self.exec.short(proposal, qty, ctx["regime"])
+                    if ok:
+                        self.db.log(
+                            "INFO",
+                            "Selected paper trade: "
+                            f"{proposal['symbol']} "
+                            f"x{qty} "
+                            f"strategy="
+                            f"{proposal['strategy']}",
+                        )
+                        break
 
         # --------------------------------------------------
         # POST-TRADE POSITION PROTECTION

@@ -110,3 +110,24 @@ class DB:
             c.execute("DELETE FROM equity_curve WHERE id <= (SELECT id FROM equity_curve ORDER BY id DESC LIMIT 1 OFFSET ?)",(max_rows,))
     def equity(self):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM equity_curve ORDER BY id")]
+
+    def set_setting(self, key, value):
+        with self.conn() as c:
+            c.execute("""CREATE TABLE IF NOT EXISTS system_settings(
+                         key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+            c.execute("""INSERT INTO system_settings(key, value) VALUES(?,?)
+                         ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (str(key), str(value)))
+
+    def get_setting(self, key, default="true"):
+        with self.conn() as c:
+            c.execute("""CREATE TABLE IF NOT EXISTS system_settings(
+                         key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+            row = c.execute("SELECT value FROM system_settings WHERE key=?", (str(key),)).fetchone()
+            return str(row["value"]) if row else str(default)
+
+    def is_auto_trading_enabled(self):
+        return self.get_setting("auto_trading", "true").lower() in ("true", "1", "yes")
+
+    def set_auto_trading(self, enabled: bool):
+        self.set_setting("auto_trading", "true" if enabled else "false")
+
