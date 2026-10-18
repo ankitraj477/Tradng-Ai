@@ -21,10 +21,10 @@ HTML = r"""<!doctype html>
             --bg-base: #06090f;
             --bg-surface: #0c121e;
             --bg-card: #10192a;
-            --bg-card-subtle: rgba(16, 25, 42, 0.6);
+            --bg-card-hover: #141f34;
             --border: rgba(255, 255, 255, 0.08);
             --border-subtle: rgba(255, 255, 255, 0.04);
-            --border-active: rgba(56, 189, 248, 0.4);
+            --border-hover: rgba(56, 189, 248, 0.3);
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --text-faint: #475569;
@@ -53,7 +53,7 @@ HTML = r"""<!doctype html>
             padding-bottom: max(32px, env(safe-area-inset-bottom));
         }
 
-        /* Top Header */
+        /* Top Minimal Header */
         header {
             background: rgba(12, 18, 30, 0.88);
             backdrop-filter: blur(16px);
@@ -66,7 +66,7 @@ HTML = r"""<!doctype html>
         .header-inner {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 12px 20px;
+            padding: 12px 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -77,10 +77,10 @@ HTML = r"""<!doctype html>
             gap: 10px;
         }
         .logo-icon {
-            width: 32px;
-            height: 32px;
+            width: 30px;
+            height: 30px;
             background: linear-gradient(135deg, var(--cyan), var(--indigo));
-            border-radius: 9px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -88,7 +88,7 @@ HTML = r"""<!doctype html>
             font-family: var(--font-mono);
             font-size: 13px;
             color: #fff;
-            box-shadow: 0 0 14px rgba(56, 189, 248, 0.3);
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
             flex-shrink: 0;
         }
         .brand-text h1 {
@@ -112,7 +112,7 @@ HTML = r"""<!doctype html>
         .header-meta {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
         .pulse-indicator {
             display: inline-flex;
@@ -120,7 +120,7 @@ HTML = r"""<!doctype html>
             gap: 6px;
             font-size: 11px;
             font-weight: 600;
-            padding: 4px 10px;
+            padding: 4px 9px;
             border-radius: 20px;
             background: var(--emerald-bg);
             color: var(--emerald);
@@ -145,10 +145,10 @@ HTML = r"""<!doctype html>
         main {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 16px 20px;
+            padding: 16px 18px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 14px;
         }
 
         /* Segmented Navigation Tabs */
@@ -174,10 +174,10 @@ HTML = r"""<!doctype html>
             font-family: var(--font-sans);
             font-size: 13px;
             font-weight: 600;
-            padding: 8px 16px;
+            padding: 7px 15px;
             border-radius: 9px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
             white-space: nowrap;
         }
         .tab-btn:hover { color: var(--text-main); }
@@ -188,26 +188,18 @@ HTML = r"""<!doctype html>
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
         }
 
-        /* Hero Portfolio Summary Card */
+        /* Sleek Hero Portfolio Card */
         .hero-card {
-            background: linear-gradient(180deg, #121c2e 0%, var(--bg-card) 100%);
+            background: linear-gradient(180deg, #111a2d 0%, var(--bg-card) 100%);
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
-            padding: 24px;
+            padding: 22px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 18px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
             position: relative;
             overflow: hidden;
-        }
-        .hero-card::after {
-            content: '';
-            position: absolute;
-            top: 0; right: 0;
-            width: 280px; height: 180px;
-            background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.08), transparent 70%);
-            pointer-events: none;
         }
         .hero-top {
             display: flex;
@@ -226,7 +218,7 @@ HTML = r"""<!doctype html>
         }
         .hero-equity-val {
             font-family: var(--font-mono);
-            font-size: clamp(28px, 5vw, 42px);
+            font-size: clamp(30px, 5.5vw, 44px);
             font-weight: 700;
             color: #fff;
             letter-spacing: -0.03em;
@@ -242,18 +234,18 @@ HTML = r"""<!doctype html>
         /* Hero Key Metric Grid inside Card */
         .hero-stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
             padding-top: 16px;
             border-top: 1px solid var(--border-subtle);
         }
         .stat-item {
             display: flex;
             flex-direction: column;
-            gap: 3px;
+            gap: 2px;
         }
         .stat-label {
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.04em;
@@ -261,7 +253,7 @@ HTML = r"""<!doctype html>
         }
         .stat-val {
             font-family: var(--font-mono);
-            font-size: 17px;
+            font-size: 16px;
             font-weight: 700;
             color: var(--text-main);
         }
@@ -271,23 +263,23 @@ HTML = r"""<!doctype html>
             color: var(--text-muted);
         }
 
-        /* Exposure Bar Strip */
+        /* Secondary Exposure Strip */
         .exposure-strip {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
         }
         .exposure-pill {
             background: var(--bg-surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
             display: flex;
             flex-direction: column;
             gap: 2px;
         }
         .exposure-pill .label {
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 700;
             text-transform: uppercase;
             color: var(--text-faint);
@@ -295,19 +287,19 @@ HTML = r"""<!doctype html>
         }
         .exposure-pill .val {
             font-family: var(--font-mono);
-            font-size: 15px;
+            font-size: 14.5px;
             font-weight: 700;
         }
 
-        /* Target Progression & Equity Sparkline */
+        /* Performance Sparkline Card */
         .chart-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
-            padding: 20px;
+            padding: 18px 20px;
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 12px;
         }
         .chart-header {
             display: flex;
@@ -315,16 +307,12 @@ HTML = r"""<!doctype html>
             justify-content: space-between;
         }
         .chart-title {
-            font-size: 14px;
+            font-size: 13.5px;
             font-weight: 600;
-            letter-spacing: -0.01em;
             color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
         .progress-bar-bg {
-            height: 6px;
+            height: 5px;
             background: rgba(255, 255, 255, 0.06);
             border-radius: 999px;
             overflow: hidden;
@@ -337,7 +325,7 @@ HTML = r"""<!doctype html>
         }
         .chart-box {
             width: 100%;
-            height: 140px;
+            height: 125px;
             position: relative;
         }
         svg.equity-svg {
@@ -350,7 +338,7 @@ HTML = r"""<!doctype html>
         .two-col {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 16px;
+            gap: 14px;
         }
         @media (max-width: 900px) {
             .two-col { grid-template-columns: 1fr; }
@@ -361,10 +349,10 @@ HTML = r"""<!doctype html>
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: var(--radius-lg);
-            padding: 18px 20px;
+            padding: 16px 18px;
             display: flex;
             flex-direction: column;
-            gap: 14px;
+            gap: 12px;
         }
         .panel-header {
             display: flex;
@@ -372,68 +360,186 @@ HTML = r"""<!doctype html>
             justify-content: space-between;
         }
         .panel-title {
-            font-size: 14px;
+            font-size: 13.5px;
             font-weight: 600;
-            letter-spacing: -0.01em;
             color: var(--text-main);
         }
 
-        /* Responsive Scrollable Tables */
-        .table-responsive {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            max-height: 340px;
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--border-subtle);
+        /* Modern Position Cards (Mobile & Desktop) */
+        .positions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 380px;
+            overflow-y: auto;
         }
-        table.fin-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12.5px;
-            min-width: 580px;
-        }
-        table.fin-table th {
-            text-align: left;
-            padding: 9px 12px;
-            font-size: 10.5px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-faint);
-            border-bottom: 1px solid var(--border);
+        .pos-card {
             background: var(--bg-surface);
-            position: sticky;
-            top: 0;
-            z-index: 5;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: border-color 0.15s ease;
         }
-        table.fin-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-            white-space: nowrap;
+        .pos-card:hover { border-color: var(--border-hover); }
+        .pos-card-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .pos-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .pos-symbol {
+            font-family: var(--font-mono);
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.01em;
+        }
+        .pos-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
             color: var(--text-muted);
         }
-        table.fin-table tr:last-child td {
-            border-bottom: none;
+        .pos-pricing {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
-        table.fin-table tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
-            color: var(--text-main);
-        }
-        table.fin-table td.ticker {
+        .pos-current {
             font-family: var(--font-mono);
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .pos-pnl {
+            font-family: var(--font-mono);
+            font-size: 12px;
             font-weight: 600;
-            color: var(--text-main);
+        }
+        .pos-card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-subtle);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+        .pos-bound {
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
-        /* Financial Badges & Pills */
+        /* Sleek Activity Rows for Trades */
+        .trades-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+        .activity-row {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .activity-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .activity-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .icon-win { background: var(--emerald-bg); color: var(--emerald); }
+        .icon-loss { background: var(--rose-bg); color: var(--rose); }
+        .activity-title {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .activity-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .activity-right {
+            text-align: right;
+            font-family: var(--font-mono);
+        }
+        .activity-val { font-size: 14px; font-weight: 700; }
+
+        /* AI Decisions Feed */
+        .decisions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+        .decision-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .decision-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .decision-sym {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .decision-reason {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* Financial Badges & Utilities */
         .pill {
             display: inline-flex;
             align-items: center;
             font-family: var(--font-mono);
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 600;
-            padding: 3px 8px;
-            border-radius: 6px;
+            padding: 2px 7px;
+            border-radius: 5px;
             letter-spacing: 0.02em;
             line-height: 1.2;
         }
@@ -447,8 +553,6 @@ HTML = r"""<!doctype html>
             color: #fb7185;
             border: 1px solid rgba(244, 63, 94, 0.3);
         }
-        .pill-win { color: var(--emerald); font-weight: 600; }
-        .pill-loss { color: var(--rose); font-weight: 600; }
         .pill-cyan {
             background: var(--cyan-bg);
             color: var(--cyan);
@@ -459,50 +563,57 @@ HTML = r"""<!doctype html>
             color: var(--text-muted);
             border: 1px solid rgba(148, 163, 184, 0.18);
         }
+        .text-up { color: var(--emerald); }
+        .text-down { color: var(--rose); }
+        .faint { color: var(--text-faint); }
 
         /* Market Intel Mini Grid */
         .intel-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
         }
         .intel-item {
             background: var(--bg-surface);
             border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-md);
-            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            padding: 9px 11px;
         }
         .intel-item .title {
-            font-size: 10px;
+            font-size: 9.5px;
             text-transform: uppercase;
             font-weight: 700;
             color: var(--text-faint);
-            margin-bottom: 4px;
+            margin-bottom: 3px;
             letter-spacing: 0.04em;
         }
         .intel-item .val {
-            font-size: 13.5px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--text-main);
         }
 
         .empty-state {
-            padding: 28px 16px;
+            padding: 24px 16px;
             text-align: center;
             color: var(--text-faint);
-            font-size: 12.5px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
         }
 
-        /* Mobile Adjustments */
+        /* Mobile Layout */
         @media (max-width: 640px) {
             header .header-inner { padding: 10px 14px; }
-            main { padding: 12px 14px; gap: 14px; }
-            .hero-card { padding: 18px 16px; gap: 16px; }
-            .hero-stats-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+            main { padding: 12px 14px; gap: 12px; }
+            .hero-card { padding: 16px 14px; gap: 14px; }
+            .hero-stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
             .exposure-strip { grid-template-columns: 1fr 1fr; }
-            .panel { padding: 16px 14px; }
-            .chart-card { padding: 16px 14px; }
-            .chart-box { height: 110px; }
+            .panel { padding: 14px; }
+            .chart-card { padding: 14px; }
+            .chart-box { height: 100px; }
             #clock { display: none; }
         }
     </style>
@@ -537,12 +648,12 @@ HTML = r"""<!doctype html>
     </div>
 
     <!-- TAB 1: LIVE DESK -->
-    <div id="tab-live" style="display:flex; flex-direction:column; gap:16px;">
+    <div id="tab-live" style="display:flex; flex-direction:column; gap:14px;">
         <!-- Unified Hero Portfolio Card -->
         <div class="hero-card">
             <div class="hero-top">
                 <div>
-                    <div class="hero-equity-label">Total Portfolio Equity</div>
+                    <div class="hero-equity-label">Portfolio Total Equity</div>
                     <div id="val-portfolio" class="hero-equity-val">₹0.00</div>
                 </div>
                 <div class="hero-badges">
@@ -569,7 +680,7 @@ HTML = r"""<!doctype html>
                     <span class="stat-sub">Peak: <span id="val-peak">₹0.00</span></span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Target Capital</span>
+                    <span class="stat-label">Target Goal</span>
                     <span id="val-target" class="stat-val">₹1,00,000.00</span>
                     <span id="progress-percent" class="stat-sub" style="color:var(--cyan);font-weight:600;">0.00% of Goal</span>
                 </div>
@@ -599,16 +710,16 @@ HTML = r"""<!doctype html>
         <!-- Performance Sparkline Card -->
         <div class="chart-card">
             <div class="chart-header">
-                <div class="chart-title">Equity Growth & Target Progression</div>
+                <div class="chart-title">Equity Growth Sparkline</div>
             </div>
             <div class="progress-bar-bg">
                 <div id="progress-fill" class="progress-bar-fill" style="width:0%"></div>
             </div>
             <div class="chart-box">
-                <svg id="equity-svg" class="equity-svg" viewBox="0 0 1000 140" preserveAspectRatio="none">
+                <svg id="equity-svg" class="equity-svg" viewBox="0 0 1000 125" preserveAspectRatio="none">
                     <defs>
                         <linearGradient id="eq-grad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stop-color="#10b981" stop-opacity="0.28"/>
+                            <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
                             <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
                         </linearGradient>
                     </defs>
@@ -620,84 +731,48 @@ HTML = r"""<!doctype html>
 
         <!-- Two Column Desk: Holdings & Executions -->
         <div class="two-col">
-            <!-- Open Holdings -->
+            <!-- Open Holdings as Sleek Mobile Cards -->
             <div class="panel">
                 <div class="panel-header">
                     <div class="panel-title">Active Market Holdings</div>
                     <span id="pos-count" class="brand-badge">0 OPEN</span>
                 </div>
-                <div class="table-responsive">
-                    <table class="fin-table">
-                        <thead>
-                            <tr>
-                                <th>Symbol</th>
-                                <th>Side</th>
-                                <th>Qty</th>
-                                <th>Entry</th>
-                                <th>Current</th>
-                                <th>Stop</th>
-                                <th>Target</th>
-                                <th>Age</th>
-                            </tr>
-                        </thead>
-                        <tbody id="positions-body">
-                            <tr><td colspan="8" class="empty-state">No open positions in active cycle.</td></tr>
-                        </tbody>
-                    </table>
+                <div id="positions-body" class="positions-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">🛡️</span>
+                        <span>No open positions currently held</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Closed Trades -->
+            <!-- Closed Trades as Activity Feed -->
             <div class="panel">
                 <div class="panel-header">
                     <div class="panel-title">Recent Executions</div>
                     <span id="trade-count" class="brand-badge">LAST 10 TRADES</span>
                 </div>
-                <div class="table-responsive">
-                    <table class="fin-table">
-                        <thead>
-                            <tr>
-                                <th>Symbol</th>
-                                <th>Side</th>
-                                <th>Fill / Exit</th>
-                                <th>Net P&L</th>
-                                <th>Return</th>
-                                <th>Time</th>
-                                <th>Reason</th>
-                            </tr>
-                        </thead>
-                        <tbody id="trades-body">
-                            <tr><td colspan="7" class="empty-state">No execution records logged yet.</td></tr>
-                        </tbody>
-                    </table>
+                <div id="trades-body" class="trades-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">📋</span>
+                        <span>No execution records logged yet</span>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Two Column Desk: AI Decisions & Market Intel -->
         <div class="two-col">
-            <!-- AI Proposer Stream -->
+            <!-- AI Proposer Stream as Feed -->
             <div class="panel">
                 <div class="panel-header">
                     <div class="panel-title">AI Decision Stream</div>
                     <span class="pill pill-cyan">AUDIT LOG</span>
                 </div>
-                <div class="table-responsive">
-                    <table class="fin-table">
-                        <thead>
-                            <tr>
-                                <th>Symbol</th>
-                                <th>Action</th>
-                                <th>Confidence</th>
-                                <th>Strategy</th>
-                                <th>Gate</th>
-                                <th>Rationale</th>
-                            </tr>
-                        </thead>
-                        <tbody id="decisions-body">
-                            <tr><td colspan="6" class="empty-state">Awaiting next decision cycle...</td></tr>
-                        </tbody>
-                    </table>
+                <div id="decisions-body" class="decisions-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">⚡</span>
+                        <span>Awaiting next decision cycle...</span>
+                    </div>
                 </div>
             </div>
 
@@ -736,7 +811,7 @@ HTML = r"""<!doctype html>
     </div>
 
     <!-- TAB 2: QUANT RESEARCH & BASELINES -->
-    <div id="tab-research" style="display:none; flex-direction:column; gap:16px;">
+    <div id="tab-research" style="display:none; flex-direction:column; gap:14px;">
         <div class="panel">
             <div class="panel-header">
                 <div class="panel-title">Phase 1 Quantitative Research Foundation</div>
@@ -751,19 +826,19 @@ HTML = r"""<!doctype html>
         <div class="exposure-strip">
             <div class="exposure-pill">
                 <span class="label">Decision Alignment</span>
-                <span class="val" style="color:var(--emerald);font-size:14px;">100% UNIFIED</span>
+                <span class="val" style="color:var(--emerald);font-size:13.5px;">100% UNIFIED</span>
             </div>
             <div class="exposure-pill">
                 <span class="label">NSE Cost Model</span>
-                <span class="val" style="color:var(--cyan);font-size:14px;">EXACT CHARGES</span>
+                <span class="val" style="color:var(--cyan);font-size:13.5px;">EXACT CHARGES</span>
             </div>
             <div class="exposure-pill">
                 <span class="label">Data Store</span>
-                <span class="val" style="color:var(--indigo);font-size:14px;">SPLIT-ADJUSTED</span>
+                <span class="val" style="color:var(--indigo);font-size:13.5px;">SPLIT-ADJUSTED</span>
             </div>
             <div class="exposure-pill">
                 <span class="label">Constituent Tracking</span>
-                <span class="val" style="color:var(--emerald);font-size:14px;">POINT-IN-TIME</span>
+                <span class="val" style="color:var(--emerald);font-size:13.5px;">POINT-IN-TIME</span>
             </div>
         </div>
 
@@ -831,8 +906,8 @@ function renderEquityCurve(points) {
     const max = Math.max(...values);
     const range = (max - min) || 1;
     const w = 1000;
-    const h = 140;
-    const pad = 8;
+    const h = 125;
+    const pad = 6;
 
     const coords = values.map((v, i) => {
         const x = (i / (values.length - 1)) * w;
@@ -887,7 +962,7 @@ async function updateDashboard() {
         pnlStatus.textContent = realizedPnl >= 0 ? 'PROFIT' : 'LOSS';
         pnlStatus.className = 'pill ' + (realizedPnl >= 0 ? 'pill-long' : 'pill-short');
 
-        // Secondary Metrics
+        // Secondary Exposure Metrics
         document.getElementById('val-gross').textContent = formatMoney(data.gross_exposure);
         document.getElementById('val-net').textContent = formatMoney(data.net_exposure);
         document.getElementById('val-long').textContent = formatMoney(data.long_value);
@@ -905,68 +980,111 @@ async function updateDashboard() {
             renderEquityCurve([data.portfolio * 0.99, data.portfolio]);
         }
 
-        // Active Holdings Table
+        // Active Holdings Rendered as Sleek Mobile-First Cards
         const posBody = document.getElementById('positions-body');
         const positions = data.positions || [];
         document.getElementById('pos-count').textContent = positions.length + ' OPEN';
         if (positions.length === 0) {
-            posBody.innerHTML = '<tr><td colspan="8" class="empty-state">No open positions currently held.</td></tr>';
+            posBody.innerHTML = `
+                <div class="empty-state">
+                    <span style="font-size:20px;opacity:0.6;">🛡️</span>
+                    <span>No open positions currently held</span>
+                </div>`;
         } else {
             posBody.innerHTML = positions.map(p => {
                 const isLong = (p.side === 'LONG');
-                return `<tr>
-                    <td class="ticker">${p.symbol}</td>
-                    <td><span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${p.side}</span></td>
-                    <td style="font-family:var(--font-mono)">${p.qty}</td>
-                    <td style="font-family:var(--font-mono)">${formatMoney(p.entry_price)}</td>
-                    <td style="font-family:var(--font-mono)">${formatMoney(p.current_price)}</td>
-                    <td style="font-family:var(--font-mono);color:var(--rose)">${formatMoney(p.stop_loss)}</td>
-                    <td style="font-family:var(--font-mono);color:var(--emerald)">${formatMoney(p.target)}</td>
-                    <td>${Number(p.holding_minutes || 0).toFixed(0)}m</td>
-                </tr>`;
+                const entry = Number(p.entry_price || 0);
+                const curr = Number(p.current_price || entry);
+                const qty = Number(p.qty || 1);
+                const pnl = isLong ? (curr - entry) * qty : (entry - curr) * qty;
+                const pnlPct = entry > 0 ? ((pnl / (entry * qty)) * 100).toFixed(2) : '0.00';
+                const ageMinutes = Number(p.holding_minutes || 0);
+                const ageStr = ageMinutes > 60 ? (ageMinutes / 60).toFixed(1) + 'h' : Math.round(ageMinutes) + 'm';
+
+                return `
+                <div class="pos-card">
+                    <div class="pos-card-main">
+                        <div class="pos-info">
+                            <div class="pos-symbol">${p.symbol}</div>
+                            <div class="pos-meta">
+                                <span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${p.side} · ${qty} QTY</span>
+                                <span class="faint">Avg ${formatMoney(entry)}</span>
+                            </div>
+                        </div>
+                        <div class="pos-pricing">
+                            <div class="pos-current">${formatMoney(curr)}</div>
+                            <div class="pos-pnl ${pnl >= 0 ? 'text-up' : 'text-down'}">${pnl >= 0 ? '+' : ''}${formatMoney(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct}%)</div>
+                        </div>
+                    </div>
+                    <div class="pos-card-footer">
+                        <div class="pos-bound"><span class="faint">SL:</span> <span class="text-down">${formatMoney(p.stop_loss)}</span></div>
+                        <div class="pos-bound"><span class="faint">TP:</span> <span class="text-up">${formatMoney(p.target)}</span></div>
+                        <div class="pos-bound"><span class="faint">Age:</span> <span>${ageStr}</span></div>
+                    </div>
+                </div>`;
             }).join('');
         }
 
-        // Trades Table
+        // Recent Trades Rendered as Clean Transaction Rows
         const tradeBody = document.getElementById('trades-body');
         const trades = data.trades || [];
         if (trades.length === 0) {
-            tradeBody.innerHTML = '<tr><td colspan="7" class="empty-state">No execution records logged yet.</td></tr>';
+            tradeBody.innerHTML = `
+                <div class="empty-state">
+                    <span style="font-size:20px;opacity:0.6;">📋</span>
+                    <span>No execution records logged yet</span>
+                </div>`;
         } else {
             tradeBody.innerHTML = trades.map(t => {
                 const pnl = Number(t.pnl || 0);
                 const isWin = pnl >= 0;
-                return `<tr>
-                    <td class="ticker">${t.symbol}</td>
-                    <td><span class="pill ${t.side === 'LONG' ? 'pill-long' : 'pill-short'}">${t.side}</span></td>
-                    <td style="font-family:var(--font-mono)">${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)}</td>
-                    <td class="${isWin ? 'pill-win' : 'pill-loss'}" style="font-family:var(--font-mono)">${formatMoney(pnl)}</td>
-                    <td class="${isWin ? 'pill-win' : 'pill-loss'}">${formatPct(t.pnl_pct)}</td>
-                    <td>${Math.round(Number(t.holding_seconds || 0) / 60)}m</td>
-                    <td><span class="pill pill-muted">${t.exit_reason || 'stop'}</span></td>
-                </tr>`;
+                return `
+                <div class="activity-row">
+                    <div class="activity-left">
+                        <div class="activity-icon ${isWin ? 'icon-win' : 'icon-loss'}">${isWin ? '▲' : '▼'}</div>
+                        <div>
+                            <div class="activity-title">
+                                <span>${t.symbol}</span>
+                                <span class="pill ${t.side === 'LONG' ? 'pill-long' : 'pill-short'}">${t.side}</span>
+                            </div>
+                            <div class="activity-sub">${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)} · <span class="faint">${t.exit_reason || 'exit'}</span></div>
+                        </div>
+                    </div>
+                    <div class="activity-right">
+                        <div class="activity-val ${isWin ? 'text-up' : 'text-down'}">${isWin ? '+' : ''}${formatMoney(pnl)}</div>
+                        <div class="activity-sub ${isWin ? 'text-up' : 'text-down'}">${formatPct(t.pnl_pct)}</div>
+                    </div>
+                </div>`;
             }).join('');
         }
 
-        // Decisions Table
+        // Decisions Rendered as Stream Cards
         const decBody = document.getElementById('decisions-body');
         const decisions = data.decisions || [];
         if (decisions.length === 0) {
-            decBody.innerHTML = '<tr><td colspan="6" class="empty-state">Awaiting next decision cycle...</td></tr>';
+            decBody.innerHTML = `
+                <div class="empty-state">
+                    <span style="font-size:20px;opacity:0.6;">⚡</span>
+                    <span>Awaiting next decision cycle...</span>
+                </div>`;
         } else {
-            decBody.innerHTML = decisions.slice(0, 8).map(d => {
+            decBody.innerHTML = decisions.slice(0, 6).map(d => {
                 const act = d.action || 'WAIT';
                 let pillClass = 'pill-muted';
                 if (act === 'BUY') pillClass = 'pill-long';
                 else if (act === 'SHORT') pillClass = 'pill-short';
-                return `<tr>
-                    <td class="ticker">${d.symbol}</td>
-                    <td><span class="pill ${pillClass}">${act}</span></td>
-                    <td style="font-family:var(--font-mono)">${Math.round(d.confidence || 0)}%</td>
-                    <td><span class="pill pill-cyan">${d.strategy || 'Trend'}</span></td>
-                    <td><span class="pill pill-muted">${d.risk_decision || 'N/A'}</span></td>
-                    <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;" title="${d.reason || ''}">${d.reason || '--'}</td>
-                </tr>`;
+                return `
+                <div class="decision-card">
+                    <div class="decision-head">
+                        <span class="decision-sym">${d.symbol}</span>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span class="pill ${pillClass}">${act}</span>
+                            <span class="pill pill-cyan">${d.strategy || 'Trend'}</span>
+                            <span class="faint" style="font-family:var(--font-mono);font-size:11px;">${Math.round(d.confidence || 0)}%</span>
+                        </div>
+                    </div>
+                    <div class="decision-reason">${d.reason || 'Technical setup matched model policy'}</div>
+                </div>`;
             }).join('');
         }
 
