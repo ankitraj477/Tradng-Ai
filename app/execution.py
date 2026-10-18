@@ -57,12 +57,7 @@ class PaperExecution:
         self.db.log('INFO',f"PAPER {side} CLOSE {symbol} @ {fill:.2f} P&L={pnl:.2f}"); return True
 
     def cost(self,value,action,segment='INTRADAY'):
-        e=self.cfg['execution']; brokerage=value*e.get('brokerage_pct',e.get('brokerage',0))/100
-        exchange=value*e.get('exchange_txn_fee_pct',0)/100
-        sebi=value*e.get('sebi_turnover_fee_pct',0)/100
-        gst=(brokerage+exchange+sebi)*e.get('gst_pct',0.18)
-        stamp_pct=e.get('stamp_duty_non_delivery_pct',0.003) if segment=='INTRADAY' else e.get('stamp_duty_delivery_pct',0.015)
-        stamp=value*stamp_pct/100 if action=='BUY' else 0
-        stt_pct=e.get('stt_intraday_sell_pct',0.025) if segment=='INTRADAY' else e.get('stt_delivery_pct',0.10)
-        stt=value*stt_pct/100 if action=='SELL' else 0
-        return brokerage+exchange+sebi+gst+stamp+stt
+        if not hasattr(self, '_cost_model'):
+            from .costs import CostModel
+            self._cost_model = CostModel(self.cfg)
+        return self._cost_model.calculate(value,action,segment)

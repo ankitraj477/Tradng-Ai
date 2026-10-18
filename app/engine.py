@@ -6,6 +6,7 @@ from .market_hours import (
     market_open,
     market_phase,
     holiday_name,
+    now_ist,
 )
 from .data.demo_provider import DemoProvider
 from .data.nifty500_provider import Nifty500Provider
@@ -24,6 +25,8 @@ from .position_manager import PositionManager
 from .selection import CandidateSelector
 from .accounting import portfolio_metrics
 from .runtime import preflight
+from .intraday.timing import IntradayTimingManager
+from .ops.kill_switch import CentralKillSwitch
 
 
 class TradingEngine:
@@ -133,6 +136,15 @@ class TradingEngine:
                 "max_sector_exposure_pct",
                 0.40,
             ),
+        )
+
+        self.timing = IntradayTimingManager()
+
+        self.kill_switch = CentralKillSwitch(
+            self.db,
+            self.exec,
+            self.provider,
+            self.cfg,
         )
 
         self.preflight = preflight(
@@ -554,6 +566,44 @@ class TradingEngine:
             return
 
         # --------------------------------------------------
+        # CENTRAL EMERGENCY KILL-SWITCH
+        # --------------------------------------------------
+
+        tripped, kill_reason = self.kill_switch.is_tripped()
+        if tripped:
+            self.db.log(
+                "ERROR",
+                f"CENTRAL KILL-SWITCH ACTIVE: {kill_reason}. Trading halted.",
+            )
+            self.snapshot()
+            return
+
+        # --------------------------------------------------
+        # SESSION TIMING & EOD SQUARE-OFF
+        # --------------------------------------------------
+
+        if self.cfg.get("live_data"):
+            current_ist = now_ist()
+            if self.timing.must_square_off(current_ist):
+                self.positions.manage(current_ist)
+                self.db.log(
+                    "INFO",
+                    f"EOD SQUARE-OFF ACTIVE: Time is {current_ist.strftime('%H:%M:%S')} IST; square-off enforced.",
+                )
+                self.snapshot()
+                return
+
+            if not self.timing.can_enter(current_ist):
+                self.positions.manage(current_ist)
+                phase = self.timing.get_phase(current_ist)
+                self.db.log(
+                    "INFO",
+                    f"SESSION TIMING GATE: Entry blocked during phase {phase} ({current_ist.strftime('%H:%M:%S')} IST).",
+                )
+                self.snapshot()
+                return
+
+        # --------------------------------------------------
         # RISK GATE
         # --------------------------------------------------
 
@@ -562,7 +612,7 @@ class TradingEngine:
         )
 
         # Existing positions are always handled separately.
-        self.positions.manage()
+        self.positions.manage(now_ist() if self.cfg.get("live_data") else None)
 
         if not allowed:
 
@@ -691,52 +741,57 @@ class TradingEngine:
         # --------------------------------------------------
 
         if proposals:
-
-            ranked_inputs = []
-
-            for proposal, qty in proposals:
-
-                ranked_inputs.append(
-                    {
-                        **proposal,
-                        "best_strategy":
-                            proposal["strategy"],
-                        "qty": qty,
-                        "current_price":
-                            proposal["price"],
-                    }
+            if not self.db.is_auto_trading_enabled():
+                self.db.log(
+                    "INFO",
+                    "Auto-trading PAUSED. Background analysis and news monitoring active; order execution suspended.",
                 )
+            else:
+                ranked_inputs = []
 
-            ranked = self.selector.rank(
-                ranked_inputs,
-                self.db.positions(),
-                ctx["regime"],
-                self.pm.metrics()["equity"],
-            )
+                for proposal, qty in proposals:
 
-            for chosen in ranked:
-                proposal, qty = next(
-                    (
-                        item
-                        for item in proposals
-                        if item[0]["symbol"]
-                        == chosen["symbol"]
-                    ),
-                    (None, 0),
-                )
-                if not proposal or qty <= 0:
-                    continue
-                ok = self.exec.buy(proposal, qty, ctx["regime"]) if proposal["action"] == "BUY" else self.exec.short(proposal, qty, ctx["regime"])
-                if ok:
-                    self.db.log(
-                        "INFO",
-                        "Selected paper trade: "
-                        f"{proposal['symbol']} "
-                        f"x{qty} "
-                        f"strategy="
-                        f"{proposal['strategy']}",
+                    ranked_inputs.append(
+                        {
+                            **proposal,
+                            "best_strategy":
+                                proposal["strategy"],
+                            "qty": qty,
+                            "current_price":
+                                proposal["price"],
+                        }
                     )
-                    break
+
+                ranked = self.selector.rank(
+                    ranked_inputs,
+                    self.db.positions(),
+                    ctx["regime"],
+                    self.pm.metrics()["equity"],
+                )
+
+                for chosen in ranked:
+                    proposal, qty = next(
+                        (
+                            item
+                            for item in proposals
+                            if item[0]["symbol"]
+                            == chosen["symbol"]
+                        ),
+                        (None, 0),
+                    )
+                    if not proposal or qty <= 0:
+                        continue
+                    ok = self.exec.buy(proposal, qty, ctx["regime"]) if proposal["action"] == "BUY" else self.exec.short(proposal, qty, ctx["regime"])
+                    if ok:
+                        self.db.log(
+                            "INFO",
+                            "Selected paper trade: "
+                            f"{proposal['symbol']} "
+                            f"x{qty} "
+                            f"strategy="
+                            f"{proposal['strategy']}",
+                        )
+                        break
 
         # --------------------------------------------------
         # POST-TRADE POSITION PROTECTION
@@ -864,7 +919,7 @@ class TradingEngine:
 
                     if self.db.positions():
                         if not self.cfg["live_data"] or market_open():
-                            self.positions.manage()
+                            self.positions.manage(now_ist() if self.cfg.get("live_data") else None)
 
                 except Exception as exc:
 

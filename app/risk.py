@@ -21,6 +21,13 @@ class RiskManager:
         if p.get("risk_reward", 0) < self.cfg["risk"]["min_risk_reward"]:
             return "REJECT"
 
+        if "target" in p and "price" in p and p.get("target"):
+            from .risk_engine import MinimumMoveGate
+            move_gate = MinimumMoveGate(cost_multiplier=self.cfg.get("risk", {}).get("min_move_cost_multiplier", 1.5))
+            ok_move, _ = move_gate.check(p["price"], p["target"], p.get("stop_loss", p["price"]), p.get("action", "BUY"))
+            if not ok_move:
+                return "REJECT"
+
         if p.get("action") not in {"BUY", "SHORT"}:
             return "REJECT"
 
@@ -39,6 +46,15 @@ class RiskManager:
         equity = self.equity()
 
         if equity <= 0:
+            return "REJECT"
+
+        from .risk_engine import PortfolioHeatLimiter
+        heat_limiter = PortfolioHeatLimiter(
+            max_heat_pct=self.cfg.get("risk", {}).get("max_portfolio_heat_pct", 0.10),
+            max_sector_pct=self.cfg.get("risk", {}).get("max_sector_exposure_pct", 0.40)
+        )
+        ok_heat, _ = heat_limiter.check(equity, positions, p, qty)
+        if not ok_heat:
             return "REJECT"
 
         account = self.db.account()

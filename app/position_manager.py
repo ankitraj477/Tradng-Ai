@@ -1,13 +1,15 @@
 from datetime import datetime, timezone, time
 import time as _time
-from .market_hours import now_ist
+from .market_hours import now_ist, holiday_name
 from .indicators import indicators
+from .intraday.timing import IntradayTimingManager
 
 class PositionManager:
     """Deterministic fast protection for paper positions. AI never controls these exits."""
     def __init__(self, db, execution, provider, cfg):
         self.db=db; self.execution=execution; self.provider=provider; self.cfg=cfg
         self._last_err={}
+        self.timing = IntradayTimingManager()
 
     def _atr_for_position(self, p):
         atr=float(p.get("atr",0) or 0)
@@ -25,7 +27,7 @@ class PositionManager:
     def manage(self, dt=None):
         closed=0; mult=float(self.cfg["execution"].get("trailing_stop_atr",1.5)); max_minutes=float(self.cfg["execution"].get("max_hold_minutes",390))
         check_dt = dt if dt is not None else (now_ist() if self.cfg.get("live_data", False) else None)
-        is_eod = (check_dt.weekday() < 5 and time(15, 15) <= check_dt.time() < time(15, 30)) if check_dt else False
+        is_eod = self.timing.must_square_off(check_dt) if check_dt else False
         for p in self.db.positions():
             try:
                 try:

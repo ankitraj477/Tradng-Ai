@@ -1,22 +1,29 @@
 import pandas as pd
 import numpy as np
 from .indicators import indicators
+from .costs import CostModel
+from .strategy import decide
 
 class Backtester:
     """Portfolio backtester. Signals use bar-close data; orders fill next bar open."""
     def __init__(self, starting_cash=1000, fee_bps=10, slippage_bps=8,
                  risk_pct=0.02, max_position_pct=0.20, max_positions=5,
-                 short_margin_pct=0.25, max_portfolio_exposure_pct=0.85):
+                 short_margin_pct=0.25, max_portfolio_exposure_pct=0.85, cfg=None):
         self.starting_cash=float(starting_cash); self.fee_bps=float(fee_bps)
         self.slippage_bps=float(slippage_bps); self.risk_pct=float(risk_pct)
         self.max_position_pct=float(max_position_pct); self.max_positions=int(max_positions)
         self.short_margin_pct=float(short_margin_pct); self.max_portfolio_exposure_pct=float(max_portfolio_exposure_pct)
+        self.cost_model = CostModel(cfg) if cfg is not None else None
         self.cash=self.starting_cash; self.reserved_margin=0.0; self.trades=[]; self.equity=[]
 
     def _reset(self):
         self.cash=self.starting_cash; self.reserved_margin=0.0; self.trades=[]; self.equity=[]
 
-    def _fee(self,value): return value*self.fee_bps/10000
+    def _fee(self,value,action='BUY',segment='INTRADAY'):
+        if self.cost_model is not None:
+            return self.cost_model.calculate(value,action,segment)
+        return value*self.fee_bps/10000
+
     def _fill(self,price,side):
         slip=self.slippage_bps/10000
         return price*(1+slip) if side=='BUY' else price*(1-slip)
@@ -98,11 +105,8 @@ class Backtester:
                 if ts not in df.index or s in positions or s in pending: continue
                 i=df.index.get_loc(ts)
                 if i+1>=len(df): continue
-                row=df.iloc[i]
-                bullish=row['Close']>row['ema20']>row['ema50'] and row['rsi']>55 and row['rel_volume']>1.2
-                bearish=row['Close']<row['ema20']<row['ema50'] and row['rsi']<45 and row['rel_volume']>1.2
-                if bullish: pending[s]=('LONG',float(row['atr']))
-                elif bearish: pending[s]=('SHORT',float(row['atr']))
+                sig=decide(s,df.iloc[:i+1])
+                if sig: pending[s]=(sig['side'],float(sig['atr']))
             if prices:self.equity.append(self._mark(positions,prices))
         for s,p in list(positions.items()):
             self._close(s,p,float(prepared[s].iloc[-1]['Close']),'end')

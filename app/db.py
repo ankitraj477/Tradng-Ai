@@ -1,4 +1,6 @@
 import sqlite3
+import time
+import random
 from pathlib import Path
 from datetime import datetime, timezone
 def now(): return datetime.now(timezone.utc).isoformat()
@@ -7,21 +9,42 @@ class DB:
         Path(path).parent.mkdir(parents=True,exist_ok=True); self.path=path
         self._conn=None
         if path==":memory:":
-            self._conn=sqlite3.connect(":memory:", check_same_thread=False)
+            self._conn=sqlite3.connect(":memory:", check_same_thread=False, timeout=30.0)
             self._conn.row_factory=sqlite3.Row
+            self._conn.execute("PRAGMA busy_timeout=30000")
         self.init()
         self.migrate()
         if self._conn is not None:
             self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA busy_timeout=5000")
+            self._conn.execute("PRAGMA busy_timeout=30000")
+            self._conn.execute("PRAGMA synchronous=NORMAL")
         else:
             with self.conn() as c:
                 c.execute("PRAGMA journal_mode=WAL")
-                c.execute("PRAGMA busy_timeout=5000")
+                c.execute("PRAGMA busy_timeout=30000")
+                c.execute("PRAGMA synchronous=NORMAL")
+
     def conn(self):
         if self._conn is not None:
             return self._conn
-        c=sqlite3.connect(self.path); c.row_factory=sqlite3.Row; return c
+        c = sqlite3.connect(self.path, timeout=30.0, check_same_thread=False)
+        c.row_factory = sqlite3.Row
+        c.execute("PRAGMA journal_mode=WAL")
+        c.execute("PRAGMA busy_timeout=30000")
+        c.execute("PRAGMA synchronous=NORMAL")
+        return c
+
+    def execute_with_retry(self, fn, max_retries=5, base_delay=0.05):
+        """Executes a database callback with exponential backoff if lock contention occurs."""
+        for attempt in range(max_retries):
+            try:
+                return fn()
+            except sqlite3.OperationalError as exc:
+                if ("locked" in str(exc).lower() or "busy" in str(exc).lower()) and attempt < max_retries - 1:
+                    sleep_time = base_delay * (2 ** attempt) + random.uniform(0.01, 0.05)
+                    time.sleep(sleep_time)
+                else:
+                    raise
     def init(self):
         from .schema import SCHEMA
         with self.conn() as c:c.executescript(SCHEMA)
@@ -110,3 +133,24 @@ class DB:
             c.execute("DELETE FROM equity_curve WHERE id <= (SELECT id FROM equity_curve ORDER BY id DESC LIMIT 1 OFFSET ?)",(max_rows,))
     def equity(self):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM equity_curve ORDER BY id")]
+
+    def set_setting(self, key, value):
+        with self.conn() as c:
+            c.execute("""CREATE TABLE IF NOT EXISTS system_settings(
+                         key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+            c.execute("""INSERT INTO system_settings(key, value) VALUES(?,?)
+                         ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (str(key), str(value)))
+
+    def get_setting(self, key, default="true"):
+        with self.conn() as c:
+            c.execute("""CREATE TABLE IF NOT EXISTS system_settings(
+                         key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
+            row = c.execute("SELECT value FROM system_settings WHERE key=?", (str(key),)).fetchone()
+            return str(row["value"]) if row else str(default)
+
+    def is_auto_trading_enabled(self):
+        return self.get_setting("auto_trading", "true").lower() in ("true", "1", "yes")
+
+    def set_auto_trading(self, enabled: bool):
+        self.set_setting("auto_trading", "true" if enabled else "false")
+
