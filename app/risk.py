@@ -32,6 +32,10 @@ class RiskManager:
         if any(x["symbol"] == p["symbol"] for x in positions):
             return "REJECT"
 
+        max_positions = self.cfg.get("market", {}).get("max_open_positions")
+        if max_positions is not None and len(positions) >= int(max_positions):
+            return "REJECT"
+
         equity = self.equity()
 
         if equity <= 0:

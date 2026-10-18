@@ -84,7 +84,7 @@ def preflight(cfg, provider=None):
         {
             "name": "database_parent",
             "ok": db_path.parent.exists(),
-            "details": str(db_path),
+            "details": str(db_path.name),
         }
     )
 

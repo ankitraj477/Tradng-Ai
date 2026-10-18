@@ -29,9 +29,10 @@ class Backtester:
             else: value += (p['entry']-px)*p['qty']
         return value
 
-    def _open(self,s,row,side,equity):
+    def _open(self,s,row,side,equity,prev_atr=None):
         price=float(row['Open']); fill=self._fill(price,'BUY' if side=='LONG' else 'SELL')
-        risk=max(float(row['atr'])*1.5,fill*.005)
+        atr=prev_atr if prev_atr is not None else float(row['atr'])
+        risk=max(atr*1.5,fill*.005)
         qty_by_risk=int(equity*self.risk_pct/risk)
         qty_by_position=int((equity*self.max_position_pct)/fill)
         current_exposure=sum(x['qty']*x['entry'] for x in getattr(self,'_positions_for_sizing',{}).values())
@@ -51,15 +52,15 @@ class Backtester:
         else:
             margin=notional*self.short_margin_pct; self.reserved_margin+=margin; self.cash-=fee
             stop=fill+risk; target=fill-3*risk
-        return {'side':side,'entry':fill,'qty':qty,'stop':stop,'target':target,'margin':margin,'entry_i':row.name}
+        return {'side':side,'entry':fill,'qty':qty,'stop':stop,'target':target,'margin':margin,'entry_i':row.name,'entry_fee':fee,'atr':atr}
 
     def _close(self,s,p,price,reason):
         side=p['side']; fill=self._fill(float(price),'SELL' if side=='LONG' else 'BUY')
-        notional=fill*p['qty']; fee=self._fee(notional)
+        notional=fill*p['qty']; fee=self._fee(notional); entry_fee=p.get('entry_fee',0)
         if side=='LONG':
-            pnl=(fill-p['entry'])*p['qty']-fee; self.cash+=notional-fee
+            pnl=(fill-p['entry'])*p['qty']-fee-entry_fee; self.cash+=notional-fee
         else:
-            gross=(p['entry']-fill)*p['qty']; pnl=gross-fee; self.reserved_margin-=p['margin']; self.cash+=gross-fee
+            gross=(p['entry']-fill)*p['qty']; pnl=gross-fee-entry_fee; self.reserved_margin-=p['margin']; self.cash+=gross-fee
         self.trades.append({'symbol':s,'side':side,'entry':p['entry'],'exit':fill,'qty':p['qty'],'pnl':pnl,'reason':reason})
 
     def _run(self,prepared):
@@ -73,7 +74,9 @@ class Backtester:
                 if ts not in df.index: continue
                 row=df.loc[ts]; prices[s]=float(row['Close'])
                 if s in pending and s not in positions and len(positions)<self.max_positions:
-                    p=self._open(s,row,pending.pop(s),self._mark(positions,prices));
+                    pval=pending.pop(s)
+                    pside, patr = (pval if isinstance(pval, tuple) else (pval, None))
+                    p=self._open(s,row,pside,self._mark(positions,prices),patr);
                     if p:
                         p['mark']=prices[s]
                         positions[s]=p
@@ -85,9 +88,11 @@ class Backtester:
                 hit_target=(float(row['High'])>=p['target']) if p['side']=='LONG' else (float(row['Low'])<=p['target'])
                 p['mark']=float(row['Close'])
                 if hit_stop:
-                    self._close(s,p,p['stop'],'stop'); positions.pop(s)
+                    fill_px=min(p['stop'],float(row['Open'])) if p['side']=='LONG' else max(p['stop'],float(row['Open']))
+                    self._close(s,p,fill_px,'stop'); positions.pop(s)
                 elif hit_target:
-                    self._close(s,p,p['target'],'target'); positions.pop(s)
+                    fill_px=max(p['target'],float(row['Open'])) if p['side']=='LONG' else min(p['target'],float(row['Open']))
+                    self._close(s,p,fill_px,'target'); positions.pop(s)
             # Generate signals only from the just-closed bar for next bar.
             for s,df in prepared.items():
                 if ts not in df.index or s in positions or s in pending: continue
@@ -96,8 +101,8 @@ class Backtester:
                 row=df.iloc[i]
                 bullish=row['Close']>row['ema20']>row['ema50'] and row['rsi']>55 and row['rel_volume']>1.2
                 bearish=row['Close']<row['ema20']<row['ema50'] and row['rsi']<45 and row['rel_volume']>1.2
-                if bullish: pending[s]='LONG'
-                elif bearish: pending[s]='SHORT'
+                if bullish: pending[s]=('LONG',float(row['atr']))
+                elif bearish: pending[s]=('SHORT',float(row['atr']))
             if prices:self.equity.append(self._mark(positions,prices))
         for s,p in list(positions.items()):
             self._close(s,p,float(prepared[s].iloc[-1]['Close']),'end')

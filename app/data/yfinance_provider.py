@@ -27,6 +27,7 @@ class YFinanceProvider(MarketDataProvider):
         symbols=None,
         universe_file="data/nifty500.csv",
         cache=None,
+        manifest=None,
         retries=2,
         max_age_seconds=420,
         min_fresh_data_coverage_pct=0.70,
@@ -51,7 +52,9 @@ class YFinanceProvider(MarketDataProvider):
             cache or MarketDataCache()
         )
 
-        self.manifest = DatasetManifest()
+        self.manifest = (
+            manifest or DatasetManifest()
+        )
 
         self.retries = max(
             0,
@@ -388,6 +391,9 @@ class YFinanceProvider(MarketDataProvider):
             return df
 
         except Exception as exc:
+            cached = self.cache.load(symbol, period, interval, max_age_seconds=self.max_age_seconds)
+            if cached is not None and not cached.empty:
+                return cached
             raise RuntimeError(
                 "no fresh live data "
                 f"available for {symbol}: "

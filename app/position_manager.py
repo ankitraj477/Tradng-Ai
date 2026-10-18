@@ -1,10 +1,13 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
+import time as _time
+from .market_hours import now_ist
 from .indicators import indicators
 
 class PositionManager:
     """Deterministic fast protection for paper positions. AI never controls these exits."""
     def __init__(self, db, execution, provider, cfg):
         self.db=db; self.execution=execution; self.provider=provider; self.cfg=cfg
+        self._last_err={}
 
     def _atr_for_position(self, p):
         atr=float(p.get("atr",0) or 0)
@@ -19,13 +22,27 @@ class PositionManager:
             self.db.log("WARN",f"ATR unavailable for {p['symbol']}: {e!r}")
         return atr
 
-    def manage(self):
-        closed=0; mult=float(self.cfg["execution"].get("trailing_stop_atr",1.0)); max_minutes=float(self.cfg["execution"].get("max_hold_minutes",390))
+    def manage(self, dt=None):
+        closed=0; mult=float(self.cfg["execution"].get("trailing_stop_atr",1.5)); max_minutes=float(self.cfg["execution"].get("max_hold_minutes",390))
+        check_dt = dt if dt is not None else (now_ist() if self.cfg.get("live_data", False) else None)
+        is_eod = (check_dt.weekday() < 5 and time(15, 15) <= check_dt.time() < time(15, 30)) if check_dt else False
         for p in self.db.positions():
             try:
-                q=self.provider.quote(p["symbol"])
-                if not q: continue
-                price=float(q["price"]); atr=self._atr_for_position(p); age=0
+                try:
+                    q=self.provider.quote(p["symbol"])
+                    price=float(q["price"]) if q else None
+                except Exception as e:
+                    price=None
+                    t_now=_time.time()
+                    if t_now - self._last_err.get(p["symbol"], 0) >= 900:
+                        self._last_err[p["symbol"]]=t_now
+                        self.db.log("WARN", f"Quote unavailable for {p['symbol']}: {e!r}")
+                if price is None:
+                    if is_eod: price=float(p.get("current_price") or p["entry_price"])
+                    else: continue
+                if is_eod:
+                    self.execution.close(p["symbol"],price,"EOD square-off",""); closed+=1; continue
+                atr=self._atr_for_position(p); age=0
                 if p.get("opened_at"):
                     try: age=max(0,(datetime.now(timezone.utc)-datetime.fromisoformat(str(p["opened_at"]).replace("Z","+00:00"))).total_seconds()/60)
                     except Exception: pass

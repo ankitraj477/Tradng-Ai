@@ -9,23 +9,38 @@ class LearningEngine:
         self.minimum_sample=int(lcfg.get("min_trades",20))
         self.min_weight=float(lcfg.get("min_weight",0.5))
         self.max_weight=float(lcfg.get("max_weight",1.5))
+        self._cache_len=-1; self._cache={}
+
+    def _sync(self):
+        trades=self.db.all_trades()
+        if len(trades)==self._cache_len: return
+        self._cache_len=len(trades)
+        strat, reg, sr = defaultdict(list), defaultdict(list), defaultdict(list)
+        for t in trades:
+            pnl=t.get("pnl"); s=t.get("strategy"); r=t.get("regime")
+            if pnl is not None:
+                p=float(pnl)
+                if s: strat[s].append(p)
+                if r: reg[r].append(p)
+                if s and r: sr[(s,r)].append(p)
+        st_res={}
+        for name,pnls in strat.items():
+            wins=[x for x in pnls if x>0]; losses=[x for x in pnls if x<0]
+            st_res[name]={"trades":len(pnls),"win_rate":len(wins)/len(pnls)*100,"avg_pnl":sum(pnls)/len(pnls),
+                          "profit_factor":sum(wins)/abs(sum(losses)) if losses else None}
+        reg_res={name:{"trades":len(p),"win_rate":sum(x>0 for x in p)/len(p)*100,"avg_pnl":sum(p)/len(p),"total_pnl":sum(p)} for name,p in reg.items()}
+        sr_res={f"{s}|{r}":{"trades":len(p),"win_rate":sum(x>0 for x in p)/len(p)*100,"avg_pnl":sum(p)/len(p)} for (s,r),p in sr.items()}
+        self._cache={"strat":st_res,"reg":reg_res,"sr":sr_res}
 
     def strategy_stats(self):
-        trades=self.db.all_trades(); out=defaultdict(list)
-        for t in trades:
-            if t.get("strategy") and t.get("pnl") is not None: out[t["strategy"]].append(float(t["pnl"]))
-        result={}
-        for name,pnls in out.items():
-            wins=[x for x in pnls if x>0]; losses=[x for x in pnls if x<0]
-            result[name]={"trades":len(pnls),"win_rate":len(wins)/len(pnls)*100,
-                          "avg_pnl":sum(pnls)/len(pnls),
-                          "profit_factor":sum(wins)/abs(sum(losses)) if losses else None}
-        return result
+        self._sync(); return dict(self._cache["strat"])
 
     def _weight(self, stats):
         if stats["trades"] < self.minimum_sample: return 1.0
-        pf=stats["profit_factor"] or 0
-        return max(self.min_weight,min(self.max_weight,0.75+0.25*min(pf,3)))
+        pf = stats.get("profit_factor")
+        pf = 3.0 if pf is None and stats.get("win_rate", 0) > 0 else (pf or 0.0)
+        norm = min(max(float(pf), 0.0), 3.0) / 3.0
+        return self.min_weight + (self.max_weight - self.min_weight) * norm
 
     def weights(self, minimum_sample=None):
         old=self.minimum_sample
@@ -34,22 +49,10 @@ class LearningEngine:
         finally: self.minimum_sample=old
 
     def regime_stats(self):
-        out=defaultdict(list)
-        for t in self.db.all_trades():
-            if t.get("regime") and t.get("pnl") is not None: out[t["regime"]].append(float(t["pnl"]))
-        result={}
-        for name,p in out.items():
-            result[name]={"trades":len(p),"win_rate":sum(x>0 for x in p)/len(p)*100,
-                          "avg_pnl":sum(p)/len(p),"total_pnl":sum(p)}
-        return result
+        self._sync(); return dict(self._cache["reg"])
 
     def strategy_regime_stats(self):
-        out=defaultdict(list)
-        for t in self.db.all_trades():
-            if t.get("strategy") and t.get("regime") and t.get("pnl") is not None:
-                out[(t["strategy"],t["regime"])].append(float(t["pnl"]))
-        return {f"{s}|{r}":{"trades":len(p),"win_rate":sum(x>0 for x in p)/len(p)*100,
-                              "avg_pnl":sum(p)/len(p)} for (s,r),p in out.items()}
+        self._sync(); return dict(self._cache["sr"])
 
     def weight_for(self,strategy,regime=None):
         base=self.weights().get(strategy,1.0)

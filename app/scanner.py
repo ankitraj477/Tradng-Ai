@@ -2,6 +2,7 @@ import csv
 import shutil
 import subprocess
 import tempfile
+from itertools import zip_longest
 from pathlib import Path
 
 from .indicators import indicators
@@ -175,29 +176,39 @@ class Scanner:
 
                 row = data.iloc[-1]
 
-                score = 0
+                bull_score = 0
+                bear_score = 0
 
-                if (
-                    row["Close"]
-                    > row["ema20"]
-                    > row["ema50"]
-                ):
-                    score += 30
+                if row["Close"] > row["ema20"] > row["ema50"]:
+                    bull_score += 30
+                elif row["Close"] < row["ema20"] < row["ema50"]:
+                    bear_score += 30
 
                 if row["rsi"] > 55:
-                    score += 15
+                    bull_score += 15
+                elif row["rsi"] < 45:
+                    bear_score += 15
 
                 if row["rel_volume"] > 1.2:
-                    score += 20
+                    bull_score += 20
+                    bear_score += 20
 
                 if row["ret_5"] > 0:
-                    score += 15
+                    bull_score += 15
+                elif row["ret_5"] < 0:
+                    bear_score += 15
 
                 if row["ret_20"] > 0:
-                    score += 10
+                    bull_score += 10
+                elif row["ret_20"] < 0:
+                    bear_score += 10
 
                 if row["Close"] > row["vwap"]:
-                    score += 10
+                    bull_score += 10
+                elif row["Close"] < row["vwap"]:
+                    bear_score += 10
+
+                score = max(bull_score, bear_score)
 
                 rows.append(
                     {
@@ -206,6 +217,8 @@ class Scanner:
                             row["Close"]
                         ),
                         "score": float(score),
+                        "bull_score": float(bull_score),
+                        "bear_score": float(bear_score),
                         "rsi": float(
                             row["rsi"]
                         ),
@@ -238,9 +251,8 @@ class Scanner:
         if self.use_cpp:
             rows = self._rank_cpp(rows)
         else:
-            rows.sort(
-                key=lambda row: row["score"],
-                reverse=True,
-            )
+            bulls = sorted([r for r in rows if r["bull_score"] >= r["bear_score"]], key=lambda r: r["bull_score"], reverse=True)
+            bears = sorted([r for r in rows if r["bear_score"] > r["bull_score"]], key=lambda r: r["bear_score"], reverse=True)
+            rows = [x for pair in zip_longest(bulls, bears) for x in pair if x]
 
         return rows[:self.max_candidates]

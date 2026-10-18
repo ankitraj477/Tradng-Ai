@@ -553,10 +553,7 @@ def create_app(db, cfg=None, provider=None):
         )
 
 
-        realized = sum(
-            float(trade.get("pnl") or 0)
-            for trade in db.all_trades()
-        )
+        realized = db.total_realized_pnl()
 
 
         pnl = (
@@ -749,7 +746,7 @@ app = _load_runtime()
 
 if __name__ == "__main__":
     app.run(
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5000,
         debug=False
     )

@@ -31,9 +31,13 @@ class DB:
             cols={r[1] for r in c.execute("PRAGMA table_info(positions)").fetchall()}
             if "atr" not in cols:
                 c.execute("ALTER TABLE positions ADD COLUMN atr REAL")
+            if "entry_cost" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN entry_cost REAL DEFAULT 0")
 
-    def log(self,level,message):
-        with self.conn() as c:c.execute("INSERT INTO events(level,message,created_at) VALUES(?,?,?)",(level,message,now()))
+    def log(self,level,message,max_rows=2000):
+        with self.conn() as c:
+            c.execute("INSERT INTO events(level,message,created_at) VALUES(?,?,?)",(level,message,now()))
+            c.execute("DELETE FROM events WHERE id <= (SELECT id FROM events ORDER BY id DESC LIMIT 1 OFFSET ?)",(max_rows,))
     def account(self):
         with self.conn() as c:
             r=c.execute("SELECT * FROM account WHERE id=1").fetchone(); return dict(r) if r else None
@@ -95,7 +99,14 @@ class DB:
     def add_decision(self,d):
         with self.conn() as c:c.execute("""INSERT INTO decisions(symbol,action,confidence,strategy,reason,risk_decision,created_at)
         VALUES(?,?,?,?,?,?,?)""",(d["symbol"],d["action"],d["confidence"],d["strategy"],d["reason"],d["risk_decision"],now()))
-    def add_equity(self,value,pnl):
-        with self.conn() as c:c.execute("INSERT INTO equity_curve(value,pnl,created_at) VALUES(?,?,?)",(value,pnl,now()))
+    def total_realized_pnl(self):
+        with self.conn() as c:
+            row=c.execute("SELECT COALESCE(SUM(pnl),0) AS pnl FROM trades").fetchone()
+            return float(row["pnl"] if row else 0.0)
+
+    def add_equity(self,value,pnl,max_rows=2000):
+        with self.conn() as c:
+            c.execute("INSERT INTO equity_curve(value,pnl,created_at) VALUES(?,?,?)",(value,pnl,now()))
+            c.execute("DELETE FROM equity_curve WHERE id <= (SELECT id FROM equity_curve ORDER BY id DESC LIMIT 1 OFFSET ?)",(max_rows,))
     def equity(self):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM equity_curve ORDER BY id")]

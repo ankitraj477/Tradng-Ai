@@ -714,10 +714,7 @@ class TradingEngine:
                 self.pm.metrics()["equity"],
             )
 
-            if ranked:
-
-                chosen = ranked[0]
-
+            for chosen in ranked:
                 proposal, qty = next(
                     (
                         item
@@ -727,39 +724,19 @@ class TradingEngine:
                     ),
                     (None, 0),
                 )
-
-                if proposal:
-
-                    # --------------------------------------
-                    # PAPER EXECUTION ONLY
-                    # --------------------------------------
-
-                    if proposal["action"] == "BUY":
-
-                        ok = self.exec.buy(
-                            proposal,
-                            qty,
-                            ctx["regime"],
-                        )
-
-                    else:
-
-                        ok = self.exec.short(
-                            proposal,
-                            qty,
-                            ctx["regime"],
-                        )
-
-                    if ok:
-
-                        self.db.log(
-                            "INFO",
-                            "Selected paper trade: "
-                            f"{proposal['symbol']} "
-                            f"x{qty} "
-                            f"strategy="
-                            f"{proposal['strategy']}",
-                        )
+                if not proposal or qty <= 0:
+                    continue
+                ok = self.exec.buy(proposal, qty, ctx["regime"]) if proposal["action"] == "BUY" else self.exec.short(proposal, qty, ctx["regime"])
+                if ok:
+                    self.db.log(
+                        "INFO",
+                        "Selected paper trade: "
+                        f"{proposal['symbol']} "
+                        f"x{qty} "
+                        f"strategy="
+                        f"{proposal['strategy']}",
+                    )
+                    break
 
         # --------------------------------------------------
         # POST-TRADE POSITION PROTECTION
@@ -886,8 +863,8 @@ class TradingEngine:
                 try:
 
                     if self.db.positions():
-
-                        self.positions.manage()
+                        if not self.cfg["live_data"] or market_open():
+                            self.positions.manage()
 
                 except Exception as exc:
 

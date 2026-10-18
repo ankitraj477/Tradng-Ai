@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS account (
 CREATE TABLE IF NOT EXISTS positions (
  symbol TEXT PRIMARY KEY, side TEXT NOT NULL, qty INTEGER NOT NULL, entry_price REAL NOT NULL,
  current_price REAL NOT NULL, stop_loss REAL, target REAL, strategy TEXT, confidence REAL,
- opened_at TEXT NOT NULL, sector TEXT, atr REAL);
+ opened_at TEXT NOT NULL, sector TEXT, atr REAL, entry_cost REAL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS trades (
  id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, action TEXT NOT NULL, side TEXT NOT NULL,
  entry_price REAL, exit_price REAL, qty INTEGER NOT NULL, capital REAL NOT NULL, stop_loss REAL, target REAL,

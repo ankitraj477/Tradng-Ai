@@ -13,8 +13,8 @@ class PaperExecution:
         a=self.db.account(); fill=self._slip(p['price'],'BUY'); value=fill*qty; cost=self.cost(value,'BUY','INTRADAY')
         if value+cost>a['cash']: return False
         with self.db.conn() as c:
-            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr)
-                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'LONG',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr')))
+            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost)
+                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'LONG',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),cost))
             c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(a['cash']-value-cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER BUY {p['symbol']} x{qty} @ {fill:.2f}"); return True
 
@@ -25,8 +25,8 @@ class PaperExecution:
         entry_cost=self.cost(notional,'SELL','INTRADAY')
         if margin+entry_cost>a['cash']: return False
         with self.db.conn() as c:
-            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr)
-                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'SHORT',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr')))
+            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost)
+                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'SHORT',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),entry_cost))
             # Margin is reserved against the account but is tracked separately in the position.
             # Only actual entry costs leave cash; this keeps cash/equity accounting consistent.
             c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(a['cash']-entry_cost,datetime.now(timezone.utc).isoformat()))
@@ -45,8 +45,9 @@ class PaperExecution:
                 gross=(fill-p['entry_price'])*p['qty']; released=fill*p['qty']; entry_cap=p['entry_price']*p['qty']
             else:
                 gross=(p['entry_price']-fill)*p['qty']; released=gross; entry_cap=p['entry_price']*p['qty']
+            entry_cost=float(p.get('entry_cost') or 0)
             exit_cost=self.cost(notional,'SELL' if side=='LONG' else 'BUY','INTRADAY')
-            pnl=gross-exit_cost
+            pnl=gross-exit_cost-entry_cost
             cash=self.db.account()['cash']+released-exit_cost
             opened=datetime.fromisoformat(p['opened_at']); holding=(datetime.now(timezone.utc)-opened).total_seconds()
             pnl_pct=pnl/entry_cap*100 if entry_cap else 0
@@ -57,10 +58,11 @@ class PaperExecution:
 
     def cost(self,value,action,segment='INTRADAY'):
         e=self.cfg['execution']; brokerage=value*e.get('brokerage_pct',e.get('brokerage',0))/100
+        exchange=value*e.get('exchange_txn_fee_pct',0)/100
         sebi=value*e.get('sebi_turnover_fee_pct',0)/100
-        gst=(brokerage+sebi)*e.get('gst_pct',0.18)
+        gst=(brokerage+exchange+sebi)*e.get('gst_pct',0.18)
         stamp_pct=e.get('stamp_duty_non_delivery_pct',0.003) if segment=='INTRADAY' else e.get('stamp_duty_delivery_pct',0.015)
         stamp=value*stamp_pct/100 if action=='BUY' else 0
         stt_pct=e.get('stt_intraday_sell_pct',0.025) if segment=='INTRADAY' else e.get('stt_delivery_pct',0.10)
         stt=value*stt_pct/100 if action=='SELL' else 0
-        return brokerage+sebi+gst+stamp+stt
+        return brokerage+exchange+sebi+gst+stamp+stt

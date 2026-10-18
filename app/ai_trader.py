@@ -17,9 +17,10 @@ class AITrader:
         bearish=c.get("ret_5",0)<0 and c.get("ret_20",0)<0 and c.get("rsi",50)<=50
         long_score=avg+max(0,news_bias)+(5 if market_sentiment=="Bullish" else 0)
         short_score=avg+max(0,-news_bias)+(5 if market_sentiment=="Bearish" else 0)
-        if bullish and c["score"]>=60 and long_score>=65:
+        bull_score=c.get("bull_score",c["score"]); bear_score=c.get("bear_score",c["score"])
+        if bullish and bull_score>=60 and long_score>=65:
             action="BUY"; confidence=min(95,round(long_score))
-        elif bearish and c["score"]>=65 and short_score>=45 and market_sentiment in {"Bearish","Neutral"}:
+        elif bearish and bear_score>=65 and short_score>=45 and market_sentiment in {"Bearish","Neutral"}:
             action="SHORT"; confidence=min(95,round(max(60,short_score)))
         else:
             action="WAIT"; confidence=min(95,round(max(long_score,short_score)))
@@ -32,4 +33,4 @@ class AITrader:
                 f"market={regime}; news bias={news_bias:+d}; learned weight={best[2]:.2f}.")
         return {"symbol":c["symbol"],"action":action,"price":c["price"],"confidence":confidence,
                 "strategy":best[0],"reason":reason,"stop_loss":stop,"target":target,
-                "risk_reward":rr,"sector":c.get("sector","Unknown"),"regime":regime}
+                "risk_reward":rr,"sector":c.get("sector","Unknown"),"regime":regime,"atr":atr}

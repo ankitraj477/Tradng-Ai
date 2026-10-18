@@ -1,108 +1,31 @@
-from pathlib import Path
-import json
+import sqlite3
 from datetime import datetime, timezone
-
+from pathlib import Path
 
 class DatasetManifest:
-    def __init__(
-        self,
-        path="data/dataset_manifest.json",
-    ):
+    def __init__(self, path="data/manifest.db"):
         self.path = Path(path)
-        self.path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-        self._records = None
+        if self.path.suffix == ".json":
+            self.path = self.path.with_suffix(".db")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(self.path, check_same_thread=False)
+        with self._conn:
+            self._conn.execute("""CREATE TABLE IF NOT EXISTS manifest (
+                source TEXT, kind TEXT, symbol TEXT, day TEXT,
+                start TEXT, end TEXT, rows INTEGER, adjusted INTEGER, recorded_at TEXT,
+                PRIMARY KEY(source, kind, symbol, day)
+            )""")
 
-    def _load(self):
-        if self._records is not None:
-            return self._records
+    def record(self, source, kind, symbol, start, end, rows, adjusted=False):
+        day = str(end)[:10]
+        now = datetime.now(timezone.utc).isoformat()
+        with self._conn:
+            self._conn.execute("""INSERT OR REPLACE INTO manifest
+                (source, kind, symbol, day, start, end, rows, adjusted, recorded_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (str(source), str(kind), str(symbol), day, str(start), str(end), int(rows), int(bool(adjusted)), now))
 
-        if not self.path.exists():
-            self._records = []
-            return self._records
-
-        try:
-            value = json.loads(
-                self.path.read_text(
-                    encoding="utf-8"
-                )
-            )
-
-            self._records = (
-                value
-                if isinstance(value, list)
-                else []
-            )
-
-        except (OSError, ValueError):
-            self._records = []
-
-        return self._records
-
-    def record(
-        self,
-        source,
-        kind,
-        symbol,
-        start,
-        end,
-        rows,
-        adjusted=False,
-    ):
-        records = self._load()
-
-        key = (
-            str(source),
-            str(kind),
-            str(symbol),
-            str(start),
-            str(end),
-            int(rows),
-            bool(adjusted),
-        )
-
-        for record in records:
-            existing = (
-                record.get("source"),
-                record.get("kind"),
-                record.get("symbol"),
-                record.get("start"),
-                record.get("end"),
-                int(record.get("rows", 0)),
-                bool(record.get("adjusted", False)),
-            )
-
-            if existing == key:
-                return
-
-        records.append(
-            {
-                "source": source,
-                "kind": kind,
-                "symbol": symbol,
-                "start": str(start),
-                "end": str(end),
-                "rows": int(rows),
-                "adjusted": bool(adjusted),
-                "recorded_at": (
-                    datetime.now(timezone.utc)
-                    .isoformat()
-                ),
-            }
-        )
-
-        tmp = self.path.with_suffix(
-            self.path.suffix + ".tmp"
-        )
-
-        tmp.write_text(
-            json.dumps(
-                records,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-
-        tmp.replace(self.path)
+    def records(self):
+        self._conn.row_factory = sqlite3.Row
+        with self._conn:
+            return [{**dict(r), "adjusted": bool(r["adjusted"])} for r in self._conn.execute("SELECT source, kind, symbol, start, end, rows, adjusted, recorded_at FROM manifest ORDER BY recorded_at")]

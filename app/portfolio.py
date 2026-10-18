@@ -51,6 +51,10 @@ class PortfolioManager:
         if equity <= 0:
             return 0
 
+        max_positions = self.cfg.get("market", {}).get("max_open_positions")
+        if max_positions is not None and len(positions) >= int(max_positions):
+            return 0
+
         risk_cash = (
             equity
             * self.cfg["risk"]["max_position_risk_pct"]
@@ -108,11 +112,24 @@ class PortfolioManager:
         else:
             return 0
 
+        sector = proposal.get("sector")
+        if sector and sector != "Unknown" and "max_sector_exposure_pct" in self.cfg.get("risk", {}):
+            current_sector = sum(
+                float(x["qty"]) * float(x.get("current_price", x.get("entry_price", 0)))
+                for x in positions
+                if x.get("sector") == sector
+            )
+            sector_limit = equity * self.cfg["risk"]["max_sector_exposure_pct"]
+            qty_by_sector = int(max(0.0, sector_limit - current_sector) / proposal["price"])
+        else:
+            qty_by_sector = qty_by_risk
+
         return max(
             0,
             min(
                 qty_by_risk,
                 qty_by_portfolio,
                 qty_by_cash,
+                qty_by_sector,
             ),
         )

@@ -17,11 +17,12 @@ def test_live_preflight_requires_dependencies_and_universe_shape():
     assert {'python_dependencies','database_parent','nifty500_universe','broker_execution'} <= names
 
 def test_yfinance_intraday_lookback_is_60d():
-    text=Path('app/data/yfinance_provider.py').read_text()
-    assert 'period="60d"' in text
-    assert 'period="3mo"' not in text
+    cfg = load_config()
+    assert cfg['market']['history_period'] == '60d'
 
-def test_engine_has_portfolio_selector():
-    e=TradingEngine(live=False)
-    assert hasattr(e,'selector')
-    assert e.preflight['ok'] or not e.preflight['ok']
+def test_engine_has_portfolio_selector(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "runtime_test.db"))
+    e = TradingEngine(live=False)
+    assert hasattr(e, 'selector')
+    assert Path(e.db.path).resolve() == (tmp_path / "runtime_test.db").resolve()
+    assert e.preflight['ok'] is True

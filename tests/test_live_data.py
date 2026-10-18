@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 
 from app.data.yfinance_provider import YFinanceProvider
+from app.data.cache import MarketDataCache
+from app.data.manifest import DatasetManifest
 
 
 def _frame(age_seconds=60):
@@ -47,10 +49,13 @@ def _frame(age_seconds=60):
 
 def test_history_rejects_stale_live_data(
     monkeypatch,
+    tmp_path,
 ):
     provider = YFinanceProvider(
         symbols=["AAA.NS"],
         max_age_seconds=420,
+        cache=MarketDataCache(tmp_path / "cache"),
+        manifest=DatasetManifest(tmp_path / "manifest.db"),
     )
 
     monkeypatch.setattr(
@@ -75,6 +80,7 @@ def test_history_rejects_stale_live_data(
 
 def test_history_many_reports_stale_and_unavailable(
     monkeypatch,
+    tmp_path,
 ):
     provider = YFinanceProvider(
         symbols=[
@@ -83,6 +89,8 @@ def test_history_many_reports_stale_and_unavailable(
             "MISSING.NS",
         ],
         max_age_seconds=420,
+        cache=MarketDataCache(tmp_path / "cache"),
+        manifest=DatasetManifest(tmp_path / "manifest.db"),
     )
 
     fresh = _frame(60)
@@ -171,6 +179,7 @@ def test_history_many_reports_stale_and_unavailable(
 
 def test_history_many_coverage_gate_is_configurable(
     monkeypatch,
+    tmp_path,
 ):
     provider = YFinanceProvider(
         symbols=[
@@ -178,6 +187,8 @@ def test_history_many_coverage_gate_is_configurable(
             "B.NS",
         ],
         min_fresh_data_coverage_pct=0.50,
+        cache=MarketDataCache(tmp_path / "cache"),
+        manifest=DatasetManifest(tmp_path / "manifest.db"),
     )
 
     fresh = _frame(60)

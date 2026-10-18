@@ -1,12 +1,17 @@
-import sys
+import atexit, os, sys, tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False); _tmp.close()
+os.environ.setdefault("DATABASE_PATH", _tmp.name)
+atexit.register(lambda: Path(_tmp.name).unlink(missing_ok=True))
 
 from app.engine import TradingEngine
 
-
 engine = TradingEngine()
+if Path(engine.db.path).resolve() == (ROOT / "data" / "trader.db").resolve():
+    sys.exit("Refusing to run on default trader.db")
 
 symbol = "ITC.NS"
 qty = 1

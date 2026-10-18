@@ -32,11 +32,14 @@ class NewsProvider:
     def recent(self, limit=20, universe=None):
         if feedparser is None:
             return []
+        import urllib.request
         universe = universe or {}
         items=[]
         for source,url in self.FEEDS.items():
             try:
-                feed=feedparser.parse(url)
+                req=urllib.request.Request(url, headers={"User-Agent":"Tradng-Ai/1.0"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    feed=feedparser.parse(resp.read())
                 for e in feed.entries[:limit]:
                     title=e.get("title","").strip()
                     if not title:
@@ -68,7 +71,7 @@ class NewsProvider:
 
     def materiality(self,title):
         t=title.lower()
-        if any(x in t for x in (
+        if any(re.search(rf"\b{re.escape(x)}\b", t) for x in (
             "results","earnings","rbi","sebi","merger","acquisition","order",
             "fraud","ban","approval","regulatory","guidance","rating","default"
         )):
@@ -77,8 +80,8 @@ class NewsProvider:
 
     def sentiment(self,title):
         t=title.lower()
-        pos=sum(x in t for x in self.POSITIVE)
-        neg=sum(x in t for x in self.NEGATIVE)
+        pos=sum(bool(re.search(rf"\b{re.escape(x)}\b", t)) for x in self.POSITIVE)
+        neg=sum(bool(re.search(rf"\b{re.escape(x)}\b", t)) for x in self.NEGATIVE)
         return "positive" if pos>neg else "negative" if neg>pos else "neutral"
 
     def score_for_symbol(self, symbol, items):
