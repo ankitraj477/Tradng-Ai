@@ -1,5 +1,12 @@
+import math
+
+
 class CostModel:
-    """Unified cost model for NSE Cash Equity (Intraday and Delivery)."""
+    """
+    Unified cost and market-impact model for NSE Cash Equity (Intraday and Delivery).
+    Includes exact statutory fees (STT, GST, Exchange, SEBI, Stamp Duty, DP) and
+    dynamic volume-weighted market impact slippage based on ADTV.
+    """
     def __init__(self, cfg=None):
         if cfg is None:
             self.brokerage_pct = 0.0
@@ -12,6 +19,8 @@ class CostModel:
             self.stt_intraday_sell_pct = 0.025
             self.stt_delivery_pct = 0.10
             self.dp_charges = 15.93
+            self.base_slippage_bps = 5.0
+            self.impact_coefficient = 0.10
         else:
             e = cfg.get('execution', {})
             self.brokerage_pct = float(e.get('brokerage_pct', e.get('brokerage', 0.0)))
@@ -24,12 +33,39 @@ class CostModel:
             self.stt_intraday_sell_pct = float(e.get('stt_intraday_sell_pct', 0.0))
             self.stt_delivery_pct = float(e.get('stt_delivery_pct', 0.0))
             self.dp_charges = float(e.get('dp_charges', 0.0))
+            self.base_slippage_bps = float(e.get('base_slippage_bps', e.get('slippage_bps', 0.0)))
+            self.impact_coefficient = float(e.get('slippage_impact_coefficient', 0.10))
 
-    def calculate(self, value, action, segment='INTRADAY'):
+    def calculate_slippage(self, value, adtv=None, base_bps=None):
+        """
+        Calculates dynamic slippage in currency (INR) using square-root market impact.
+        slippage_pct = (base_bps / 10000) + impact_coef * sqrt(order_value / ADTV)
+        """
+        val = float(value)
+        if val <= 0:
+            return 0.0
+
+        base = (self.base_slippage_bps if base_bps is None else float(base_bps)) / 10000.0
+        impact = 0.0
+
+        if adtv is not None and float(adtv) > 0:
+            participation = min(1.0, val / float(adtv))
+            impact = self.impact_coefficient * math.sqrt(participation)
+
+        slippage_rate = base + impact
+        return float(val * slippage_rate)
+
+    def calculate(self, value, action, segment='INTRADAY', adtv=None, include_slippage=False):
+        """
+        Calculates total transaction costs for an NSE Cash Equity trade.
+        Matches exact Indian statutory charges (STT, GST, Exchange, SEBI, Stamp Duty, DP).
+        Optionally includes dynamic volume-weighted slippage.
+        """
         act = action.upper()
         seg = segment.upper()
         val = float(value)
-        if val <= 0: return 0.0
+        if val <= 0:
+            return 0.0
 
         brokerage = max(self.brokerage_flat, val * self.brokerage_pct / 100.0) if (self.brokerage_flat or self.brokerage_pct) else 0.0
         exchange = val * self.exchange_pct / 100.0
@@ -45,4 +81,8 @@ class CostModel:
             stt = val * self.stt_intraday_sell_pct / 100.0 if act == 'SELL' else 0.0
             dp = 0.0
 
-        return float(brokerage + exchange + sebi + gst + stamp + stt + dp)
+        statutory = brokerage + exchange + sebi + gst + stamp + stt + dp
+        slippage = self.calculate_slippage(val, adtv=adtv) if include_slippage else 0.0
+
+        return float(statutory + slippage)
+

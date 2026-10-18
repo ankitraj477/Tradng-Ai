@@ -9,16 +9,39 @@ CLOSE=time(15,30)
 PREOPEN=time(9,0)
 
 
-def _load_holidays():
-    path=Path(__file__).resolve().parents[1]/"config"/"market_holidays.json"
+def _load_holidays(custom_path=None):
+    path = Path(custom_path) if custom_path else Path(__file__).resolve().parents[1] / "config" / "market_holidays.json"
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validated = {}
+        for d_str, name in raw.items():
+            try:
+                datetime.fromisoformat(d_str)
+                validated[d_str] = str(name)
+            except ValueError:
+                continue
+        return validated
     except Exception:
         return {}
 
-HOLIDAYS=_load_holidays()
+
+HOLIDAYS = _load_holidays()
+
+
+def reload_holidays(custom_holidays=None, custom_path=None):
+    """
+    Standardized holiday calendar reloader.
+    Supports injecting updated exchange holiday dictionaries or custom calendar files.
+    """
+    global HOLIDAYS
+    if custom_holidays is not None and isinstance(custom_holidays, dict):
+        HOLIDAYS = {str(k): str(v) for k, v in custom_holidays.items()}
+    else:
+        HOLIDAYS = _load_holidays(custom_path)
+    return dict(HOLIDAYS)
+
 
 
 def now_ist():
@@ -26,8 +49,9 @@ def now_ist():
 
 
 def holiday_name(dt=None):
-    dt=dt or now_ist()
-    return HOLIDAYS.get(dt.date().isoformat())
+    dt = dt or now_ist()
+    d = dt.date() if hasattr(dt, "date") else dt
+    return HOLIDAYS.get(d.isoformat())
 
 
 def market_open(dt=None):
