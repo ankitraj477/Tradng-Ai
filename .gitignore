@@ -29,3 +29,4 @@ cpp/scanner.exe
 .DS_Store
 Thumbs.db
 *.zip
+logs/
