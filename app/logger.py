@@ -31,17 +31,12 @@ class ISTFormatter(logging.Formatter):
 _INITIALIZED = False
 
 
-def setup_logging(cfg=None, log_level=None):
+def setup_logging(cfg=None, log_level=None, force=False):
     """
     Initializes the root and Tradng-Ai loggers with rotating file and console handlers.
-    Safe to call multiple times (idempotent).
+    Safe to call multiple times (idempotent). Supports dynamically updating log level.
     """
     global _INITIALIZED
-    if _INITIALIZED:
-        return logging.getLogger("tradng_ai")
-
-    cfg = cfg or {}
-    log_cfg = cfg.get("logging", {})
 
     # Determine log level: Environment variable overrides config
     env_level = os.getenv("LOG_LEVEL", "").upper()
@@ -50,9 +45,20 @@ def setup_logging(cfg=None, log_level=None):
     elif log_level:
         level = getattr(logging, str(log_level).upper(), logging.INFO)
     else:
-        cfg_level = log_cfg.get("level", "INFO").upper()
+        cfg = cfg or {}
+        cfg_level = cfg.get("logging", {}).get("level", "INFO").upper()
         level = getattr(logging, cfg_level, logging.INFO)
 
+    logger = logging.getLogger("tradng_ai")
+
+    if _INITIALIZED and not force:
+        logger.setLevel(level)
+        for h in logger.handlers:
+            h.setLevel(level)
+        return logger
+
+    cfg = cfg or {}
+    log_cfg = cfg.get("logging", {})
     root = Path(__file__).resolve().parent.parent
     log_dir = root / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
