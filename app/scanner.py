@@ -143,6 +143,8 @@ class Scanner:
 
     def scan(self, provider, cash):
         rows = []
+        # BUG-029: Count failures per scan cycle
+        _scan_failures = 0
 
         metadata = (
             provider.metadata()
@@ -245,8 +247,22 @@ class Scanner:
                     }
                 )
 
-            except Exception:
+            except Exception as exc:
+                # BUG-029: Count and log scanner failures instead of silently swallowing
+                _scan_failures += 1
+                if _scan_failures <= 5:  # Log first 5 failures in detail
+                    import logging
+                    logging.getLogger("tradng_ai.scanner").debug(
+                        f"Scanner error for {symbol}: {exc!r}"
+                    )
                 continue
+
+        # BUG-029: Log aggregate failure count
+        if _scan_failures > 0:
+            import logging
+            logging.getLogger("tradng_ai.scanner").warning(
+                f"Scanner cycle: {_scan_failures} symbol(s) failed out of {len(provider.symbols())}"
+            )
 
         if self.use_cpp:
             rows = self._rank_cpp(rows)

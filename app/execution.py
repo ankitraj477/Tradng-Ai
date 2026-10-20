@@ -10,26 +10,29 @@ class PaperExecution:
 
     def buy(self,p,qty,regime):
         if qty<=0 or any(x['symbol']==p['symbol'] for x in self.db.positions()): return False
-        a=self.db.account(); fill=self._slip(p['price'],'BUY'); value=fill*qty; cost=self.cost(value,'BUY','INTRADAY')
-        if value+cost>a['cash']: return False
+        fill=self._slip(p['price'],'BUY'); value=fill*qty; cost=self.cost(value,'BUY','INTRADAY')
         with self.db.conn() as c:
+            # BUG-027: Read cash inside transaction and use delta update
+            a=dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            if value+cost>a['cash']: return False
             c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost)
                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'LONG',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),cost))
-            c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(a['cash']-value-cost,datetime.now(timezone.utc).isoformat()))
+            c.execute("UPDATE account SET cash=cash-?,updated_at=? WHERE id=1",(value+cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER BUY {p['symbol']} x{qty} @ {fill:.2f}"); return True
 
     def short(self,p,qty,regime):
         if qty<=0 or any(x['symbol']==p['symbol'] for x in self.db.positions()): return False
-        a=self.db.account(); fill=self._slip(p['price'],'SELL'); notional=fill*qty
+        fill=self._slip(p['price'],'SELL'); notional=fill*qty
         margin_pct=self.cfg['execution'].get('short_margin_pct',0.25); margin=notional*margin_pct
         entry_cost=self.cost(notional,'SELL','INTRADAY')
-        if margin+entry_cost>a['cash']: return False
         with self.db.conn() as c:
+            # BUG-027: Read cash inside transaction and use delta update
+            a=dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            if margin+entry_cost>a['cash']: return False
             c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost)
                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'SHORT',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),entry_cost))
-            # Margin is reserved against the account but is tracked separately in the position.
-            # Only actual entry costs leave cash; this keeps cash/equity accounting consistent.
-            c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(a['cash']-entry_cost,datetime.now(timezone.utc).isoformat()))
+            # Only actual entry costs leave cash; margin is tracked via position.
+            c.execute("UPDATE account SET cash=cash-?,updated_at=? WHERE id=1",(entry_cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER SHORT {p['symbol']} x{qty} @ {fill:.2f} margin={margin:.2f}"); return True
 
     def mark(self,quotes):
@@ -48,12 +51,13 @@ class PaperExecution:
             entry_cost=float(p.get('entry_cost') or 0)
             exit_cost=self.cost(notional,'SELL' if side=='LONG' else 'BUY','INTRADAY')
             pnl=gross-exit_cost-entry_cost
-            cash=self.db.account()['cash']+released-exit_cost
             opened=datetime.fromisoformat(p['opened_at']); holding=(datetime.now(timezone.utc)-opened).total_seconds()
             pnl_pct=pnl/entry_cap*100 if entry_cap else 0
             c.execute("""INSERT INTO trades(symbol,action,side,entry_price,exit_price,qty,capital,stop_loss,target,holding_seconds,pnl,pnl_pct,strategy,confidence,regime,entry_reason,exit_reason,risk_decision,created_at)
                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(symbol,'SELL' if side=='LONG' else 'COVER',side,p['entry_price'],fill,p['qty'],entry_cap,p['stop_loss'],p['target'],holding,pnl,pnl_pct,p['strategy'],p['confidence'],regime,'AI proposal',reason,'APPROVED',datetime.now(timezone.utc).isoformat()))
-            c.execute("DELETE FROM positions WHERE symbol=?",(symbol,)); c.execute("UPDATE account SET cash=?,updated_at=? WHERE id=1",(cash,datetime.now(timezone.utc).isoformat()))
+            c.execute("DELETE FROM positions WHERE symbol=?",(symbol,))
+            # BUG-027: Delta update for cash — all within single transaction
+            c.execute("UPDATE account SET cash=cash+?,updated_at=? WHERE id=1",(released-exit_cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER {side} CLOSE {symbol} @ {fill:.2f} P&L={pnl:.2f}"); return True
 
     def cost(self,value,action,segment='INTRADAY'):

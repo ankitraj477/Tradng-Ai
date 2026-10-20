@@ -393,7 +393,30 @@ class YFinanceProvider(MarketDataProvider):
         except Exception as exc:
             cached = self.cache.load(symbol, period, interval, max_age_seconds=self.max_age_seconds)
             if cached is not None and not cached.empty:
-                return cached
+                # BUG-007: Revalidate that cached frame satisfies freshness/coverage rules
+                # and explicitly log a warning rather than silently serving stale data.
+                try:
+                    ok_cache, msg_cache = validate_history(
+                        cached,
+                        max_age_seconds=self.max_age_seconds,
+                        require_fresh=True,
+                    )
+                    if ok_cache:
+                        import logging
+                        logging.getLogger("tradng_ai.data").warning(
+                            f"Live fetch failed for {symbol} ({exc}); using validated cache fallback."
+                        )
+                        return cached
+                    else:
+                        import logging
+                        logging.getLogger("tradng_ai.data").warning(
+                            f"Cache fallback for {symbol} failed validation: {msg_cache}"
+                        )
+                except Exception as val_exc:
+                    import logging
+                    logging.getLogger("tradng_ai.data").warning(
+                        f"Cache fallback for {symbol} validation error ({val_exc})."
+                    )
             raise RuntimeError(
                 "no fresh live data "
                 f"available for {symbol}: "

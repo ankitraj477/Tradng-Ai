@@ -14,17 +14,40 @@ class RiskManager:
             self.cfg["execution"].get("short_margin_pct", 0.25),
         )["equity"]
 
-    def approve(self, p, qty):
+    def approve(self, p, qty, regime_ctx=None):
+        """
+        Risk gate for trade proposals.
+        BUG-009: Now accepts optional regime_ctx to enforce allowed_sides and size_multiplier.
+        BUG-025: Handles NULL stop_loss gracefully.
+        """
         if qty <= 0 or p.get("confidence", 0) < 60:
             return "REJECT"
 
         if p.get("risk_reward", 0) < self.cfg["risk"]["min_risk_reward"]:
             return "REJECT"
 
+        # BUG-009: Enforce regime allowed_sides
+        if regime_ctx:
+            allowed_sides = regime_ctx.get("allowed_sides", ["LONG", "SHORT"])
+            action_side = "LONG" if p.get("action") == "BUY" else "SHORT"
+            if action_side not in allowed_sides:
+                return "REJECT"
+            # BUG-009: Reject if regime says no trading (size_multiplier == 0)
+            if regime_ctx.get("size_multiplier", 1.0) <= 0:
+                return "REJECT"
+
         if "target" in p and "price" in p and p.get("target"):
             from .risk_engine import MinimumMoveGate
-            move_gate = MinimumMoveGate(cost_multiplier=self.cfg.get("risk", {}).get("min_move_cost_multiplier", 1.5))
-            ok_move, _ = move_gate.check(p["price"], p["target"], p.get("stop_loss", p["price"]), p.get("action", "BUY"))
+            # BUG-023: Pass configured cost model and map SHORT->SELL
+            from .costs import CostModel
+            cost_model = CostModel(self.cfg)
+            move_gate = MinimumMoveGate(
+                cost_multiplier=self.cfg.get("risk", {}).get("min_move_cost_multiplier", 1.5),
+                cost_model=cost_model
+            )
+            # BUG-023: Map SHORT to SELL for proper STT calculation
+            gate_action = "SELL" if p.get("action") == "SHORT" else p.get("action", "BUY")
+            ok_move, _ = move_gate.check(p["price"], p["target"], p.get("stop_loss", p["price"]), gate_action)
             if not ok_move:
                 return "REJECT"
 
@@ -49,8 +72,9 @@ class RiskManager:
             return "REJECT"
 
         from .risk_engine import PortfolioHeatLimiter
+        # BUG-025: Use explicit config key with proper default
         heat_limiter = PortfolioHeatLimiter(
-            max_heat_pct=self.cfg.get("risk", {}).get("max_portfolio_heat_pct", 0.10),
+            max_heat_pct=self.cfg.get("risk", {}).get("max_portfolio_heat_pct", 0.06),
             max_sector_pct=self.cfg.get("risk", {}).get("max_sector_exposure_pct", 0.40)
         )
         ok_heat, _ = heat_limiter.check(equity, positions, p, qty)
@@ -101,7 +125,7 @@ class RiskManager:
         )
 
         current_exposure = sum(
-            float(x["qty"]) * float(x["current_price"])
+            float(x["qty"]) * float(x.get("current_price", x["entry_price"]))
             for x in positions
         )
 
@@ -117,7 +141,7 @@ class RiskManager:
 
         if sector and sector != "Unknown":
             sector_exposure = sum(
-                float(x["qty"]) * float(x["current_price"])
+                float(x["qty"]) * float(x.get("current_price", x["entry_price"]))
                 for x in positions
                 if x.get("sector") == sector
             )
@@ -163,8 +187,18 @@ class RiskManager:
             and (peak - metrics["equity"]) / peak
             >= float(risk.get("max_drawdown_pct", 1.0))
         ):
+            # BUG-026: Log drawdown lockout with explicit alert
+            self.db.log(
+                "ERROR",
+                f"DRAWDOWN LOCKOUT: Equity {metrics['equity']:.2f} vs peak {peak:.2f} "
+                f"({(peak - metrics['equity']) / peak * 100:.1f}% drawdown). "
+                f"Trading suspended. To reset: use /api/kill-switch/reset or "
+                f"manually update peak_value in the database."
+            )
             return False, "maximum drawdown reached"
 
+        # BUG-047: Use IST date for daily loss baseline
+        from .market_hours import now_ist
         start_equity = self.db.day_start_equity(
             metrics["equity"]
         )

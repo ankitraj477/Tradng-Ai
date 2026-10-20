@@ -12,7 +12,8 @@
     "min_risk_reward": 1.5,
     "max_drawdown_pct": 0.15,
     "kill_switch": false,
-    "daily_loss_limit_pct": 0.05
+    "daily_loss_limit_pct": 0.05,
+    "max_portfolio_heat_pct": 0.06
   },
 
   "execution": {
@@ -26,17 +27,19 @@
     "stt_intraday_sell_pct": 0.025,
     "short_margin_pct": 0.25,
     "trailing_stop_atr": 1.5,
-    "max_hold_minutes": 390
+    "max_hold_minutes": 390,
+    "stop_loss_pct": 0.05,
+    "target_pct": 0.5
   },
 
 "market": {
-  "decision_interval_minutes": 5,
+  "decision_interval_minutes": 1,
   "data_max_age_seconds": 900,
   "live_data_max_age_seconds": 420,
   "min_fresh_data_coverage_pct": 0.70,
   "max_candidates": 50,
   "max_open_positions": 5,
-  "protection_interval_seconds": 30,
+  "protection_interval_seconds": 5,
   "history_period": "60d"
 },
 
@@ -57,5 +60,9 @@
 
   "use_cpp_scanner": false,
 
-  "cpp_scanner_path": "cpp/scanner.exe"
+  "cpp_scanner_path": "cpp/scanner.exe",
+
+  "dashboard": {
+    "token": ""
+  }
 }

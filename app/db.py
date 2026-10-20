@@ -3,7 +3,16 @@ import time
 import random
 from pathlib import Path
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
+
 def now(): return datetime.now(timezone.utc).isoformat()
+
+def now_ist_date():
+    """BUG-047: Use IST date for daily boundaries instead of UTC."""
+    return datetime.now(IST).date().isoformat()
+
 class DB:
     def __init__(self,path):
         Path(path).parent.mkdir(parents=True,exist_ok=True); self.path=path
@@ -23,6 +32,11 @@ class DB:
                 c.execute("PRAGMA journal_mode=WAL")
                 c.execute("PRAGMA busy_timeout=30000")
                 c.execute("PRAGMA synchronous=NORMAL")
+
+        # Engine heartbeat: track last cycle time for health endpoint (BUG-031)
+        self._last_cycle_at = None
+        self._data_ok = False
+        self._exception_counts = {"scanner": 0, "news": 0, "protection": 0}
 
     def conn(self):
         if self._conn is not None:
@@ -45,9 +59,11 @@ class DB:
                     time.sleep(sleep_time)
                 else:
                     raise
+
     def init(self):
         from .schema import SCHEMA
         with self.conn() as c:c.executescript(SCHEMA)
+
     def migrate(self):
         # Backward-compatible schema migration for databases created before V8.1.
         with self.conn() as c:
@@ -82,17 +98,25 @@ class DB:
             self.execute_with_retry(_write)
         except Exception:
             pass
+
     def account(self):
         with self.conn() as c:
             r=c.execute("SELECT * FROM account WHERE id=1").fetchone(); return dict(r) if r else None
+
     def ensure_account(self,starting,target):
         if not self.account():
             with self.conn() as c:c.execute("INSERT INTO account VALUES(1,?,?,?,?,?)",(starting,starting,target,starting,now()))
+
     def update_position_atr(self, symbol, atr):
         with self.conn() as c:
             c.execute("UPDATE positions SET atr=? WHERE symbol=?",(float(atr),symbol))
 
-    def update_stop(self, symbol, stop_loss):
+    def update_current_price(self, symbol, price):
+        with self.conn() as c:
+            c.execute("UPDATE positions SET current_price=? WHERE symbol=?", (float(price), symbol))
+
+    def update_stop(self, symbol, stop_loss, max_stop_updates=5000):
+        """BUG-042: Added retention limit for stop_updates table."""
         with self.conn() as c:
             row=c.execute("SELECT stop_loss FROM positions WHERE symbol=?",(symbol,)).fetchone()
             if not row: return
@@ -102,10 +126,12 @@ class DB:
             c.execute("UPDATE positions SET stop_loss=? WHERE symbol=?",(new,symbol))
             c.execute("INSERT INTO stop_updates(symbol,old_stop,new_stop,created_at) VALUES(?,?,?,?)",
                       (symbol,old,new,now()))
+            # BUG-042: Trim stop_updates to prevent unbounded growth
+            c.execute("DELETE FROM stop_updates WHERE id <= (SELECT id FROM stop_updates ORDER BY id DESC LIMIT 1 OFFSET ?)", (max_stop_updates,))
 
     def realized_pnl_today(self):
-        from datetime import datetime, timezone
-        day=datetime.now(timezone.utc).date().isoformat()
+        # BUG-047: Use IST date for daily boundaries
+        day = now_ist_date()
         with self.conn() as c:
             row=c.execute(
                 "SELECT COALESCE(SUM(pnl),0) AS pnl FROM trades WHERE substr(created_at,1,10)=?",
@@ -113,8 +139,8 @@ class DB:
             return float(row["pnl"] if row else 0.0)
 
     def day_start_equity(self, current_equity):
-        # Persist the first observed equity for each UTC day in a small state table.
-        day=datetime.now(timezone.utc).date().isoformat()
+        # BUG-047: Use IST date for daily boundaries
+        day = now_ist_date()
         with self.conn() as c:
             c.execute("""CREATE TABLE IF NOT EXISTS daily_state(
                          day TEXT PRIMARY KEY, start_equity REAL NOT NULL)""")
@@ -125,24 +151,33 @@ class DB:
 
     def positions(self):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM positions ORDER BY opened_at")]
+
     def trades(self,limit=10):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?",(limit,))]
+
     def all_trades(self):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY id")]
+
     def decisions(self,limit=10):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM decisions ORDER BY id DESC LIMIT ?",(limit,))]
+
     def update_account(self,cash,peak):
         with self.conn() as c:c.execute("UPDATE account SET cash=?,peak_value=?,updated_at=? WHERE id=1",(cash,peak,now()))
+
     def set_market(self,regime,sentiment,nifty,data_ok):
+        self._data_ok = bool(data_ok)
         with self.conn() as c:c.execute("""INSERT INTO market_state(id,regime,global_sentiment,nifty_condition,last_update,data_ok)
         VALUES(1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET regime=excluded.regime,global_sentiment=excluded.global_sentiment,
         nifty_condition=excluded.nifty_condition,last_update=excluded.last_update,data_ok=excluded.data_ok""",(regime,sentiment,nifty,now(),int(data_ok)))
+
     def market(self):
         with self.conn() as c:
             r=c.execute("SELECT * FROM market_state WHERE id=1").fetchone();return dict(r) if r else {}
+
     def add_decision(self,d):
         with self.conn() as c:c.execute("""INSERT INTO decisions(symbol,action,confidence,strategy,reason,risk_decision,created_at)
         VALUES(?,?,?,?,?,?,?)""",(d["symbol"],d["action"],d["confidence"],d["strategy"],d["reason"],d["risk_decision"],now()))
+
     def total_realized_pnl(self):
         with self.conn() as c:
             row=c.execute("SELECT COALESCE(SUM(pnl),0) AS pnl FROM trades").fetchone()
@@ -152,6 +187,7 @@ class DB:
         with self.conn() as c:
             c.execute("INSERT INTO equity_curve(value,pnl,created_at) VALUES(?,?,?)",(value,pnl,now()))
             c.execute("DELETE FROM equity_curve WHERE id <= (SELECT id FROM equity_curve ORDER BY id DESC LIMIT 1 OFFSET ?)",(max_rows,))
+
     def equity(self):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM equity_curve ORDER BY id")]
 
@@ -175,3 +211,19 @@ class DB:
     def set_auto_trading(self, enabled: bool):
         self.set_setting("auto_trading", "true" if enabled else "false")
 
+    # BUG-031: Engine heartbeat tracking
+    def set_last_cycle(self):
+        self._last_cycle_at = now()
+
+    def get_last_cycle(self):
+        return self._last_cycle_at
+
+    # BUG-029: Exception counting
+    def count_exception(self, category):
+        self._exception_counts[category] = self._exception_counts.get(category, 0) + 1
+
+    def get_exception_counts(self):
+        return dict(self._exception_counts)
+
+    def reset_exception_counts(self):
+        self._exception_counts = {k: 0 for k in self._exception_counts}

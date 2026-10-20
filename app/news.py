@@ -59,9 +59,19 @@ class NewsProvider:
                         ev_type = clf["event_type"]
                         mat = clf["materiality"].lower()
                         sent = clf["sentiment"].lower()
+                    # BUG-041: Normalize published timestamp
+                    raw_pub = e.get("published", "")
+                    norm_pub = raw_pub
+                    if raw_pub:
+                        try:
+                            from email.utils import parsedate_to_datetime
+                            norm_pub = parsedate_to_datetime(raw_pub).astimezone(timezone.utc).isoformat()
+                        except Exception:
+                            pass
+
                     item = NewsItem(
                         title=title, url=e.get("link",""), source=source,
-                        published=e.get("published",""),
+                        published=norm_pub,
                         materiality=mat,
                         sentiment=sent,
                         symbols=tuple(matches),
@@ -69,8 +79,13 @@ class NewsProvider:
                     )
                     items.append(item)
                     if self.archive:
-                        self.archive.archive_item(source, title, e.get("link",""), e.get("published",""), matches, ev_type, sent, mat)
-            except Exception:
+                        self.archive.archive_item(source, title, e.get("link",""), norm_pub, matches, ev_type, sent, mat)
+            except Exception as feed_err:
+                # BUG-029: Log failures instead of silently swallowing them
+                import logging
+                logging.getLogger("tradng_ai.news").warning(
+                    f"News feed fetch failed for {source} ({url}): {feed_err}"
+                )
                 continue
         return items[:limit]
 
