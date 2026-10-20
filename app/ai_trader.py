@@ -49,30 +49,38 @@ class AITrader:
         if bullish and bull_score >= 60 and long_score >= 65:
             action = "BUY"
             confidence = min(95, round(long_score))
-        elif bearish and bear_score >= 65 and short_score >= 45 and market_sentiment in {"Bearish", "Neutral"}:
-            # BUG-008: Removed max(60,...) confidence floor — risk gate actually filters on confidence >= 60
+            chosen_strat = best
+            score_to_show = bull_score
+        elif bearish and bear_score >= 60 and short_score >= 60 and market_sentiment in {"Bearish", "Neutral"}:
             action = "SHORT"
             confidence = min(95, round(short_score))
+            chosen_strat = max(weighted_bear, key=lambda x: x[1])
+            score_to_show = bear_score
         else:
             action = "WAIT"
             confidence = min(95, round(max(long_score, short_score)))
+            chosen_strat = max(weighted_bear, key=lambda x: x[1]) if short_score > long_score else best
+            score_to_show = bear_score if short_score > long_score else bull_score
 
         base_atr = max(c.get("atr", 0.0), c["price"] * 0.005)
-        exec_cfg=self.cfg.get("execution",{})
-        sl_pct=float(exec_cfg.get("stop_loss_pct",0.0))
-        tp_pct=float(exec_cfg.get("target_pct",0.0))
-        if sl_pct>0 and tp_pct>0:
-            stop_dist=max(c["price"]*sl_pct,1.5*base_atr)
-            target_dist=max(c["price"]*tp_pct,stop_dist*2.0)
-            atr=stop_dist/1.5
+        exec_cfg = self.cfg.get("execution", {})
+        sl_pct = float(exec_cfg.get("stop_loss_pct", 0.0))
+        tp_pct = float(exec_cfg.get("target_pct", 0.0))
+        if sl_pct > 0 and tp_pct > 0:
+            stop_dist = max(c["price"] * sl_pct, 1.5 * base_atr)
+            target_dist = max(c["price"] * tp_pct, stop_dist * 2.0)
+            atr = stop_dist / 1.5
         else:
-            atr=base_atr; stop_dist=1.5*atr; target_dist=3.0*atr
-        stop=c["price"]+stop_dist if action=="SHORT" else max(0.01,c["price"]-stop_dist)
-        target=max(0.01,c["price"]-target_dist) if action=="SHORT" else c["price"]+target_dist
-        rr=abs(target-c["price"])/max(abs(c["price"]-stop),0.01)
-        reason=(f"{best[0]} strongest; score {c['score']:.0f}, RSI {c['rsi']:.1f}, "
-                f"5-bar return {c['ret_5']*100:.2f}%, relative volume {c['rel_volume']:.2f}x; "
-                f"market={regime}; news bias={news_bias:+d}; learned weight={best[2]:.2f}.")
-        return {"symbol":c["symbol"],"action":action,"price":c["price"],"confidence":confidence,
-                "strategy":best[0],"reason":reason,"stop_loss":stop,"target":target,
-                "risk_reward":rr,"sector":c.get("sector","Unknown"),"regime":regime,"atr":atr}
+            atr = base_atr
+            stop_dist = 1.5 * atr
+            target_dist = 3.0 * atr
+        stop = c["price"] + stop_dist if action == "SHORT" else max(0.01, c["price"] - stop_dist)
+        target = max(0.01, c["price"] - target_dist) if action == "SHORT" else c["price"] + target_dist
+        rr = abs(target - c["price"]) / max(abs(c["price"] - stop), 0.01)
+        reason = (f"{chosen_strat[0]} strongest; score {score_to_show:.0f}, RSI {c.get('rsi', 50):.1f}, "
+                  f"5-bar return {c.get('ret_5', 0)*100:.2f}%, relative volume {c.get('rel_volume', 1.0):.2f}x; "
+                  f"market={regime}; news bias={news_bias:+d}; learned weight={chosen_strat[2]:.2f}.")
+        return {"symbol": c["symbol"], "action": action, "price": c["price"], "confidence": confidence,
+                "strategy": chosen_strat[0], "reason": reason, "stop_loss": stop, "target": target,
+                "risk_reward": rr, "sector": c.get("sector", "Unknown"), "regime": regime, "atr": atr}
+

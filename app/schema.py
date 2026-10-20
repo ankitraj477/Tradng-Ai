@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS equity_curve (
 CREATE TABLE IF NOT EXISTS stop_updates (
  id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, old_stop REAL,
  new_stop REAL NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS orders (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, action TEXT NOT NULL, side TEXT NOT NULL,
+ qty INTEGER NOT NULL, price REAL NOT NULL, stop_loss REAL, target REAL,
+ product_type TEXT DEFAULT 'INTRADAY', order_type TEXT DEFAULT 'REGULAR',
+ status TEXT DEFAULT 'PENDING', strategy TEXT, placed_at TEXT NOT NULL,
+ executed_at TEXT, rejection_reason TEXT);
 CREATE TABLE IF NOT EXISTS events (
  id INTEGER PRIMARY KEY AUTOINCREMENT, level TEXT, message TEXT, created_at TEXT NOT NULL);
 """

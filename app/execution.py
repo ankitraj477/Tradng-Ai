@@ -14,7 +14,11 @@ class PaperExecution:
         with self.db.conn() as c:
             # BUG-027: Read cash inside transaction and use delta update
             a=dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
-            if value+cost>a['cash']: return False
+            margin_pct=self.cfg.get('execution',{}).get('short_margin_pct',0.25)
+            open_pos=[dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved=sum(float(x['entry_price'])*float(x['qty'])*margin_pct for x in open_pos if x['side']=='SHORT')
+            avail=max(0.0,float(a['cash'])-reserved)
+            if value+cost>avail: return False
             target_step = abs(float(p['target']) - fill) if p.get('target') is not None else 0.0
             prod_type = str(p.get('product_type', 'INTRADAY'))
             c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost,target_step,product_type)
@@ -30,7 +34,10 @@ class PaperExecution:
         with self.db.conn() as c:
             # BUG-027: Read cash inside transaction and use delta update
             a=dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
-            if margin+entry_cost>a['cash']: return False
+            open_pos=[dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved=sum(float(x['entry_price'])*float(x['qty'])*margin_pct for x in open_pos if x['side']=='SHORT')
+            avail=max(0.0,float(a['cash'])-reserved)
+            if margin+entry_cost>avail: return False
             target_step = abs(fill - float(p['target'])) if p.get('target') is not None else 0.0
             prod_type = str(p.get('product_type', 'INTRADAY'))
             c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost,target_step,product_type)

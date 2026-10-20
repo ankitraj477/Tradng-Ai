@@ -31,30 +31,34 @@ from .ops.kill_switch import CentralKillSwitch
 
 class TradingEngine:
 
-    def __init__(self, live=False):
-        self.cfg = load_config()
+    def __init__(self, live=False, cfg=None, db=None, provider=None):
+        self.cfg = cfg or load_config()
 
         # live=True enables live MARKET DATA only.
         # Execution remains paper-only.
         self.cfg["live_data"] = (
-            live or self.cfg["live_data"]
+            live or self.cfg.get("live_data", False)
         )
 
-        self.db = DB(
-            self.cfg["database_path"]
+        self.db = db or DB(
+            self.cfg.get("database_path", "data/trader.db")
         )
 
         self.db.ensure_account(
-            self.cfg["capital"]["starting"],
-            self.cfg["capital"]["target"],
+            self.cfg.get("capital", {}).get("starting", 100000.0),
+            self.cfg.get("capital", {}).get("target", 5000000.0),
         )
+
+
 
         # --------------------------------------------------
         # DATA PROVIDER
         # --------------------------------------------------
 
-        if self.cfg["live_data"]:
-            market_cfg = self.cfg["market"]
+        if provider is not None:
+            self.provider = provider
+        elif self.cfg.get("live_data"):
+            market_cfg = self.cfg.get("market", {})
 
             self.provider = Nifty500Provider(
                 max_age_seconds=market_cfg.get(
@@ -83,9 +87,13 @@ class TradingEngine:
         # CORE COMPONENTS
         # --------------------------------------------------
 
+        market_cfg = self.cfg.get("market", {})
+        if not isinstance(market_cfg, dict):
+            market_cfg = {}
+
         self.scanner = Scanner(
-            self.cfg["market"]["max_candidates"],
-            self.cfg["use_cpp_scanner"],
+            market_cfg.get("max_candidates", 20),
+            self.cfg.get("use_cpp_scanner", False),
             self.cfg.get(
                 "cpp_scanner_path",
                 "",
@@ -134,7 +142,7 @@ class TradingEngine:
 
         self.selector = CandidateSelector(
             self.learning,
-            self.cfg["risk"].get(
+            (self.cfg.get("risk") or {}).get(
                 "max_sector_exposure_pct",
                 0.40,
             ),
@@ -156,6 +164,15 @@ class TradingEngine:
 
         # BUG-006: Track whether we've done a catch-up close this session
         self._catch_up_done = False
+
+        # Initialize the 3 decoupled trading desks
+        from .intraday.runner import IntradayDeskRunner
+        from .swing.runner import SwingDeskRunner
+        from .fno.runner import FnoDeskRunner
+
+        self.intraday_desk = IntradayDeskRunner(self.db, self.provider, self.cfg)
+        self.swing_desk = SwingDeskRunner(self.db, self.provider, self.cfg)
+        self.fno_desk = FnoDeskRunner(self.db, self.provider, self.cfg)
 
     # ======================================================
     # UNIVERSE
@@ -221,14 +238,17 @@ class TradingEngine:
     # DYNAMIC CONFIG HOT-RELOAD
     # ======================================================
 
-    def reload_config(self):
+    def reload_config(self, new_cfg=None):
         """
-        Dynamically reload configuration from disk on every cycle.
+        Dynamically reload configuration from disk on every cycle or from passed new_cfg.
         Allows tweaking risk caps, stop loss %, targets, and parameters without restarting.
         """
         try:
             live = self.cfg.get("live_data", False)
-            new_cfg = load_config()
+            if new_cfg is None:
+                new_cfg = load_config()
+            else:
+                new_cfg = dict(new_cfg)
             new_cfg["live_data"] = live or new_cfg.get("live_data", False)
             self.cfg = new_cfg
             if hasattr(self, "ai") and self.ai:
@@ -241,6 +261,19 @@ class TradingEngine:
                 self.exec.cfg = self.cfg
             if hasattr(self, "positions") and self.positions:
                 self.positions.cfg = self.cfg
+            if hasattr(self, "intraday_desk") and self.intraday_desk:
+                self.intraday_desk.cfg = self.cfg
+            if hasattr(self, "swing_desk") and self.swing_desk:
+                self.swing_desk.cfg = self.cfg
+            if hasattr(self, "fno_desk") and self.fno_desk:
+                self.fno_desk.cfg = self.cfg
+            if "capital" in new_cfg:
+                self.db.ensure_account(
+                    float(new_cfg["capital"].get("starting", 100000.0)),
+                    float(new_cfg["capital"].get("target", 5000000.0))
+                )
+
+
         except Exception as exc:
             self.db.log("WARN", f"Dynamic config reload failed: {exc!r}")
 
@@ -402,11 +435,10 @@ class TradingEngine:
 
         try:
 
+            market_cfg = self.cfg.get("market") or {}
             df = self.provider.history(
                 "^NSEI",
-                period=self.cfg[
-                    "market"
-                ].get(
+                period=market_cfg.get(
                     "history_period",
                     "60d",
                 ),
@@ -415,11 +447,10 @@ class TradingEngine:
 
             ok, msg = validate_history(
                 df,
-                self.cfg[
-                    "market"
-                ][
-                    "data_max_age_seconds"
-                ],
+                market_cfg.get(
+                    "data_max_age_seconds",
+                    600,
+                ),
             )
 
             if not ok:
@@ -541,8 +572,18 @@ class TradingEngine:
                 "market closed",
             )
 
-            self.snapshot()
+            # Trigger off-market swing AMO placement and F&O research
+            try:
+                self.swing_desk.run_cycle()
+            except Exception as exc:
+                self.db.log("ERROR", f"Swing desk off-market cycle: {exc!r}")
 
+            try:
+                self.fno_desk.run_cycle()
+            except Exception as exc:
+                self.db.log("ERROR", f"F&O desk off-market cycle: {exc!r}")
+
+            self.snapshot()
             return
 
         # Reset catch-up flag when market is open
@@ -846,6 +887,22 @@ class TradingEngine:
 
         self.positions.manage()
 
+        # Trigger all 3 decoupled desks in the unified cycle
+        try:
+            self.intraday_desk.run_cycle()
+        except Exception as exc:
+            self.db.log("ERROR", f"Intraday desk cycle: {exc!r}")
+
+        try:
+            self.swing_desk.run_cycle()
+        except Exception as exc:
+            self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
+
+        try:
+            self.fno_desk.run_cycle()
+        except Exception as exc:
+            self.db.log("ERROR", f"F&O desk cycle: {exc!r}")
+
         # --------------------------------------------------
         # ACCOUNT SNAPSHOT
         # --------------------------------------------------
@@ -868,9 +925,7 @@ class TradingEngine:
         metrics = portfolio_metrics(
             account,
             positions,
-            self.cfg[
-                "execution"
-            ].get(
+            (self.cfg.get("execution") or {}).get(
                 "short_margin_pct",
                 0.25,
             ),
@@ -972,6 +1027,8 @@ class TradingEngine:
                     if self.db.positions():
                         if not self.cfg["live_data"] or market_open():
                             self.positions.manage(now_ist() if self.cfg.get("live_data") else None)
+                            self.swing_desk.position_manager.manage()
+                            self.fno_desk.position_manager.manage()
 
                 except Exception as exc:
 

@@ -203,3 +203,37 @@ def test_fno_iron_condor_and_50pct_profit_rule():
     trade = db.trades_by_product("FNO")[0]
     assert trade["exit_reason"] == "50% Profit Target (Theta Decayed)"
     assert trade["pnl"] > 0
+
+
+def test_market_closed_amo_orders_flow():
+    """Verify that when market is closed, orders are queued as AMO instead of immediate fills."""
+    db = DB(":memory:")
+    db.init()
+    db.ensure_account(100000.0, 150000.0)
+
+    cfg = {"execution": {"enforce_market_hours": True}}
+    swing_exec = SwingExecution(db, cfg)
+
+    # When market is closed (e.g. night hours), buy() queues an AMO
+    p = {
+        "symbol": "TCS.NS",
+        "price": 3500.0,
+        "stop_loss": 3400.0,
+        "target": 3800.0,
+        "strategy": "Swing Pullback",
+        "product_type": "SWING"
+    }
+
+    # If currently not market open (night time / weekend):
+    from app.market_hours import market_open
+    if not market_open():
+        assert swing_exec.buy(p, 2)
+        # Positions must be 0 (no immediate fill at night!)
+        assert len(db.positions()) == 0
+        # Orders must have 1 pending AMO
+        pending = db.pending_orders()
+        assert len(pending) == 1
+        assert pending[0]["symbol"] == "TCS.NS"
+        assert pending[0]["order_type"] == "AMO"
+        assert pending[0]["status"] == "PENDING"
+

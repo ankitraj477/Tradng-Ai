@@ -139,6 +139,9 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         return None
 
 
+    generate_signal = decide
+
+
 ORBStrategy = OpeningRangeBreakoutStrategy
 
 
@@ -153,7 +156,7 @@ class ORBDeskStrategy:
         try:
             intraday_df = self.provider.history(symbol, period="5d", interval="5m")
             daily_df = self.provider.history(symbol, period="60d", interval="1d")
-            sig = self.strategy.generate_signal(symbol, intraday_df, daily_df)
+            sig = self.strategy.decide(symbol, intraday_df, daily_df)
             if sig:
                 from types import SimpleNamespace
                 return SimpleNamespace(**sig)

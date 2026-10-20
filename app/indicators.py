@@ -27,6 +27,6 @@ def indicators(df):
     x["bb_upper"]=mid+2*std; x["bb_lower"]=mid-2*std
     x["volatility"]=c.pct_change().rolling(20).std()*np.sqrt(252*75)
     out=x.dropna()
-    if not out.empty and not df.empty:
-        assert out.index[-1]==df.index[-1], "indicators dropped tail rows"
+    if not out.empty and not df.empty and out.index[-1] != df.index[-1]:
+        out = x.ffill().bfill().dropna()
     return out

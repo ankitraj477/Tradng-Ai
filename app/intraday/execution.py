@@ -176,7 +176,11 @@ class IntradayExecution:
 
         with self.db.conn() as c:
             acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
-            if margin_req > acc["cash"]:
+            positions = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved_margin = sum(float(x["entry_price"]) * float(x["qty"]) * short_margin_pct
+                                  for x in positions if x["side"] == "SHORT")
+            available_cash = max(0.0, float(acc["cash"]) - reserved_margin)
+            if margin_req > available_cash:
                 return False
             c.execute(
                 """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
@@ -191,9 +195,10 @@ class IntradayExecution:
                     float(atr), cost, target_step, "INTRADAY", 0
                 )
             )
+            # Only transaction costs leave cash; margin is tracked via position reserved_margin
             c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
-                      (margin_req, datetime.now(timezone.utc).isoformat()))
-        self.db.log("INFO", f"[Intraday] SHORT {symbol} x{qty} @ {price:.2f} (SL: {stop_loss:.2f}, TP: {target:.2f})")
+                      (cost, datetime.now(timezone.utc).isoformat()))
+        self.db.log("INFO", f"[Intraday] SHORT {symbol} x{qty} @ {price:.2f} (SL: {stop_loss:.2f}, TP: {target:.2f}, margin: {val * short_margin_pct:.2f})")
         return True
 
     def close(self, symbol, exit_price, reason, category=""):

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from flask import Flask, jsonify, render_template_string
 
 from .accounting import portfolio_metrics
-from .market_hours import market_phase, now_ist, holiday_name
+from .market_hours import market_phase, now_ist, holiday_name, market_open
 from .learning import LearningEngine
 from .runtime import preflight
 
@@ -941,6 +941,23 @@ HTML = r"""<!doctype html>
             </div>
         </div>
 
+        <!-- Pending Orders & AMOs (After-Market Orders) -->
+        <div class="panel" id="orders-panel" style="border:1px solid rgba(234,179,8,0.3); background:linear-gradient(180deg, rgba(234,179,8,0.03) 0%, var(--bg-card) 100%);">
+            <div class="panel-header">
+                <div class="panel-title" style="display:flex; align-items:center; gap:8px;">
+                    <span>📝 Pending Orders & AMOs (After-Market)</span>
+                    <span style="font-size:11px; font-weight:400; color:var(--text-muted);">(Queued outside 09:15-15:30 IST market hours)</span>
+                </div>
+                <span id="order-count" class="brand-badge" style="background:rgba(234,179,8,0.15); color:#facc15; border:1px solid rgba(234,179,8,0.3);">0 PENDING</span>
+            </div>
+            <div id="orders-body" class="positions-list">
+                <div class="empty-state">
+                    <span style="font-size:20px;opacity:0.6;">📝</span>
+                    <span>No pending orders queued</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Two Column Desk: Holdings & Executions -->
         <div class="two-col">
             <!-- Open Holdings as Sleek Mobile Cards -->
@@ -1570,6 +1587,32 @@ function renderPositionCard(p, desk) {
     </div>`;
 }
 
+function renderOrderCard(o) {
+    const qty = Number(o.qty || 1);
+    const price = Number(o.price || 0);
+    const pType = (o.product_type || 'INTRADAY').toUpperCase();
+    const oType = (o.order_type || 'AMO').toUpperCase();
+    const sl = o.stop_loss ? ` · SL ${formatMoney(o.stop_loss)}` : '';
+    const tp = o.target ? ` · TP ${formatMoney(o.target)}` : '';
+    return `
+    <div class="pos-card" style="border-left:3px solid #facc15;">
+        <div class="pos-card-main">
+            <div class="pos-info">
+                <div class="pos-symbol">${escapeHtml(o.symbol)}</div>
+                <div class="pos-meta">
+                    <span class="pill" style="background:rgba(234,179,8,0.15); color:#facc15; border:1px solid rgba(234,179,8,0.3);">${escapeHtml(oType)} PENDING</span>
+                    <span class="pill pill-cyan">${escapeHtml(pType)} · ${qty} QTY</span>
+                    <span class="faint">${tp}${sl}</span>
+                </div>
+            </div>
+            <div class="pos-pricing">
+                <div class="pos-current">${formatMoney(price)}</div>
+                <div style="font-size:11px; color:#facc15; font-family:var(--font-mono); font-weight:600;">Scheduled for 09:15 AM Open</div>
+            </div>
+        </div>
+    </div>`;
+}
+
 function renderTradeRow(t) {
     const pnl = Number(t.pnl || 0);
     const isWin = pnl >= 0;
@@ -1602,6 +1645,8 @@ async function updateDashboard() {
 
         totalEquityCached = Number(data.portfolio || 100000);
 
+
+
         // Auto-trading Button Sync
         if (data.auto_trading !== undefined) {
             autoTradingActive = !!data.auto_trading;
@@ -1617,7 +1662,18 @@ async function updateDashboard() {
         const clockEl = document.getElementById('clock');
         if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST';
         const phase = data.market_phase || 'MARKET CLOSED';
-        document.getElementById('market-phase-badge').textContent = phase.toUpperCase();
+        const isOpen = !!data.market_open;
+        const phaseBadge = document.getElementById('market-phase-badge');
+        const pulseBox = document.getElementById('pulse-box');
+        if (phaseBadge) {
+            if (isOpen) {
+                phaseBadge.textContent = 'NSE OPEN (09:15-15:30)';
+                if (pulseBox) pulseBox.style.borderColor = 'rgba(16,185,129,0.3)';
+            } else {
+                phaseBadge.innerHTML = '<span style="color:#fb7185;">NSE CLOSED</span> · NEXT 09:15 AM';
+                if (pulseBox) pulseBox.style.borderColor = 'rgba(244,63,94,0.3)';
+            }
+        }
 
         // Hero Metric Cards
         document.getElementById('val-portfolio').textContent = formatMoney(data.portfolio);
@@ -1675,6 +1731,23 @@ async function updateDashboard() {
                 </div>`;
         } else {
             posBody.innerHTML = positions.map(p => renderPositionCard(p, 'main')).join('');
+        }
+
+        // Orders & AMOs (Main Tab)
+        const ordersBody = document.getElementById('orders-body');
+        const orders = data.pending_orders || [];
+        const orderCountEl = document.getElementById('order-count');
+        if (orderCountEl) orderCountEl.textContent = orders.length + ' PENDING';
+        if (ordersBody) {
+            if (orders.length === 0) {
+                ordersBody.innerHTML = `
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">📝</span>
+                        <span>No pending orders queued</span>
+                    </div>`;
+            } else {
+                ordersBody.innerHTML = orders.map(o => renderOrderCard(o)).join('');
+            }
         }
 
         // All Desks Trades (Main Tab)
@@ -2090,8 +2163,19 @@ def create_app(db, cfg=None, provider=None):
             "market_phase": market_phase(),
             "fno_expiry": fno_expiry,
             "fno_pcr": fno_pcr,
+            "market_open": market_open(),
+            "orders": db.orders(50),
+            "pending_orders": db.pending_orders(),
             "updated_at": now_ist().isoformat(),
             "equity_curve": db.equity()
+        })
+
+    @flask_app.get("/api/orders")
+    def get_orders():
+        return jsonify({
+            "orders": db.orders(50),
+            "pending": db.pending_orders(),
+            "market_open": market_open()
         })
 
     return flask_app

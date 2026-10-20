@@ -63,6 +63,8 @@ class IntradayDeskRunner:
                 # Allocate sized capital
                 account = self.db.account()
                 starting = account.get("starting_capital", 100000.0) if account else 100000.0
+
+
                 max_trade_cap = (starting * intra_alloc_pct) / 5.0
                 qty = max(1, int(max_trade_cap / price))
 

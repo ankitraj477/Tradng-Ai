@@ -11,17 +11,13 @@ class SwingExecution:
         self.cfg = cfg or {}
 
     def _cost(self, notional: float, action: str) -> float:
-        """Calculate delivery taxes and fees (STT 0.1% on buy & sell)."""
-        exec_cfg = self.cfg.get("execution", {})
-        brokerage = float(exec_cfg.get("brokerage", 0.0))
-        stt = notional * float(exec_cfg.get("stt_delivery_pct", 0.001))
-        txn_fee = notional * float(exec_cfg.get("exchange_txn_fee_pct", 0.0000297))
-        sebi_fee = notional * float(exec_cfg.get("sebi_turnover_fee_pct", 0.000001))
-        stamp_duty = notional * (0.00015 if action == "BUY" else 0.0)
-        gst = (brokerage + txn_fee + sebi_fee) * 0.18
-        return round(brokerage + stt + txn_fee + sebi_fee + stamp_duty + gst, 2)
+        """Calculate delivery taxes and fees (STT 0.1% on buy & sell) using unified CostModel."""
+        if not hasattr(self, "_cost_model"):
+            from ..costs import CostModel
+            self._cost_model = CostModel(self.cfg)
+        return self._cost_model.calculate(notional, action, segment="DELIVERY")
 
-    def buy_delivery(self, symbol: str, qty: int, price: float, stop_loss: float, target: float) -> bool:
+    def buy_delivery(self, symbol: str, qty: int, price: float, stop_loss: float, target: float, force_fill: bool = False) -> bool:
         proposal = {
             "symbol": symbol,
             "price": price,
@@ -30,9 +26,9 @@ class SwingExecution:
             "strategy": "Swing Pullback",
             "confidence": 80
         }
-        return self.buy(proposal, qty)
+        return self.buy(proposal, qty, force_fill=force_fill)
 
-    def buy(self, proposal: dict, qty: int) -> bool:
+    def buy(self, proposal: dict, qty: int, force_fill: bool = False) -> bool:
         """Execute a delivery swing purchase."""
         if qty <= 0:
             return False
@@ -42,9 +38,37 @@ class SwingExecution:
         cost = self._cost(notional, "BUY")
         total_req = notional + cost
 
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+
+        if enforce_hours and not force_fill and not market_open():
+            self.db.add_order({
+                "symbol": symbol,
+                "action": "BUY",
+                "side": "LONG",
+                "qty": qty,
+                "price": price,
+                "stop_loss": proposal.get("stop_loss"),
+                "target": proposal.get("target"),
+                "product_type": "SWING",
+                "order_type": "AMO",
+                "status": "PENDING",
+                "strategy": proposal.get("strategy", "Swing Pullback")
+            })
+            self.db.log("INFO", f"[AMO PLACED] Market CLOSED. Placed After-Market Order (AMO) for {symbol} x{qty} @ ₹{price:.2f}. Will execute at 09:15 AM IST.")
+            return True
+
         with self.db.conn() as c:
             acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
-            if total_req > acc["cash"]:
+            short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
+            open_pos = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved = sum(float(x['entry_price']) * float(x['qty']) * short_margin_pct for x in open_pos if x['side'] == 'SHORT')
+            avail = max(0.0, float(acc['cash']) - reserved)
+            if total_req > avail:
                 return False
 
             target_step = abs(float(proposal["target"]) - price) if proposal.get("target") else 0.0

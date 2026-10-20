@@ -44,20 +44,50 @@ class FnoDeskRunner:
             return
 
         # 4. Generate defined-risk spreads on Nifty 50 & Bank Nifty
+        from ..market_hours import market_open
+        is_open = market_open()
+
         for index_sym in ("NIFTY", "BANKNIFTY"):
-            existing = [p for p in active_fno if index_sym in p["symbol"]]
+            current_fno = self.db.positions_by_product("FNO")
+            if len(current_fno) >= 3:
+                break
+            existing = [p for p in current_fno if index_sym in p["symbol"]]
             if existing:
                 continue
 
             spread = self.strategy.propose(index_sym)
-            if spread:
-                self.execution.open_spread(spread, lots=1)
+            if not spread:
+                continue
+
+            # Record AI Decision & Research for Dashboard
+            self.db.add_decision({
+                "symbol": index_sym,
+                "action": "SELL_SPREAD",
+                "confidence": 85.0,
+                "strategy": spread["strategy"],
+                "reason": (
+                    f"F&O Defined Risk Setup: {spread['strategy']} on {index_sym}. "
+                    f"Net Credit: ₹{spread['price']:.2f}, Max Loss: ₹{spread['max_loss']:.2f}, "
+                    f"50% Target: ₹{spread['target']:.2f}, Expiry: {spread['expiry_date']}"
+                ),
+                "risk_decision": "APPROVED" if is_open else "QUEUED_RESEARCH"
+            })
+
+            if not is_open:
                 self.db.log(
                     "INFO",
-                    f"[F&O Desk] OPENED {spread['strategy']} on {index_sym}: "
-                    f"Net Credit=₹{spread['price']:.2f}, Max Loss=₹{spread['max_loss']:.2f}, "
-                    f"50% Profit Target=₹{spread['target']:.2f}, Exp={spread['expiry_date']}"
+                    f"[F&O Research] Proposed {spread['strategy']} on {index_sym}: "
+                    f"Net Credit ₹{spread['price']:.2f}. Published to Research Feed. (Market Closed: No orders placed)"
                 )
+                continue
+
+            self.execution.open_spread(spread, lots=1)
+            self.db.log(
+                "INFO",
+                f"[F&O Desk] OPENED {spread['strategy']} on {index_sym}: "
+                f"Net Credit=₹{spread['price']:.2f}, Max Loss=₹{spread['max_loss']:.2f}, "
+                f"50% Profit Target=₹{spread['target']:.2f}, Exp={spread['expiry_date']}"
+            )
 
 
 def run_fno_standalone():

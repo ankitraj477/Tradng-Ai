@@ -39,7 +39,11 @@ class FNOExecution:
 
         with self.db.conn() as c:
             acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
-            if margin_req > acc["cash"]:
+            short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
+            open_pos = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved = sum(float(x['entry_price']) * float(x['qty']) * short_margin_pct for x in open_pos if x['side'] == 'SHORT')
+            avail = max(0.0, float(acc['cash']) - reserved)
+            if margin_req > avail:
                 return False
 
             c.execute(
@@ -54,7 +58,7 @@ class FNOExecution:
                     proposal.get("stop_loss"), proposal.get("target"),
                     proposal.get("strategy"), proposal.get("confidence", 80),
                     datetime.now(timezone.utc).isoformat(), "INDICES",
-                    0.0, 40.0, 0.0, "FNO",
+                    0.0, margin_req, 0.0, "FNO",
                     proposal.get("strike_price", 0.0), proposal.get("option_type", ""),
                     proposal.get("expiry_date", ""), proposal.get("legs_info", "")
                 )
@@ -84,10 +88,11 @@ class FNOExecution:
             fees = 50.0  # F&O exchange turnover fee + STT + brokerage
             net_pnl = round(gross_pnl - fees, 2)
 
-            margin_req = 2500.0  # Standard defined-risk margin
+            # Retrieve exact margin reserved on open from entry_cost (fallback to 2500.0)
+            margin_req = float(p.get("entry_cost") or 2500.0)
             capital_released = margin_req + net_pnl
 
-            pnl_pct = round((net_pnl / margin_req) * 100, 2)
+            pnl_pct = round((net_pnl / margin_req) * 100, 2) if margin_req > 0 else 0.0
 
             c.execute(
                 """INSERT INTO trades(symbol, action, side, entry_price, exit_price, qty, capital, stop_loss, target,

@@ -5,7 +5,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 _tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False); _tmp.close()
 os.environ.setdefault("DATABASE_PATH", _tmp.name)
-atexit.register(lambda: Path(_tmp.name).unlink(missing_ok=True))
+def _safe_unlink(p):
+    try:
+        Path(p).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+atexit.register(_safe_unlink, _tmp.name)
 
 from app.engine import TradingEngine
 
