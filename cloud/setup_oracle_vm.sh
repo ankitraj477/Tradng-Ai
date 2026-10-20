@@ -35,11 +35,12 @@ if command -v ufw >/dev/null 2>&1; then
     sudo ufw allow 5000/tcp || true
 fi
 if command -v iptables >/dev/null 2>&1; then
-    sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 5000 -j ACCEPT || sudo iptables -I INPUT -p tcp --dport 5000 -j ACCEPT
+    sudo iptables -I INPUT 1 -p tcp --dport 5000 -j ACCEPT || true
     if command -v netfilter-persistent >/dev/null 2>&1; then
         sudo netfilter-persistent save || true
     fi
 fi
+
 if command -v firewall-cmd >/dev/null 2>&1; then
     sudo firewall-cmd --zone=public --add-port=5000/tcp --permanent || true
     sudo firewall-cmd --reload || true
