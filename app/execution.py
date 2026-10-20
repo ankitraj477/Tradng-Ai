@@ -4,7 +4,7 @@ class PaperExecution:
     def __init__(self,db,cfg): self.db=db; self.cfg=cfg
 
     def _slip(self,price,side):
-        b=self.cfg['execution']['slippage_bps']/10000
+        b=float(self.cfg.get('execution', {}).get('slippage_bps', 0))/10000
         if side=='BUY': return price*(1+b)
         return price*(1-b)
 
@@ -15,8 +15,10 @@ class PaperExecution:
             # BUG-027: Read cash inside transaction and use delta update
             a=dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
             if value+cost>a['cash']: return False
-            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost)
-                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'LONG',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),cost))
+            target_step = abs(float(p['target']) - fill) if p.get('target') is not None else 0.0
+            prod_type = str(p.get('product_type', 'INTRADAY'))
+            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost,target_step,product_type)
+                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'LONG',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),cost,target_step,prod_type))
             c.execute("UPDATE account SET cash=cash-?,updated_at=? WHERE id=1",(value+cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER BUY {p['symbol']} x{qty} @ {fill:.2f}"); return True
 
@@ -29,8 +31,10 @@ class PaperExecution:
             # BUG-027: Read cash inside transaction and use delta update
             a=dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
             if margin+entry_cost>a['cash']: return False
-            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost)
-                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'SHORT',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),entry_cost))
+            target_step = abs(fill - float(p['target'])) if p.get('target') is not None else 0.0
+            prod_type = str(p.get('product_type', 'INTRADAY'))
+            c.execute("""INSERT INTO positions(symbol,side,qty,entry_price,current_price,stop_loss,target,strategy,confidence,opened_at,sector,atr,entry_cost,target_step,product_type)
+                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(p['symbol'],'SHORT',qty,fill,fill,p['stop_loss'],p['target'],p['strategy'],p['confidence'],datetime.now(timezone.utc).isoformat(),p.get('sector','Unknown'),p.get('atr'),entry_cost,target_step,prod_type))
             # Only actual entry costs leave cash; margin is tracked via position.
             c.execute("UPDATE account SET cash=cash-?,updated_at=? WHERE id=1",(entry_cost,datetime.now(timezone.utc).isoformat()))
         self.db.log('INFO',f"PAPER SHORT {p['symbol']} x{qty} @ {fill:.2f} margin={margin:.2f}"); return True
@@ -53,8 +57,9 @@ class PaperExecution:
             pnl=gross-exit_cost-entry_cost
             opened=datetime.fromisoformat(p['opened_at']); holding=(datetime.now(timezone.utc)-opened).total_seconds()
             pnl_pct=pnl/entry_cap*100 if entry_cap else 0
-            c.execute("""INSERT INTO trades(symbol,action,side,entry_price,exit_price,qty,capital,stop_loss,target,holding_seconds,pnl,pnl_pct,strategy,confidence,regime,entry_reason,exit_reason,risk_decision,created_at)
-                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(symbol,'SELL' if side=='LONG' else 'COVER',side,p['entry_price'],fill,p['qty'],entry_cap,p['stop_loss'],p['target'],holding,pnl,pnl_pct,p['strategy'],p['confidence'],regime,'AI proposal',reason,'APPROVED',datetime.now(timezone.utc).isoformat()))
+            prod_type = str(p.get('product_type', 'INTRADAY'))
+            c.execute("""INSERT INTO trades(symbol,action,side,entry_price,exit_price,qty,capital,stop_loss,target,holding_seconds,pnl,pnl_pct,strategy,confidence,regime,entry_reason,exit_reason,risk_decision,created_at,product_type)
+                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(symbol,'SELL' if side=='LONG' else 'COVER',side,p['entry_price'],fill,p['qty'],entry_cap,p['stop_loss'],p['target'],holding,pnl,pnl_pct,p['strategy'],p['confidence'],regime,'AI proposal',reason,'APPROVED',datetime.now(timezone.utc).isoformat(),prod_type))
             c.execute("DELETE FROM positions WHERE symbol=?",(symbol,))
             # BUG-027: Delta update for cash — all within single transaction
             c.execute("UPDATE account SET cash=cash+?,updated_at=? WHERE id=1",(released-exit_cost,datetime.now(timezone.utc).isoformat()))

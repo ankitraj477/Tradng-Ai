@@ -1,0 +1,116 @@
+"""
+Swing Execution Engine (CNC / Delivery).
+Manages multi-day cash delivery purchases and exits using delivery cost models.
+"""
+from datetime import datetime, timezone
+
+
+class SwingExecution:
+    def __init__(self, db, cfg=None):
+        self.db = db
+        self.cfg = cfg or {}
+
+    def _cost(self, notional: float, action: str) -> float:
+        """Calculate delivery taxes and fees (STT 0.1% on buy & sell)."""
+        exec_cfg = self.cfg.get("execution", {})
+        brokerage = float(exec_cfg.get("brokerage", 0.0))
+        stt = notional * float(exec_cfg.get("stt_delivery_pct", 0.001))
+        txn_fee = notional * float(exec_cfg.get("exchange_txn_fee_pct", 0.0000297))
+        sebi_fee = notional * float(exec_cfg.get("sebi_turnover_fee_pct", 0.000001))
+        stamp_duty = notional * (0.00015 if action == "BUY" else 0.0)
+        gst = (brokerage + txn_fee + sebi_fee) * 0.18
+        return round(brokerage + stt + txn_fee + sebi_fee + stamp_duty + gst, 2)
+
+    def buy_delivery(self, symbol: str, qty: int, price: float, stop_loss: float, target: float) -> bool:
+        proposal = {
+            "symbol": symbol,
+            "price": price,
+            "stop_loss": stop_loss,
+            "target": target,
+            "strategy": "Swing Pullback",
+            "confidence": 80
+        }
+        return self.buy(proposal, qty)
+
+    def buy(self, proposal: dict, qty: int) -> bool:
+        """Execute a delivery swing purchase."""
+        if qty <= 0:
+            return False
+        symbol = proposal["symbol"]
+        price = float(proposal["price"])
+        notional = round(price * qty, 2)
+        cost = self._cost(notional, "BUY")
+        total_req = notional + cost
+
+        with self.db.conn() as c:
+            acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            if total_req > acc["cash"]:
+                return False
+
+            target_step = abs(float(proposal["target"]) - price) if proposal.get("target") else 0.0
+
+            c.execute(
+                """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
+                                         strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
+                                         product_type, days_held)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(symbol) DO UPDATE SET
+                   qty=qty+excluded.qty, current_price=excluded.current_price""",
+                (
+                    symbol, "LONG", qty, price, price, proposal.get("stop_loss"), proposal.get("target"),
+                    proposal.get("strategy", "Swing Pullback"), proposal.get("confidence", 80),
+                    datetime.now(timezone.utc).isoformat(), proposal.get("sector", "Unknown"),
+                    proposal.get("atr", 0.0), cost, target_step, "SWING", 0
+                )
+            )
+            c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
+                      (total_req, datetime.now(timezone.utc).isoformat()))
+
+        self.db.log("INFO", f"SWING BUY {symbol} x{qty} @ {price:.2f} (Target: ₹{proposal.get('target', 0):.2f})")
+        return True
+
+    def close(self, symbol: str, price: float, reason: str) -> bool:
+        """Close a swing position."""
+        with self.db.conn() as c:
+            row = c.execute("SELECT * FROM positions WHERE symbol=? AND UPPER(product_type)='SWING'", (symbol,)).fetchone()
+            if not row:
+                return False
+            p = dict(row)
+            qty = p["qty"]
+            entry_price = float(p["entry_price"])
+            notional = round(price * qty, 2)
+            exit_cost = self._cost(notional, "SELL")
+            entry_cost = float(p.get("entry_cost") or 0.0)
+
+            gross_pnl = round((price - entry_price) * qty, 2)
+            net_pnl = round(gross_pnl - exit_cost - entry_cost, 2)
+            pnl_pct = round((net_pnl / (entry_price * qty)) * 100, 2) if entry_price > 0 else 0.0
+
+            holding_sec = 0.0
+            if p.get("opened_at"):
+                try:
+                    opened = datetime.fromisoformat(str(p["opened_at"]).replace("Z", "+00:00"))
+                    holding_sec = (datetime.now(timezone.utc) - opened).total_seconds()
+                except Exception:
+                    pass
+
+            days_held = int(p.get("days_held") or 0)
+
+            c.execute(
+                """INSERT INTO trades(symbol, action, side, entry_price, exit_price, qty, capital, stop_loss, target,
+                                     holding_seconds, pnl, pnl_pct, strategy, confidence, regime, entry_reason,
+                                     exit_reason, risk_decision, created_at, product_type, days_held)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    symbol, "SELL", "LONG", entry_price, price, qty, entry_price * qty,
+                    p.get("stop_loss"), p.get("target"), holding_sec, net_pnl, pnl_pct,
+                    p.get("strategy"), p.get("confidence"), "Swing", "Swing 20 EMA Pullback",
+                    reason, "APPROVED", datetime.now(timezone.utc).isoformat(), "SWING", days_held
+                )
+            )
+            c.execute("DELETE FROM positions WHERE symbol=?", (symbol,))
+            c.execute("UPDATE account SET cash=cash+?, updated_at=? WHERE id=1",
+                      (notional - exit_cost, datetime.now(timezone.utc).isoformat()))
+
+        self.db.log("INFO", f"SWING SELL {symbol} @ {price:.2f} P&L: ₹{net_pnl:.2f} ({pnl_pct:+.2f}%) Reason: {reason}")
+        return True

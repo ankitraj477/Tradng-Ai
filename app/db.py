@@ -72,6 +72,32 @@ class DB:
                 c.execute("ALTER TABLE positions ADD COLUMN atr REAL")
             if "entry_cost" not in cols:
                 c.execute("ALTER TABLE positions ADD COLUMN entry_cost REAL DEFAULT 0")
+            if "target_step" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN target_step REAL DEFAULT 0")
+            if "product_type" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN product_type TEXT DEFAULT 'INTRADAY'")
+            if "days_held" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN days_held INTEGER DEFAULT 0")
+            if "strike_price" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN strike_price REAL DEFAULT 0")
+            if "option_type" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN option_type TEXT DEFAULT ''")
+            if "expiry_date" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN expiry_date TEXT DEFAULT ''")
+            if "legs_info" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN legs_info TEXT DEFAULT ''")
+
+            t_cols={r[1] for r in c.execute("PRAGMA table_info(trades)").fetchall()}
+            if "product_type" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN product_type TEXT DEFAULT 'INTRADAY'")
+            if "days_held" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN days_held INTEGER DEFAULT 0")
+            if "strike_price" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN strike_price REAL DEFAULT 0")
+            if "option_type" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN option_type TEXT DEFAULT ''")
+            if "expiry_date" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN expiry_date TEXT DEFAULT ''")
 
     def log(self, level, message, max_rows=2000):
         # 1. Stream to rotating log file and console
@@ -128,6 +154,24 @@ class DB:
                       (symbol,old,new,now()))
             # BUG-042: Trim stop_updates to prevent unbounded growth
             c.execute("DELETE FROM stop_updates WHERE id <= (SELECT id FROM stop_updates ORDER BY id DESC LIMIT 1 OFFSET ?)", (max_stop_updates,))
+
+    def update_target(self, symbol, target):
+        with self.conn() as c:
+            c.execute("UPDATE positions SET target=? WHERE symbol=?", (float(target), symbol))
+
+    def update_stop_and_target(self, symbol, stop_loss, target, max_stop_updates=5000):
+        """Atomically update stop_loss and target for dynamic expansion."""
+        with self.conn() as c:
+            row = c.execute("SELECT stop_loss, target FROM positions WHERE symbol=?", (symbol,)).fetchone()
+            if not row: return
+            old_stop = float(row["stop_loss"]) if row["stop_loss"] is not None else None
+            new_stop = float(stop_loss)
+            new_target = float(target)
+            c.execute("UPDATE positions SET stop_loss=?, target=? WHERE symbol=?", (new_stop, new_target, symbol))
+            if old_stop is None or abs(old_stop - new_stop) >= 1e-12:
+                c.execute("INSERT INTO stop_updates(symbol,old_stop,new_stop,created_at) VALUES(?,?,?,?)",
+                          (symbol, old_stop, new_stop, now()))
+                c.execute("DELETE FROM stop_updates WHERE id <= (SELECT id FROM stop_updates ORDER BY id DESC LIMIT 1 OFFSET ?)", (max_stop_updates,))
 
     def realized_pnl_today(self):
         # BUG-047: Use IST date for daily boundaries
@@ -227,3 +271,45 @@ class DB:
 
     def reset_exception_counts(self):
         self._exception_counts = {k: 0 for k in self._exception_counts}
+
+    def positions_by_product(self, product_type=None):
+        with self.conn() as c:
+            if product_type:
+                return [dict(r) for r in c.execute("SELECT * FROM positions WHERE UPPER(product_type)=? ORDER BY opened_at", (product_type.upper(),))]
+            return [dict(r) for r in c.execute("SELECT * FROM positions ORDER BY opened_at")]
+
+    def trades_by_product(self, product_type=None, limit=50):
+        with self.conn() as c:
+            if product_type:
+                return [dict(r) for r in c.execute("SELECT * FROM trades WHERE UPPER(product_type)=? ORDER BY id DESC LIMIT ?", (product_type.upper(), limit))]
+            return [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,))]
+
+    def get_capital_allocation(self):
+        import json
+        raw = self.get_setting("capital_allocation", "")
+        if raw:
+            try:
+                data = json.loads(raw)
+                if "intraday" in data and "swing" in data and "fno" in data:
+                    return {k: float(v) for k, v in data.items()}
+            except Exception:
+                pass
+        return {"intraday": 40.0, "swing": 40.0, "fno": 20.0}
+
+    def set_capital_allocation(self, intraday, swing, fno):
+        import json
+        total = float(intraday) + float(swing) + float(fno)
+        if total <= 0:
+            intraday, swing, fno = 40.0, 40.0, 20.0
+            total = 100.0
+        data = {
+            "intraday": round(float(intraday) / total * 100.0, 1),
+            "swing": round(float(swing) / total * 100.0, 1),
+            "fno": round(float(fno) / total * 100.0, 1)
+        }
+        self.set_setting("capital_allocation", json.dumps(data))
+        return data
+
+    def increment_all_swing_days_held(self):
+        with self.conn() as c:
+            c.execute("UPDATE positions SET days_held = COALESCE(days_held, 0) + 1 WHERE UPPER(product_type) = 'SWING'")

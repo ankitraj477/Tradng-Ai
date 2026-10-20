@@ -120,3 +120,88 @@ class IntradayExecutionEngine:
         }
         self.closed_trades.append(trade)
         return trade
+
+
+from datetime import datetime, timezone
+
+
+class IntradayExecution:
+    """
+    Live / Paper Execution Engine dedicated to Intraday MIS trades.
+    Uses exact NSE intraday cost deductions and tags all positions product_type='INTRADAY'.
+    """
+    def __init__(self, db, cfg=None):
+        self.db = db
+        self.cfg = cfg or {}
+        self.costs = CostModel()
+
+    def open_long(self, symbol, qty, price, stop_loss, target, atr=0.0):
+        if qty <= 0:
+            return False
+        val = qty * price
+        cost = self.costs.calculate(val, action="BUY", segment="INTRADAY")
+        total_req = val + cost
+        target_step = abs(target - price) if target else 0.0
+
+        with self.db.conn() as c:
+            acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            if total_req > acc["cash"]:
+                return False
+            c.execute(
+                """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
+                                         strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
+                                         product_type, days_held)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(symbol) DO UPDATE SET
+                   qty=qty+excluded.qty, current_price=excluded.current_price""",
+                (
+                    symbol, "LONG", int(qty), float(price), float(price), float(stop_loss), float(target),
+                    "Intraday ORB", 80, datetime.now(timezone.utc).isoformat(), "Unknown",
+                    float(atr), cost, target_step, "INTRADAY", 0
+                )
+            )
+            c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
+                      (total_req, datetime.now(timezone.utc).isoformat()))
+        self.db.log("INFO", f"[Intraday] BUY {symbol} x{qty} @ {price:.2f} (SL: {stop_loss:.2f}, TP: {target:.2f})")
+        return True
+
+    def open_short(self, symbol, qty, price, stop_loss, target, atr=0.0):
+        if qty <= 0:
+            return False
+        val = qty * price
+        cost = self.costs.calculate(val, action="SELL", segment="INTRADAY")
+        short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
+        margin_req = val * short_margin_pct + cost
+        target_step = abs(price - target) if target else 0.0
+
+        with self.db.conn() as c:
+            acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            if margin_req > acc["cash"]:
+                return False
+            c.execute(
+                """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
+                                         strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
+                                         product_type, days_held)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(symbol) DO UPDATE SET
+                   qty=qty+excluded.qty, current_price=excluded.current_price""",
+                (
+                    symbol, "SHORT", int(qty), float(price), float(price), float(stop_loss), float(target),
+                    "Intraday ORB Short", 80, datetime.now(timezone.utc).isoformat(), "Unknown",
+                    float(atr), cost, target_step, "INTRADAY", 0
+                )
+            )
+            c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
+                      (margin_req, datetime.now(timezone.utc).isoformat()))
+        self.db.log("INFO", f"[Intraday] SHORT {symbol} x{qty} @ {price:.2f} (SL: {stop_loss:.2f}, TP: {target:.2f})")
+        return True
+
+    def close(self, symbol, exit_price, reason, category=""):
+        from ..execution import PaperExecution
+        exec_engine = PaperExecution(self.db, self.cfg)
+        return exec_engine.close(symbol, exit_price, reason, category)
+
+    def mark(self, quotes):
+        from ..execution import PaperExecution
+        exec_engine = PaperExecution(self.db, self.cfg)
+        return exec_engine.mark(quotes)
