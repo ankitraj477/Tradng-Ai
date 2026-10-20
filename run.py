@@ -41,7 +41,8 @@ def main():
 
     # Serve dashboard
     try:
-        app.run(host=os.getenv("APP_HOST", "127.0.0.1"), port=args.port, debug=False)
+        app.run(host=os.getenv("APP_HOST", "0.0.0.0"), port=args.port, debug=False)
+
     except OSError as e:
         print(f"\n[WARNING] Port {args.port} is already in use or unavailable: {e}")
         print(f"Trading engine continues running in background. Specify a different port with --port <number>.\n")

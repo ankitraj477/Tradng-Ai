@@ -1,0 +1,17 @@
+[Unit]
+Description=Tradng-Ai Multi-Desk Trading Platform & Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Tradng-Ai
+ExecStart=/home/ubuntu/Tradng-Ai/.venv/bin/python run.py --live
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=APP_HOST=0.0.0.0
+Environment=APP_PORT=5000
+
+[Install]
+WantedBy=multi-user.target
