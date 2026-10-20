@@ -2209,7 +2209,9 @@ def __getattr__(name):
         return _load_runtime()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-
 if __name__ == "__main__":
     app = _load_runtime()
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    host = os.getenv("APP_HOST", "0.0.0.0")
+    port = int(os.getenv("APP_PORT", "5000"))
+    app.run(host=host, port=port, debug=False)
+
