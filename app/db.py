@@ -13,10 +13,13 @@ def now_ist_date():
     """BUG-047: Use IST date for daily boundaries instead of UTC."""
     return datetime.now(IST).date().isoformat()
 
+import threading
+
 class DB:
     def __init__(self,path):
         Path(path).parent.mkdir(parents=True,exist_ok=True); self.path=path
         self._conn=None
+        self._local=threading.local()
         if path==":memory:":
             self._conn=sqlite3.connect(":memory:", check_same_thread=False, timeout=30.0)
             self._conn.row_factory=sqlite3.Row
@@ -41,11 +44,14 @@ class DB:
     def conn(self):
         if self._conn is not None:
             return self._conn
-        c = sqlite3.connect(self.path, timeout=30.0, check_same_thread=False)
-        c.row_factory = sqlite3.Row
-        c.execute("PRAGMA journal_mode=WAL")
-        c.execute("PRAGMA busy_timeout=30000")
-        c.execute("PRAGMA synchronous=NORMAL")
+        c = getattr(self._local, "conn", None)
+        if c is None:
+            c = sqlite3.connect(self.path, timeout=30.0, check_same_thread=False)
+            c.row_factory = sqlite3.Row
+            c.execute("PRAGMA journal_mode=WAL")
+            c.execute("PRAGMA busy_timeout=30000")
+            c.execute("PRAGMA synchronous=NORMAL")
+            self._local.conn = c
         return c
 
     def execute_with_retry(self, fn, max_retries=5, base_delay=0.05):
@@ -72,6 +78,39 @@ class DB:
                 c.execute("ALTER TABLE positions ADD COLUMN atr REAL")
             if "entry_cost" not in cols:
                 c.execute("ALTER TABLE positions ADD COLUMN entry_cost REAL DEFAULT 0")
+            if "target_step" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN target_step REAL DEFAULT 0")
+            if "product_type" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN product_type TEXT DEFAULT 'INTRADAY'")
+            if "days_held" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN days_held INTEGER DEFAULT 0")
+            if "strike_price" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN strike_price REAL DEFAULT 0")
+            if "option_type" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN option_type TEXT DEFAULT ''")
+            if "expiry_date" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN expiry_date TEXT DEFAULT ''")
+            if "legs_info" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN legs_info TEXT DEFAULT ''")
+
+            t_cols={r[1] for r in c.execute("PRAGMA table_info(trades)").fetchall()}
+            if "product_type" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN product_type TEXT DEFAULT 'INTRADAY'")
+            if "days_held" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN days_held INTEGER DEFAULT 0")
+            if "strike_price" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN strike_price REAL DEFAULT 0")
+            if "option_type" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN option_type TEXT DEFAULT ''")
+            if "expiry_date" not in t_cols:
+                c.execute("ALTER TABLE trades ADD COLUMN expiry_date TEXT DEFAULT ''")
+
+            c.execute("""CREATE TABLE IF NOT EXISTS orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, action TEXT NOT NULL, side TEXT NOT NULL,
+                qty INTEGER NOT NULL, price REAL NOT NULL, stop_loss REAL, target REAL,
+                product_type TEXT DEFAULT 'INTRADAY', order_type TEXT DEFAULT 'REGULAR',
+                status TEXT DEFAULT 'PENDING', strategy TEXT, placed_at TEXT NOT NULL,
+                executed_at TEXT, rejection_reason TEXT)""")
 
     def log(self, level, message, max_rows=2000):
         # 1. Stream to rotating log file and console
@@ -103,9 +142,18 @@ class DB:
         with self.conn() as c:
             r=c.execute("SELECT * FROM account WHERE id=1").fetchone(); return dict(r) if r else None
 
-    def ensure_account(self,starting,target):
-        if not self.account():
-            with self.conn() as c:c.execute("INSERT INTO account VALUES(1,?,?,?,?,?)",(starting,starting,target,starting,now()))
+    def ensure_account(self, starting, target):
+        acc = self.account()
+        if not acc:
+            with self.conn() as c:
+                c.execute("INSERT INTO account VALUES(1,?,?,?,?,?)", (starting, starting, target, starting, now()))
+        else:
+            with self.conn() as c:
+                if not self.positions() and acc["starting_capital"] != starting:
+                    c.execute("UPDATE account SET starting_capital=?, cash=?, target_capital=?, peak_value=?, updated_at=? WHERE id=1",
+                              (starting, starting, target, starting, now()))
+                elif acc["target_capital"] != target:
+                    c.execute("UPDATE account SET target_capital=?, updated_at=? WHERE id=1", (target, now()))
 
     def update_position_atr(self, symbol, atr):
         with self.conn() as c:
@@ -128,6 +176,34 @@ class DB:
                       (symbol,old,new,now()))
             # BUG-042: Trim stop_updates to prevent unbounded growth
             c.execute("DELETE FROM stop_updates WHERE id <= (SELECT id FROM stop_updates ORDER BY id DESC LIMIT 1 OFFSET ?)", (max_stop_updates,))
+
+    def update_target(self, symbol, target):
+        with self.conn() as c:
+            c.execute("UPDATE positions SET target=? WHERE symbol=?", (float(target), symbol))
+
+    def update_stop_and_target(self, symbol, stop_loss, target, max_stop_updates=5000):
+        """Atomically update stop_loss and target for dynamic expansion."""
+        with self.conn() as c:
+            row = c.execute("SELECT stop_loss, target FROM positions WHERE symbol=?", (symbol,)).fetchone()
+            if not row: return
+            old_stop = float(row["stop_loss"]) if row["stop_loss"] is not None else None
+            new_stop = float(stop_loss)
+            new_target = float(target)
+            c.execute("UPDATE positions SET stop_loss=?, target=? WHERE symbol=?", (new_stop, new_target, symbol))
+            if old_stop is None or abs(old_stop - new_stop) >= 1e-12:
+                c.execute("INSERT INTO stop_updates(symbol,old_stop,new_stop,created_at) VALUES(?,?,?,?)",
+                          (symbol, old_stop, new_stop, now()))
+                c.execute("DELETE FROM stop_updates WHERE id <= (SELECT id FROM stop_updates ORDER BY id DESC LIMIT 1 OFFSET ?)", (max_stop_updates,))
+
+    def update_position_stops(self, symbol, stop_loss=None, target=None):
+        """Update stop_loss and/or target for any position (e.g. F&O or Swing)."""
+        with self.conn() as c:
+            if stop_loss is not None and target is not None:
+                c.execute("UPDATE positions SET stop_loss=?, target=? WHERE symbol=?", (float(stop_loss), float(target), symbol))
+            elif stop_loss is not None:
+                c.execute("UPDATE positions SET stop_loss=? WHERE symbol=?", (float(stop_loss), symbol))
+            elif target is not None:
+                c.execute("UPDATE positions SET target=? WHERE symbol=?", (float(target), symbol))
 
     def realized_pnl_today(self):
         # BUG-047: Use IST date for daily boundaries
@@ -227,3 +303,94 @@ class DB:
 
     def reset_exception_counts(self):
         self._exception_counts = {k: 0 for k in self._exception_counts}
+
+    def positions_by_product(self, product_type=None):
+        with self.conn() as c:
+            if product_type:
+                return [dict(r) for r in c.execute("SELECT * FROM positions WHERE UPPER(product_type)=? ORDER BY opened_at", (product_type.upper(),))]
+            return [dict(r) for r in c.execute("SELECT * FROM positions ORDER BY opened_at")]
+
+    def trades_by_product(self, product_type=None, limit=50):
+        with self.conn() as c:
+            if product_type:
+                return [dict(r) for r in c.execute("SELECT * FROM trades WHERE UPPER(product_type)=? ORDER BY id DESC LIMIT ?", (product_type.upper(), limit))]
+            return [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,))]
+
+    def get_capital_allocation(self):
+        import json
+        raw = self.get_setting("capital_allocation", "")
+        if raw:
+            try:
+                data = json.loads(raw)
+                if "intraday" in data and "swing" in data and "fno" in data:
+                    return {k: float(v) for k, v in data.items()}
+            except Exception:
+                pass
+        return {"intraday": 40.0, "swing": 40.0, "fno": 20.0}
+
+    def set_capital_allocation(self, intraday, swing, fno):
+        import json
+        total = float(intraday) + float(swing) + float(fno)
+        if total <= 0:
+            intraday, swing, fno = 40.0, 40.0, 20.0
+            total = 100.0
+        data = {
+            "intraday": round(float(intraday) / total * 100.0, 1),
+            "swing": round(float(swing) / total * 100.0, 1),
+            "fno": round(float(fno) / total * 100.0, 1)
+        }
+        self.set_setting("capital_allocation", json.dumps(data))
+        return data
+
+    def increment_all_swing_days_held(self):
+        with self.conn() as c:
+            c.execute("UPDATE positions SET days_held = COALESCE(days_held, 0) + 1 WHERE UPPER(product_type) = 'SWING'")
+
+    def add_order(self, order):
+        with self.conn() as c:
+            cur = c.execute("""
+                INSERT INTO orders(symbol, action, side, qty, price, stop_loss, target,
+                                  product_type, order_type, status, strategy, placed_at, executed_at, rejection_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                order["symbol"],
+                order.get("action", "BUY"),
+                order.get("side", "LONG"),
+                int(order["qty"]),
+                float(order["price"]),
+                float(order["stop_loss"]) if order.get("stop_loss") is not None else None,
+                float(order["target"]) if order.get("target") is not None else None,
+                str(order.get("product_type", "INTRADAY")),
+                str(order.get("order_type", "REGULAR")),
+                str(order.get("status", "PENDING")),
+                str(order.get("strategy", "")),
+                str(order.get("placed_at", now())),
+                order.get("executed_at"),
+                order.get("rejection_reason")
+            ))
+            return cur.lastrowid
+
+    def orders(self, limit=50, status=None):
+        with self.conn() as c:
+            if status:
+                rows = c.execute("SELECT * FROM orders WHERE status=? ORDER BY id DESC LIMIT ?", (status, limit)).fetchall()
+            else:
+                rows = c.execute("SELECT * FROM orders ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+            return [dict(r) for r in rows]
+
+    def pending_orders(self):
+        with self.conn() as c:
+            rows = c.execute("SELECT * FROM orders WHERE status='PENDING' ORDER BY id ASC").fetchall()
+            return [dict(r) for r in rows]
+
+    def fill_order(self, order_id, fill_price=None):
+        with self.conn() as c:
+            c.execute("UPDATE orders SET status='FILLED', executed_at=? WHERE id=?", (now(), order_id))
+
+    def cancel_order(self, order_id, reason="Cancelled"):
+        with self.conn() as c:
+            c.execute("UPDATE orders SET status='CANCELLED', rejection_reason=? WHERE id=?", (reason, order_id))
+
+    def clear_positions(self):
+        with self.conn() as c:
+            c.execute("DELETE FROM positions")

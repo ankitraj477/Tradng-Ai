@@ -104,3 +104,22 @@ class Universe:
             row.symbol: row
             for row in self.rows
         }
+
+
+DEFAULT_BENCHMARK_SYMBOLS = [
+    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
+    "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "ITC",
+    "AXISBANK", "HINDUNILVR", "BAJFINANCE", "MARUTI", "ASIANPAINT"
+]
+
+
+def get_universe_symbols(path=None):
+    try:
+        u = Universe(path or (Path(__file__).resolve().parent.parent / "data" / "nifty500.csv"))
+        u.load()
+        syms = u.symbols()
+        if syms:
+            return syms
+    except Exception:
+        pass
+    return list(DEFAULT_BENCHMARK_SYMBOLS)

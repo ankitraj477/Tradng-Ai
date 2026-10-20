@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from flask import Flask, jsonify, render_template_string
 
 from .accounting import portfolio_metrics
-from .market_hours import market_phase, now_ist, holiday_name
+from .market_hours import market_phase, now_ist, holiday_name, market_open
 from .learning import LearningEngine
 from .runtime import preflight
 
@@ -646,6 +646,109 @@ HTML = r"""<!doctype html>
             gap: 4px;
         }
 
+        /* Capital Allocation Interactive Card */
+        .alloc-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .alloc-bar {
+            height: 10px;
+            border-radius: 999px;
+            display: flex;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+        .alloc-seg-intra { background: var(--cyan); transition: width 0.3s ease; }
+        .alloc-seg-swing { background: var(--emerald); transition: width 0.3s ease; }
+        .alloc-seg-fno { background: var(--indigo); transition: width 0.3s ease; }
+        .alloc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .alloc-item {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .alloc-item-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .alloc-input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .alloc-slider {
+            flex: 1;
+            accent-color: var(--cyan);
+            cursor: pointer;
+        }
+        .alloc-num-input {
+            width: 54px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 700;
+            padding: 3px 6px;
+            text-align: center;
+        }
+        .save-alloc-btn {
+            background: linear-gradient(135deg, var(--cyan), var(--indigo));
+            border: none;
+            color: #fff;
+            font-family: var(--font-sans);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 7px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .save-alloc-btn:hover { opacity: 0.9; }
+
+        /* Desk Alert Banners */
+        .desk-banner {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .banner-highlight {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .banner-tag {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
         /* Mobile Layout */
         @media (max-width: 640px) {
             header .header-inner { padding: 10px 14px; }
@@ -688,13 +791,16 @@ HTML = r"""<!doctype html>
     <!-- Segmented Navigation Tabs -->
     <div class="tabs-wrapper">
         <div class="tabs">
-            <button id="tab-live-btn" class="tab-btn active" onclick="switchTab('live')">Live Desk & Portfolio</button>
-            <button id="tab-research-btn" class="tab-btn" onclick="switchTab('research')">Quant Research & Baselines</button>
+            <button id="tab-main-btn" class="tab-btn active" onclick="switchTab('main')">Main Overview</button>
+            <button id="tab-intraday-btn" class="tab-btn" onclick="switchTab('intraday')">⚡ Intraday (MIS)</button>
+            <button id="tab-swing-btn" class="tab-btn" onclick="switchTab('swing')">📈 Stocks / Swing (CNC)</button>
+            <button id="tab-fno-btn" class="tab-btn" onclick="switchTab('fno')">🎯 Futures & Options (F&O)</button>
+            <button id="tab-research-btn" class="tab-btn" onclick="switchTab('research')">Quant Research</button>
         </div>
     </div>
 
-    <!-- TAB 1: LIVE DESK -->
-    <div id="tab-live" style="display:flex; flex-direction:column; gap:14px;">
+    <!-- TAB 1: MAIN OVERVIEW (All Desks Aggregated) -->
+    <div id="tab-main" style="display:flex; flex-direction:column; gap:14px;">
         <!-- Unified Hero Portfolio Card -->
         <div class="hero-card">
             <div class="hero-top">
@@ -753,6 +859,66 @@ HTML = r"""<!doctype html>
             </div>
         </div>
 
+        <!-- Interactive Multi-Desk Capital Allocation Panel -->
+        <div class="alloc-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div>
+                    <div style="font-size:14px; font-weight:700; color:#fff;">Multi-Desk Capital Allocation</div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                        Dynamically distribute capital across Intraday, Stocks/Swing, and F&O desks. Total must equal 100%.
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span id="alloc-sum-badge" class="pill pill-cyan">TOTAL: 100%</span>
+                    <button id="save-alloc-btn" class="save-alloc-btn" onclick="saveCapitalAllocation()">Save Allocation</button>
+                </div>
+            </div>
+
+            <!-- 3-Color Segmented Allocation Bar -->
+            <div class="alloc-bar" style="margin-top:12px;">
+                <div id="bar-alloc-intra" style="background:var(--cyan); width:40%; display:flex; align-items:center; justify-content:center; color:#0f172a; font-size:10px; font-weight:800; font-family:var(--font-mono); overflow:hidden; transition:width 0.2s;">40%</div>
+                <div id="bar-alloc-swing" style="background:var(--emerald); width:40%; display:flex; align-items:center; justify-content:center; color:#0f172a; font-size:10px; font-weight:800; font-family:var(--font-mono); overflow:hidden; transition:width 0.2s;">40%</div>
+                <div id="bar-alloc-fno" style="background:var(--indigo); width:20%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:800; font-family:var(--font-mono); overflow:hidden; transition:width 0.2s;">20%</div>
+            </div>
+
+            <!-- Desk Sliders and Value Inputs -->
+            <div class="alloc-grid" style="margin-top:12px;">
+                <div class="alloc-col" style="border-left:3px solid var(--cyan); padding-left:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:var(--cyan);">⚡ Intraday (MIS)</span>
+                        <span id="alloc-intra-rupees" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">₹40,000</span>
+                    </div>
+                    <div class="alloc-slider-row" style="margin-top:6px;">
+                        <input type="range" id="slider-alloc-intra" class="alloc-slider" min="0" max="100" value="40" oninput="onAllocSliderChange('intra')">
+                        <input type="number" id="num-alloc-intra" class="alloc-num-input" min="0" max="100" value="40" onchange="onAllocNumChange('intra')">%
+                    </div>
+                </div>
+
+                <div class="alloc-col" style="border-left:3px solid var(--emerald); padding-left:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:var(--emerald);">📈 Stocks / Swing (CNC)</span>
+                        <span id="alloc-swing-rupees" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">₹40,000</span>
+                    </div>
+                    <div class="alloc-slider-row" style="margin-top:6px;">
+                        <input type="range" id="slider-alloc-swing" class="alloc-slider" min="0" max="100" value="40" oninput="onAllocSliderChange('swing')">
+                        <input type="number" id="num-alloc-swing" class="alloc-num-input" min="0" max="100" value="40" onchange="onAllocNumChange('swing')">%
+                    </div>
+                </div>
+
+                <div class="alloc-col" style="border-left:3px solid var(--indigo); padding-left:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; font-weight:700; color:var(--indigo);">🎯 F&O Spreads</span>
+                        <span id="alloc-fno-rupees" style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">₹20,000</span>
+                    </div>
+                    <div class="alloc-slider-row" style="margin-top:6px;">
+                        <input type="range" id="slider-alloc-fno" class="alloc-slider" min="0" max="100" value="20" oninput="onAllocSliderChange('fno')">
+                        <input type="number" id="num-alloc-fno" class="alloc-num-input" min="0" max="100" value="20" onchange="onAllocNumChange('fno')">%
+                    </div>
+                </div>
+            </div>
+            <div id="alloc-msg" style="font-size:11px; color:var(--emerald); margin-top:8px; display:none; font-weight:600;">✓ Capital allocation updated successfully!</div>
+        </div>
+
         <!-- Performance Sparkline Card -->
         <div class="chart-card">
             <div class="chart-header">
@@ -775,12 +941,29 @@ HTML = r"""<!doctype html>
             </div>
         </div>
 
+        <!-- Pending Orders & AMOs (After-Market Orders) -->
+        <div class="panel" id="orders-panel" style="border:1px solid rgba(234,179,8,0.3); background:linear-gradient(180deg, rgba(234,179,8,0.03) 0%, var(--bg-card) 100%);">
+            <div class="panel-header">
+                <div class="panel-title" style="display:flex; align-items:center; gap:8px;">
+                    <span>📝 Pending Orders & AMOs (After-Market)</span>
+                    <span style="font-size:11px; font-weight:400; color:var(--text-muted);">(Queued outside 09:15-15:30 IST market hours)</span>
+                </div>
+                <span id="order-count" class="brand-badge" style="background:rgba(234,179,8,0.15); color:#facc15; border:1px solid rgba(234,179,8,0.3);">0 PENDING</span>
+            </div>
+            <div id="orders-body" class="positions-list">
+                <div class="empty-state">
+                    <span style="font-size:20px;opacity:0.6;">📝</span>
+                    <span>No pending orders queued</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Two Column Desk: Holdings & Executions -->
         <div class="two-col">
             <!-- Open Holdings as Sleek Mobile Cards -->
             <div class="panel">
                 <div class="panel-header">
-                    <div class="panel-title">Active Market Holdings</div>
+                    <div class="panel-title">Active Market Holdings (All Desks)</div>
                     <span id="pos-count" class="brand-badge">0 OPEN</span>
                 </div>
                 <div id="positions-body" class="positions-list">
@@ -794,8 +977,8 @@ HTML = r"""<!doctype html>
             <!-- Closed Trades as Activity Feed -->
             <div class="panel">
                 <div class="panel-header">
-                    <div class="panel-title">Recent Executions</div>
-                    <span id="trade-count" class="brand-badge">LAST 10 TRADES</span>
+                    <div class="panel-title">Recent Executions (All Desks)</div>
+                    <span id="trade-count" class="brand-badge">LAST 20 TRADES</span>
                 </div>
                 <div id="trades-body" class="trades-list">
                     <div class="empty-state">
@@ -856,16 +1039,235 @@ HTML = r"""<!doctype html>
         </div>
     </div>
 
-    <!-- TAB 2: QUANT RESEARCH & BASELINES -->
+    <!-- TAB 2: INTRADAY DESK (MIS) -->
+    <div id="tab-intraday" style="display:none; flex-direction:column; gap:14px;">
+        <!-- Desk Alert Banner -->
+        <div class="desk-banner" style="border-left:4px solid var(--cyan);">
+            <div class="banner-highlight">
+                <span style="font-size:18px;">⚡</span>
+                <div>
+                    <div>Intraday Day Trading Desk (MIS)</div>
+                    <div style="font-size:11px; color:var(--text-muted); font-weight:400;">
+                        Strict 15:10 IST EOD auto square-off • ORB + VWAP + Breakeven Lock at +0.5R • Dynamic Runner Trailing Stop (75% Win Rate Logic)
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <span class="banner-tag" style="background:rgba(6,182,212,0.15); color:var(--cyan); border:1px solid rgba(6,182,212,0.3);">MIS PRODUCT</span>
+                <span class="banner-tag" style="background:rgba(244,63,94,0.15); color:var(--rose); border:1px solid rgba(244,63,94,0.3);">SQUARE-OFF 15:10 IST</span>
+            </div>
+        </div>
+
+        <!-- Desk KPI Strip -->
+        <div class="hero-stats-grid">
+            <div class="stat-item">
+                <span class="stat-label">Allocated Capital</span>
+                <span id="intra-alloc-val" class="stat-val" style="color:var(--cyan);">₹0.00</span>
+                <span id="intra-alloc-pct" class="stat-sub">40% of Total</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Active MIS Positions</span>
+                <span id="intra-open-count" class="stat-val">0</span>
+                <span class="stat-sub">Max concurrent: 5</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">MIS Realized P&L</span>
+                <span id="intra-pnl-val" class="stat-val">₹0.00</span>
+                <span id="intra-trade-count" class="stat-sub">0 trades today</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">EOD Square-Off Countdown</span>
+                <span id="intra-eod-countdown" class="stat-val" style="color:var(--amber);">Active</span>
+                <span class="stat-sub">Auto-close remaining</span>
+            </div>
+        </div>
+
+        <!-- Active Intraday Positions & Intraday Trades -->
+        <div class="two-col">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Active Intraday Holdings (MIS)</div>
+                    <span id="intra-pos-badge" class="brand-badge">0 OPEN</span>
+                </div>
+                <div id="positions-intraday-body" class="positions-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">⚡</span>
+                        <span>No open intraday MIS positions</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Today's Intraday Executions</div>
+                    <span id="intra-trades-badge" class="brand-badge">TODAY</span>
+                </div>
+                <div id="trades-intraday-body" class="trades-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">📋</span>
+                        <span>No intraday trades executed today</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: STOCKS / SWING DESK (CNC) -->
+    <div id="tab-swing" style="display:none; flex-direction:column; gap:14px;">
+        <!-- Desk Alert Banner -->
+        <div class="desk-banner" style="border-left:4px solid var(--emerald);">
+            <div class="banner-highlight">
+                <span style="font-size:18px;">📈</span>
+                <div>
+                    <div>Stocks & Swing Trading Desk (CNC Delivery)</div>
+                    <div style="font-size:11px; color:var(--text-muted); font-weight:400;">
+                        Exempt from 15:10 EOD square-off • 3 to 20 days holding • Minervini Stage 2 Trend Template • 20 EMA Pullback with Volume Dry-Up
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <span class="banner-tag" style="background:rgba(16,185,129,0.15); color:var(--emerald); border:1px solid rgba(16,185,129,0.3);">CNC DELIVERY</span>
+                <span class="banner-tag" style="background:rgba(16,185,129,0.15); color:var(--emerald); border:1px solid rgba(16,185,129,0.3);">OVERNIGHT HOLDING</span>
+            </div>
+        </div>
+
+        <!-- Desk KPI Strip -->
+        <div class="hero-stats-grid">
+            <div class="stat-item">
+                <span class="stat-label">Allocated Capital</span>
+                <span id="swing-alloc-val" class="stat-val" style="color:var(--emerald);">₹0.00</span>
+                <span id="swing-alloc-pct" class="stat-sub">40% of Total</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Active Swing Holdings</span>
+                <span id="swing-open-count" class="stat-val">0</span>
+                <span class="stat-sub">Max concurrent: 5</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Swing Realized P&L</span>
+                <span id="swing-pnl-val" class="stat-val">₹0.00</span>
+                <span id="swing-trade-count" class="stat-sub">Closed CNC trades</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Target Strategy</span>
+                <span class="stat-val" style="color:var(--cyan);font-size:15px;">20 EMA Pullback</span>
+                <span class="stat-sub">8%–14% Swing Target</span>
+            </div>
+        </div>
+
+        <!-- Active Swing Holdings & Closed Swing Trades -->
+        <div class="two-col">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Active Delivery Holdings (CNC)</div>
+                    <span id="swing-pos-badge" class="brand-badge">0 HELD</span>
+                </div>
+                <div id="positions-swing-body" class="positions-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">📈</span>
+                        <span>No swing delivery positions currently held</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Swing Trade Executions</div>
+                    <span id="swing-trades-badge" class="brand-badge">HISTORICAL</span>
+                </div>
+                <div id="trades-swing-body" class="trades-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">📋</span>
+                        <span>No swing trades completed yet</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: FUTURES & OPTIONS DESK (F&O) -->
+    <div id="tab-fno" style="display:none; flex-direction:column; gap:14px;">
+        <!-- Desk Alert Banner -->
+        <div class="desk-banner" style="border-left:4px solid var(--indigo);">
+            <div class="banner-highlight">
+                <span style="font-size:18px;">🎯</span>
+                <div>
+                    <div>Defined-Risk Futures & Options Desk (F&O)</div>
+                    <div style="font-size:11px; color:var(--text-muted); font-weight:400;">
+                        Nifty 50 & Bank Nifty Iron Condors / Credit Spreads • Delta 15-20 OTM Strikes • 50% Profit-Taking Rule (75%+ Win Rate)
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <span class="banner-tag" style="background:rgba(99,102,241,0.15); color:var(--indigo); border:1px solid rgba(99,102,241,0.3);">DEFINED RISK</span>
+                <span id="fno-expiry-badge" class="banner-tag" style="background:rgba(6,182,212,0.15); color:var(--cyan); border:1px solid rgba(6,182,212,0.3);">EXPIRY: THURSDAY</span>
+            </div>
+        </div>
+
+        <!-- Desk KPI Strip -->
+        <div class="hero-stats-grid">
+            <div class="stat-item">
+                <span class="stat-label">Allocated Capital</span>
+                <span id="fno-alloc-val" class="stat-val" style="color:var(--indigo);">₹0.00</span>
+                <span id="fno-alloc-pct" class="stat-sub">20% of Total</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Active F&O Spreads</span>
+                <span id="fno-open-count" class="stat-val">0</span>
+                <span class="stat-sub">Multi-leg positions</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Nifty Put-Call Ratio (PCR)</span>
+                <span id="fno-pcr-val" class="stat-val" style="color:var(--cyan);">1.00</span>
+                <span id="fno-pcr-sentiment" class="stat-sub">Neutral</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">F&O Realized P&L</span>
+                <span id="fno-pnl-val" class="stat-val">₹0.00</span>
+                <span id="fno-trade-count" class="stat-sub">0 spreads closed</span>
+            </div>
+        </div>
+
+        <!-- Active F&O Positions & Closed F&O Trades -->
+        <div class="two-col">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Active Index Spreads & Condors</div>
+                    <span id="fno-pos-badge" class="brand-badge">0 SPREADS</span>
+                </div>
+                <div id="positions-fno-body" class="positions-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">🎯</span>
+                        <span>No active F&O spreads or option positions</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">F&O Trade Executions</div>
+                    <span id="fno-trades-badge" class="brand-badge">CLOSED SPREADS</span>
+                </div>
+                <div id="trades-fno-body" class="trades-list">
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">📋</span>
+                        <span>No F&O trades closed yet</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 5: QUANT RESEARCH & BASELINES -->
     <div id="tab-research" style="display:none; flex-direction:column; gap:14px;">
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title">Phase 1 Quantitative Research Foundation</div>
+                <div class="panel-title">Institutional Quant Research Foundation</div>
                 <span class="pill pill-long">VALIDATED</span>
             </div>
             <p style="font-size:13px; color:var(--text-muted); line-height:1.6;">
                 Institutional research engine with survivorship-bias-free point-in-time universe, unified execution decision logic,
-                realistic NSE regulatory cost deductions, and out-of-sample walk-forward validation.
+                realistic NSE regulatory cost deductions, and out-of-sample walk-forward validation across all 3 desks.
             </p>
         </div>
 
@@ -979,10 +1381,131 @@ async function toggleAutoTrading() {
 }
 
 function switchTab(tab) {
-    document.getElementById('tab-live').style.display = (tab === 'live') ? 'flex' : 'none';
-    document.getElementById('tab-research').style.display = (tab === 'research') ? 'flex' : 'none';
-    document.getElementById('tab-live-btn').className = 'tab-btn' + (tab === 'live' ? ' active' : '');
-    document.getElementById('tab-research-btn').className = 'tab-btn' + (tab === 'research' ? ' active' : '');
+    const tabs = ['main', 'intraday', 'swing', 'fno', 'research'];
+    tabs.forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        const btn = document.getElementById('tab-' + t + '-btn');
+        if (el) el.style.display = (t === tab) ? 'flex' : 'none';
+        if (btn) btn.className = 'tab-btn' + (t === tab ? ' active' : '');
+    });
+}
+
+let currentAlloc = { intraday: 40, swing: 40, fno: 20 };
+let isUserAdjustingAlloc = false;
+let totalEquityCached = 100000;
+
+function updateAllocDisplay() {
+    const intra = Math.max(0, Math.min(100, Number(currentAlloc.intraday || 0)));
+    const swing = Math.max(0, Math.min(100, Number(currentAlloc.swing || 0)));
+    const fno = Math.max(0, Math.min(100, Number(currentAlloc.fno || 0)));
+    const sum = intra + swing + fno;
+
+    const sIntra = document.getElementById('slider-alloc-intra');
+    const nIntra = document.getElementById('num-alloc-intra');
+    const sSwing = document.getElementById('slider-alloc-swing');
+    const nSwing = document.getElementById('num-alloc-swing');
+    const sFno = document.getElementById('slider-alloc-fno');
+    const nFno = document.getElementById('num-alloc-fno');
+
+    if (sIntra) sIntra.value = intra;
+    if (nIntra) nIntra.value = intra;
+    if (sSwing) sSwing.value = swing;
+    if (nSwing) nSwing.value = swing;
+    if (sFno) sFno.value = fno;
+    if (nFno) nFno.value = fno;
+
+    const bIntra = document.getElementById('bar-alloc-intra');
+    const bSwing = document.getElementById('bar-alloc-swing');
+    const bFno = document.getElementById('bar-alloc-fno');
+    if (bIntra) { bIntra.style.width = intra + '%'; bIntra.textContent = intra + '%'; }
+    if (bSwing) { bSwing.style.width = swing + '%'; bSwing.textContent = swing + '%'; }
+    if (bFno) { bFno.style.width = fno + '%'; bFno.textContent = fno + '%'; }
+
+    const intraRupees = (totalEquityCached * (intra / 100));
+    const swingRupees = (totalEquityCached * (swing / 100));
+    const fnoRupees = (totalEquityCached * (fno / 100));
+
+    const rIntra = document.getElementById('alloc-intra-rupees');
+    const rSwing = document.getElementById('alloc-swing-rupees');
+    const rFno = document.getElementById('alloc-fno-rupees');
+    if (rIntra) rIntra.textContent = formatMoney(intraRupees);
+    if (rSwing) rSwing.textContent = formatMoney(swingRupees);
+    if (rFno) rFno.textContent = formatMoney(fnoRupees);
+
+    const kiIntraVal = document.getElementById('intra-alloc-val');
+    const kiIntraPct = document.getElementById('intra-alloc-pct');
+    if (kiIntraVal) kiIntraVal.textContent = formatMoney(intraRupees);
+    if (kiIntraPct) kiIntraPct.textContent = intra + '% of Total';
+
+    const kiSwingVal = document.getElementById('swing-alloc-val');
+    const kiSwingPct = document.getElementById('swing-alloc-pct');
+    if (kiSwingVal) kiSwingVal.textContent = formatMoney(swingRupees);
+    if (kiSwingPct) kiSwingPct.textContent = swing + '% of Total';
+
+    const kiFnoVal = document.getElementById('fno-alloc-val');
+    const kiFnoPct = document.getElementById('fno-alloc-pct');
+    if (kiFnoVal) kiFnoVal.textContent = formatMoney(fnoRupees);
+    if (kiFnoPct) kiFnoPct.textContent = fno + '% of Total';
+
+    const badge = document.getElementById('alloc-sum-badge');
+    if (badge) {
+        badge.textContent = `TOTAL: ${sum.toFixed(0)}%`;
+        badge.className = 'pill ' + (Math.abs(sum - 100) < 0.01 ? 'pill-long' : 'pill-short');
+    }
+}
+
+function onAllocSliderChange(desk) {
+    isUserAdjustingAlloc = true;
+    const val = Number(document.getElementById('slider-alloc-' + desk).value);
+    currentAlloc[desk === 'intra' ? 'intraday' : desk] = val;
+    updateAllocDisplay();
+}
+
+function onAllocNumChange(desk) {
+    isUserAdjustingAlloc = true;
+    const val = Number(document.getElementById('num-alloc-' + desk).value);
+    currentAlloc[desk === 'intra' ? 'intraday' : desk] = Math.max(0, Math.min(100, val));
+    updateAllocDisplay();
+}
+
+async function saveCapitalAllocation() {
+    const sum = Number(currentAlloc.intraday || 0) + Number(currentAlloc.swing || 0) + Number(currentAlloc.fno || 0);
+    const msgEl = document.getElementById('alloc-msg');
+    if (Math.abs(sum - 100) > 0.01) {
+        if (msgEl) {
+            msgEl.textContent = `⚠ Total must equal 100%. Current sum is ${sum}%.`;
+            msgEl.style.color = 'var(--rose)';
+            msgEl.style.display = 'block';
+        }
+        return;
+    }
+    try {
+        const res = await fetch('/api/capital-allocation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(currentAlloc)
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.capital_allocation) {
+                currentAlloc = data.capital_allocation;
+            }
+            if (msgEl) {
+                msgEl.textContent = '✓ Capital allocation saved and active across all desks!';
+                msgEl.style.color = 'var(--emerald)';
+                msgEl.style.display = 'block';
+                setTimeout(() => { if (msgEl) msgEl.style.display = 'none'; }, 4000);
+            }
+            isUserAdjustingAlloc = false;
+        }
+    } catch (e) {
+        console.error('Failed to save capital allocation:', e);
+        if (msgEl) {
+            msgEl.textContent = 'Failed to save allocation: ' + e;
+            msgEl.style.color = 'var(--rose)';
+            msgEl.style.display = 'block';
+        }
+    }
 }
 
 function renderEquityCurve(points) {
@@ -1016,11 +1539,113 @@ function renderEquityCurve(points) {
     }
 }
 
+function renderPositionCard(p, desk) {
+    const isLong = (p.side === 'LONG');
+    const entry = Number(p.entry_price || 0);
+    const curr = Number(p.current_price || entry);
+    const qty = Number(p.qty || 1);
+    const pnl = isLong ? (curr - entry) * qty : (entry - curr) * qty;
+    const pnlPct = entry > 0 ? ((pnl / (entry * qty)) * 100).toFixed(2) : '0.00';
+    const ageMinutes = Number(p.holding_minutes || 0);
+    const ageStr = ageMinutes > 60 ? (ageMinutes / 60).toFixed(1) + 'h' : Math.round(ageMinutes) + 'm';
+    const pType = (p.product_type || 'INTRADAY').toUpperCase();
+
+    let extraPill = `<span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${escapeHtml(p.side)} · ${qty} QTY</span>`;
+    let subMeta = `Avg ${formatMoney(entry)}`;
+
+    if (pType === 'SWING') {
+        const days = p.days_held !== undefined ? p.days_held : 0;
+        extraPill = `<span class="pill pill-long">CNC DELIVERY · ${qty} QTY</span>`;
+        subMeta = `Entry ${formatMoney(entry)} · <span class="pill pill-cyan" style="font-size:10px;padding:2px 6px;">Held ${days}d</span>`;
+    } else if (pType === 'FNO') {
+        const oType = p.option_type || 'SPREAD';
+        const strike = p.strike_price ? `@ ${p.strike_price}` : '';
+        extraPill = `<span class="pill pill-cyan">${escapeHtml(oType)} ${escapeHtml(strike)} · ${qty} QTY</span>`;
+        subMeta = `Net Credit ${formatMoney(entry)} · Exp: ${escapeHtml(p.expiry_date || 'Weekly')}`;
+    }
+
+    return `
+    <div class="pos-card">
+        <div class="pos-card-main">
+            <div class="pos-info">
+                <div class="pos-symbol">${escapeHtml(p.symbol)}</div>
+                <div class="pos-meta">
+                    ${extraPill}
+                    <span class="faint">${subMeta}</span>
+                </div>
+            </div>
+            <div class="pos-pricing">
+                <div class="pos-current">${formatMoney(curr)}</div>
+                <div class="pos-pnl ${pnl >= 0 ? 'text-up' : 'text-down'}">${pnl >= 0 ? '+' : ''}${formatMoney(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct}%)</div>
+            </div>
+        </div>
+        <div class="pos-card-footer">
+            <div class="pos-bound"><span class="faint">SL:</span> <span class="text-down">${formatMoney(p.stop_loss)}</span></div>
+            <div class="pos-bound"><span class="faint">TP:</span> <span class="text-up">${formatMoney(p.target)}</span></div>
+            <div class="pos-bound"><span class="faint">${pType === 'SWING' ? 'Holding:' : 'Age:'}</span> <span>${pType === 'SWING' ? (p.days_held || 0) + ' days' : escapeHtml(ageStr)}</span></div>
+        </div>
+    </div>`;
+}
+
+function renderOrderCard(o) {
+    const qty = Number(o.qty || 1);
+    const price = Number(o.price || 0);
+    const pType = (o.product_type || 'INTRADAY').toUpperCase();
+    const oType = (o.order_type || 'AMO').toUpperCase();
+    const sl = o.stop_loss ? ` · SL ${formatMoney(o.stop_loss)}` : '';
+    const tp = o.target ? ` · TP ${formatMoney(o.target)}` : '';
+    return `
+    <div class="pos-card" style="border-left:3px solid #facc15;">
+        <div class="pos-card-main">
+            <div class="pos-info">
+                <div class="pos-symbol">${escapeHtml(o.symbol)}</div>
+                <div class="pos-meta">
+                    <span class="pill" style="background:rgba(234,179,8,0.15); color:#facc15; border:1px solid rgba(234,179,8,0.3);">${escapeHtml(oType)} PENDING</span>
+                    <span class="pill pill-cyan">${escapeHtml(pType)} · ${qty} QTY</span>
+                    <span class="faint">${tp}${sl}</span>
+                </div>
+            </div>
+            <div class="pos-pricing">
+                <div class="pos-current">${formatMoney(price)}</div>
+                <div style="font-size:11px; color:#facc15; font-family:var(--font-mono); font-weight:600;">Scheduled for 09:15 AM Open</div>
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderTradeRow(t) {
+    const pnl = Number(t.pnl || 0);
+    const isWin = pnl >= 0;
+    const pType = (t.product_type || 'INTRADAY').toUpperCase();
+    return `
+    <div class="activity-row">
+        <div class="activity-left">
+            <div class="activity-icon ${isWin ? 'icon-win' : 'icon-loss'}">${isWin ? '▲' : '▼'}</div>
+            <div>
+                <div class="activity-title">
+                    <span>${escapeHtml(t.symbol)}</span>
+                    <span class="pill ${t.side === 'LONG' ? 'pill-long' : 'pill-short'}">${escapeHtml(t.side)}</span>
+                    <span class="pill pill-muted" style="font-size:10px;padding:1px 5px;">${escapeHtml(pType)}</span>
+                </div>
+                <div class="activity-sub">${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)} · <span class="faint">${escapeHtml(t.exit_reason || 'exit')}</span></div>
+            </div>
+        </div>
+        <div class="activity-right">
+            <div class="activity-val ${isWin ? 'text-up' : 'text-down'}">${isWin ? '+' : ''}${formatMoney(pnl)}</div>
+            <div class="activity-sub ${isWin ? 'text-up' : 'text-down'}">${formatPct(t.pnl_pct)}</div>
+        </div>
+    </div>`;
+}
+
 async function updateDashboard() {
     try {
         const res = await fetch('/api/state', { cache: 'no-store' });
         if (!res.ok) return;
         const data = await res.json();
+
+        totalEquityCached = Number(data.portfolio || 100000);
+
+
 
         // Auto-trading Button Sync
         if (data.auto_trading !== undefined) {
@@ -1037,7 +1662,18 @@ async function updateDashboard() {
         const clockEl = document.getElementById('clock');
         if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST';
         const phase = data.market_phase || 'MARKET CLOSED';
-        document.getElementById('market-phase-badge').textContent = phase.toUpperCase();
+        const isOpen = !!data.market_open;
+        const phaseBadge = document.getElementById('market-phase-badge');
+        const pulseBox = document.getElementById('pulse-box');
+        if (phaseBadge) {
+            if (isOpen) {
+                phaseBadge.textContent = 'NSE OPEN (09:15-15:30)';
+                if (pulseBox) pulseBox.style.borderColor = 'rgba(16,185,129,0.3)';
+            } else {
+                phaseBadge.innerHTML = '<span style="color:#fb7185;">NSE CLOSED</span> · NEXT 09:15 AM';
+                if (pulseBox) pulseBox.style.borderColor = 'rgba(244,63,94,0.3)';
+            }
+        }
 
         // Hero Metric Cards
         document.getElementById('val-portfolio').textContent = formatMoney(data.portfolio);
@@ -1070,6 +1706,12 @@ async function updateDashboard() {
         document.getElementById('progress-fill').style.width = prog + '%';
         document.getElementById('progress-percent').textContent = prog.toFixed(2) + '% of Goal';
 
+        // Synchronize Capital Allocation if not actively sliding
+        if (!isUserAdjustingAlloc && data.capital_allocation) {
+            currentAlloc = data.capital_allocation;
+            updateAllocDisplay();
+        }
+
         // Render Equity SVG
         if (data.equity_curve && data.equity_curve.length > 1) {
             renderEquityCurve(data.equity_curve);
@@ -1077,7 +1719,7 @@ async function updateDashboard() {
             renderEquityCurve([data.portfolio * 0.99, data.portfolio]);
         }
 
-        // Active Holdings Rendered as Sleek Mobile-First Cards
+        // 1. All Desks Positions (Main Tab)
         const posBody = document.getElementById('positions-body');
         const positions = data.positions || [];
         document.getElementById('pos-count').textContent = positions.length + ' OPEN';
@@ -1088,41 +1730,27 @@ async function updateDashboard() {
                     <span>No open positions currently held</span>
                 </div>`;
         } else {
-            posBody.innerHTML = positions.map(p => {
-                const isLong = (p.side === 'LONG');
-                const entry = Number(p.entry_price || 0);
-                const curr = Number(p.current_price || entry);
-                const qty = Number(p.qty || 1);
-                const pnl = isLong ? (curr - entry) * qty : (entry - curr) * qty;
-                const pnlPct = entry > 0 ? ((pnl / (entry * qty)) * 100).toFixed(2) : '0.00';
-                const ageMinutes = Number(p.holding_minutes || 0);
-                const ageStr = ageMinutes > 60 ? (ageMinutes / 60).toFixed(1) + 'h' : Math.round(ageMinutes) + 'm';
-
-                return `
-                <div class="pos-card">
-                    <div class="pos-card-main">
-                        <div class="pos-info">
-                            <div class="pos-symbol">${escapeHtml(p.symbol)}</div>
-                            <div class="pos-meta">
-                                <span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${escapeHtml(p.side)} · ${qty} QTY</span>
-                                <span class="faint">Avg ${formatMoney(entry)}</span>
-                            </div>
-                        </div>
-                        <div class="pos-pricing">
-                            <div class="pos-current">${formatMoney(curr)}</div>
-                            <div class="pos-pnl ${pnl >= 0 ? 'text-up' : 'text-down'}">${pnl >= 0 ? '+' : ''}${formatMoney(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct}%)</div>
-                        </div>
-                    </div>
-                    <div class="pos-card-footer">
-                        <div class="pos-bound"><span class="faint">SL:</span> <span class="text-down">${formatMoney(p.stop_loss)}</span></div>
-                        <div class="pos-bound"><span class="faint">TP:</span> <span class="text-up">${formatMoney(p.target)}</span></div>
-                        <div class="pos-bound"><span class="faint">Age:</span> <span>${escapeHtml(ageStr)}</span></div>
-                    </div>
-                </div>`;
-            }).join('');
+            posBody.innerHTML = positions.map(p => renderPositionCard(p, 'main')).join('');
         }
 
-        // Recent Trades Rendered as Clean Transaction Rows
+        // Orders & AMOs (Main Tab)
+        const ordersBody = document.getElementById('orders-body');
+        const orders = data.pending_orders || [];
+        const orderCountEl = document.getElementById('order-count');
+        if (orderCountEl) orderCountEl.textContent = orders.length + ' PENDING';
+        if (ordersBody) {
+            if (orders.length === 0) {
+                ordersBody.innerHTML = `
+                    <div class="empty-state">
+                        <span style="font-size:20px;opacity:0.6;">📝</span>
+                        <span>No pending orders queued</span>
+                    </div>`;
+            } else {
+                ordersBody.innerHTML = orders.map(o => renderOrderCard(o)).join('');
+            }
+        }
+
+        // All Desks Trades (Main Tab)
         const tradeBody = document.getElementById('trades-body');
         const trades = data.trades || [];
         if (trades.length === 0) {
@@ -1132,27 +1760,136 @@ async function updateDashboard() {
                     <span>No execution records logged yet</span>
                 </div>`;
         } else {
-            tradeBody.innerHTML = trades.map(t => {
-                const pnl = Number(t.pnl || 0);
-                const isWin = pnl >= 0;
-                return `
-                <div class="activity-row">
-                    <div class="activity-left">
-                        <div class="activity-icon ${isWin ? 'icon-win' : 'icon-loss'}">${isWin ? '▲' : '▼'}</div>
-                        <div>
-                            <div class="activity-title">
-                                <span>${escapeHtml(t.symbol)}</span>
-                                <span class="pill ${t.side === 'LONG' ? 'pill-long' : 'pill-short'}">${escapeHtml(t.side)}</span>
-                            </div>
-                            <div class="activity-sub">${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)} · <span class="faint">${escapeHtml(t.exit_reason || 'exit')}</span></div>
-                        </div>
-                    </div>
-                    <div class="activity-right">
-                        <div class="activity-val ${isWin ? 'text-up' : 'text-down'}">${isWin ? '+' : ''}${formatMoney(pnl)}</div>
-                        <div class="activity-sub ${isWin ? 'text-up' : 'text-down'}">${formatPct(t.pnl_pct)}</div>
-                    </div>
-                </div>`;
-            }).join('');
+            tradeBody.innerHTML = trades.map(t => renderTradeRow(t)).join('');
+        }
+
+        // 2. Desk 1: Intraday (MIS Tab)
+        const posIntra = data.positions_intraday || [];
+        const tradesIntra = data.trades_intraday || [];
+        const pIntraBody = document.getElementById('positions-intraday-body');
+        const tIntraBody = document.getElementById('trades-intraday-body');
+        const intraBadge = document.getElementById('intra-pos-badge');
+        const intraCount = document.getElementById('intra-open-count');
+        if (intraBadge) intraBadge.textContent = posIntra.length + ' OPEN';
+        if (intraCount) intraCount.textContent = posIntra.length;
+
+        if (pIntraBody) {
+            if (posIntra.length === 0) {
+                pIntraBody.innerHTML = `<div class="empty-state"><span style="font-size:20px;opacity:0.6;">⚡</span><span>No open intraday MIS positions</span></div>`;
+            } else {
+                pIntraBody.innerHTML = posIntra.map(p => renderPositionCard(p, 'intraday')).join('');
+            }
+        }
+
+        const intraPnl = tradesIntra.reduce((acc, t) => acc + Number(t.pnl || 0), 0);
+        const intraPnlEl = document.getElementById('intra-pnl-val');
+        if (intraPnlEl) {
+            intraPnlEl.textContent = formatMoney(intraPnl);
+            intraPnlEl.style.color = intraPnl >= 0 ? 'var(--emerald)' : 'var(--rose)';
+        }
+        const intraTradeCount = document.getElementById('intra-trade-count');
+        if (intraTradeCount) intraTradeCount.textContent = `${tradesIntra.length} trades today`;
+
+        if (tIntraBody) {
+            if (tradesIntra.length === 0) {
+                tIntraBody.innerHTML = `<div class="empty-state"><span style="font-size:20px;opacity:0.6;">📋</span><span>No intraday trades executed today</span></div>`;
+            } else {
+                tIntraBody.innerHTML = tradesIntra.map(t => renderTradeRow(t)).join('');
+            }
+        }
+
+        // 3. Desk 2: Stocks / Swing (CNC Tab)
+        const posSwing = data.positions_swing || [];
+        const tradesSwing = data.trades_swing || [];
+        const pSwingBody = document.getElementById('positions-swing-body');
+        const tSwingBody = document.getElementById('trades-swing-body');
+        const swingBadge = document.getElementById('swing-pos-badge');
+        const swingCount = document.getElementById('swing-open-count');
+        if (swingBadge) swingBadge.textContent = posSwing.length + ' HELD';
+        if (swingCount) swingCount.textContent = posSwing.length;
+
+        if (pSwingBody) {
+            if (posSwing.length === 0) {
+                pSwingBody.innerHTML = `<div class="empty-state"><span style="font-size:20px;opacity:0.6;">📈</span><span>No swing delivery positions currently held</span></div>`;
+            } else {
+                pSwingBody.innerHTML = posSwing.map(p => renderPositionCard(p, 'swing')).join('');
+            }
+        }
+
+        const swingPnl = tradesSwing.reduce((acc, t) => acc + Number(t.pnl || 0), 0);
+        const swingPnlEl = document.getElementById('swing-pnl-val');
+        if (swingPnlEl) {
+            swingPnlEl.textContent = formatMoney(swingPnl);
+            swingPnlEl.style.color = swingPnl >= 0 ? 'var(--emerald)' : 'var(--rose)';
+        }
+        const swingTradeCount = document.getElementById('swing-trade-count');
+        if (swingTradeCount) swingTradeCount.textContent = `${tradesSwing.length} closed CNC trades`;
+
+        if (tSwingBody) {
+            if (tradesSwing.length === 0) {
+                tSwingBody.innerHTML = `<div class="empty-state"><span style="font-size:20px;opacity:0.6;">📋</span><span>No swing trades completed yet</span></div>`;
+            } else {
+                tSwingBody.innerHTML = tradesSwing.map(t => renderTradeRow(t)).join('');
+            }
+        }
+
+        // 4. Desk 3: Futures & Options (F&O Tab)
+        const posFno = data.positions_fno || [];
+        const tradesFno = data.trades_fno || [];
+        const pFnoBody = document.getElementById('positions-fno-body');
+        const tFnoBody = document.getElementById('trades-fno-body');
+        const fnoBadge = document.getElementById('fno-pos-badge');
+        const fnoCount = document.getElementById('fno-open-count');
+        if (fnoBadge) fnoBadge.textContent = posFno.length + ' SPREADS';
+        if (fnoCount) fnoCount.textContent = posFno.length;
+
+        if (pFnoBody) {
+            if (posFno.length === 0) {
+                pFnoBody.innerHTML = `<div class="empty-state"><span style="font-size:20px;opacity:0.6;">🎯</span><span>No active F&O spreads or option positions</span></div>`;
+            } else {
+                pFnoBody.innerHTML = posFno.map(p => renderPositionCard(p, 'fno')).join('');
+            }
+        }
+
+        const fnoPnl = tradesFno.reduce((acc, t) => acc + Number(t.pnl || 0), 0);
+        const fnoPnlEl = document.getElementById('fno-pnl-val');
+        if (fnoPnlEl) {
+            fnoPnlEl.textContent = formatMoney(fnoPnl);
+            fnoPnlEl.style.color = fnoPnl >= 0 ? 'var(--emerald)' : 'var(--rose)';
+        }
+        const fnoTradeCount = document.getElementById('fno-trade-count');
+        if (fnoTradeCount) fnoTradeCount.textContent = `${tradesFno.length} spreads closed`;
+
+        if (tFnoBody) {
+            if (tradesFno.length === 0) {
+                tFnoBody.innerHTML = `<div class="empty-state"><span style="font-size:20px;opacity:0.6;">📋</span><span>No F&O trades closed yet</span></div>`;
+            } else {
+                tFnoBody.innerHTML = tradesFno.map(t => renderTradeRow(t)).join('');
+            }
+        }
+
+        if (data.fno_expiry) {
+            const expEl = document.getElementById('fno-expiry-badge');
+            if (expEl) expEl.textContent = 'EXPIRY: ' + data.fno_expiry;
+        }
+
+        if (data.fno_pcr !== undefined) {
+            const pcrVal = Number(data.fno_pcr || 1.0);
+            const pcrEl = document.getElementById('fno-pcr-val');
+            const sentEl = document.getElementById('fno-pcr-sentiment');
+            if (pcrEl) pcrEl.textContent = pcrVal.toFixed(2);
+            if (sentEl) {
+                if (pcrVal >= 1.2) {
+                    sentEl.textContent = 'Bullish Bias';
+                    sentEl.style.color = 'var(--emerald)';
+                } else if (pcrVal <= 0.8) {
+                    sentEl.textContent = 'Bearish Bias';
+                    sentEl.style.color = 'var(--rose)';
+                } else {
+                    sentEl.textContent = 'Neutral Range';
+                    sentEl.style.color = 'var(--cyan)';
+                }
+            }
         }
 
         // Decisions Rendered as Stream Cards
@@ -1340,6 +2077,20 @@ def create_app(db, cfg=None, provider=None):
         logs = read_recent_logs(max_lines=min(500, max(10, n)))
         return jsonify({"logs": logs, "count": len(logs)})
 
+    @flask_app.route("/api/capital-allocation", methods=["GET", "POST"])
+    def handle_capital_allocation():
+        if request.method == "POST":
+            if not _is_authorized():
+                return jsonify({"error": "Unauthorized"}), 401
+            data = request.get_json(silent=True) or {}
+            intraday = float(data.get("intraday", 40.0))
+            swing = float(data.get("swing", 40.0))
+            fno = float(data.get("fno", 20.0))
+            updated = db.set_capital_allocation(intraday, swing, fno)
+            db.log("INFO", f"Capital allocation updated: Intraday={updated['intraday']}%, Swing={updated['swing']}%, F&O={updated['fno']}%")
+            return jsonify({"status": "ok", "capital_allocation": updated})
+        return jsonify(db.get_capital_allocation())
+
     @flask_app.get("/api/state")
     def state():
         account = db.account()
@@ -1347,7 +2098,7 @@ def create_app(db, cfg=None, provider=None):
             return jsonify({"error": "Trading account is not initialized."}), 503
 
         positions = db.positions()
-        trades = db.trades(10)
+        trades = db.trades(20)
         metrics = portfolio_metrics(account, positions, short_margin)
         realized = db.total_realized_pnl()
         pnl = metrics["equity"] - account["starting_capital"]
@@ -1363,6 +2114,20 @@ def create_app(db, cfg=None, provider=None):
         market = db.market()
         market["market_phase"] = market_phase()
         market["holiday"] = holiday_name()
+
+        alloc = db.get_capital_allocation()
+        positions_intra = [p for p in positions if str(p.get("product_type", "INTRADAY")).upper() == "INTRADAY"]
+        positions_swing = [p for p in positions if str(p.get("product_type", "")).upper() == "SWING"]
+        positions_fno = [p for p in positions if str(p.get("product_type", "")).upper() == "FNO"]
+
+        trades_intra = [t for t in trades if str(t.get("product_type", "INTRADAY")).upper() == "INTRADAY"]
+        trades_swing = [t for t in trades if str(t.get("product_type", "")).upper() == "SWING"]
+        trades_fno = [t for t in trades if str(t.get("product_type", "")).upper() == "FNO"]
+
+        from .fno.index_chain import IndexChainManager
+        fno_chain = IndexChainManager(provider)
+        fno_expiry = fno_chain.get_next_expiry()
+        fno_pcr = fno_chain.estimate_pcr("NIFTY")
 
         return jsonify({
             "paper_only": True,
@@ -1383,14 +2148,34 @@ def create_app(db, cfg=None, provider=None):
             "progress": (metrics["equity"] / account["target_capital"] * 100),
             "peak": account["peak_value"],
             "drawdown": drawdown,
+            "capital_allocation": alloc,
             "positions": positions,
+            "positions_intraday": positions_intra,
+            "positions_swing": positions_swing,
+            "positions_fno": positions_fno,
             "trades": trades,
+            "trades_intraday": trades_intra,
+            "trades_swing": trades_swing,
+            "trades_fno": trades_fno,
             "decisions": decisions,
             "market": market,
             "learning": learning.recommendation(),
             "market_phase": market_phase(),
+            "fno_expiry": fno_expiry,
+            "fno_pcr": fno_pcr,
+            "market_open": market_open(),
+            "orders": db.orders(50),
+            "pending_orders": db.pending_orders(),
             "updated_at": now_ist().isoformat(),
             "equity_curve": db.equity()
+        })
+
+    @flask_app.get("/api/orders")
+    def get_orders():
+        return jsonify({
+            "orders": db.orders(50),
+            "pending": db.pending_orders(),
+            "market_open": market_open()
         })
 
     return flask_app

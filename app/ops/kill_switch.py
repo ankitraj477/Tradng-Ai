@@ -115,12 +115,25 @@ class CentralKillSwitch:
             if price is None:
                 price = float(p.get("current_price") or p["entry_price"])
 
-            if self.execution:
-                try:
+            ptype = str(p.get("product_type", "INTRADAY")).upper()
+            try:
+                if ptype == "FNO":
+                    from ..fno.execution import FNOExecution
+                    fno_exec = FNOExecution(self.db, self.cfg)
+                    fno_exec.close(sym, price, f"EMERGENCY FLATTEN: {reason}")
+                elif ptype == "SWING":
+                    from ..swing.execution import SwingExecution
+                    swing_exec = SwingExecution(self.db, self.cfg)
+                    swing_exec.close(sym, price, f"EMERGENCY FLATTEN: {reason}")
+                elif self.execution:
                     self.execution.close(sym, price, f"EMERGENCY FLATTEN: {reason}", "")
-                    closed_count += 1
-                except Exception as exc:
-                    self.db.log("ERROR", f"Failed emergency close for {sym}: {exc!r}")
+                closed_count += 1
+            except Exception as exc:
+                self.db.log("ERROR", f"Failed emergency close for {sym}: {exc!r}")
 
         self.db.log("WARN", f"PORTFOLIO FLATTENED: {closed_count} positions closed.")
         return closed_count
+
+
+KillSwitch = CentralKillSwitch
+
