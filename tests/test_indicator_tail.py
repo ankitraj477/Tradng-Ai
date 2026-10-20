@@ -34,3 +34,21 @@ def test_indicators_flat_tail_preserves_tail():
     assert not out.empty
     assert out.index[-1] == df.index[-1]
     assert out.iloc[-1]["rsi"] == 50.0
+
+def test_indicators_zero_volume_index_preserves_tail():
+    idx = pd.date_range("2026-01-01", periods=60, freq="5min")
+    prices = np.linspace(100, 160, 60)
+    df = pd.DataFrame({
+        "Open": prices - 0.5,
+        "High": prices + 0.5,
+        "Low": prices - 0.5,
+        "Close": prices,
+        "Volume": np.zeros(60),
+    }, index=idx)
+
+    out = indicators(df)
+    assert not out.empty
+    assert out.index[-1] == df.index[-1]
+    assert out.iloc[-1]["vwap"] == out.iloc[-1]["Close"]
+    assert out.iloc[-1]["rel_volume"] == 1.0
+

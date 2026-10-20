@@ -44,13 +44,25 @@ class NewsArchive:
         sym_str = json.dumps(list(symbols or []))
         raw_str = json.dumps(raw_dict or {})
 
+        # BUG-041: Normalize publisher time (RFC-822 or ISO) to UTC ISO format
+        norm_published = now_ts
+        if published_at:
+            try:
+                from email.utils import parsedate_to_datetime
+                norm_published = parsedate_to_datetime(published_at).astimezone(timezone.utc).isoformat()
+            except Exception:
+                try:
+                    norm_published = datetime.fromisoformat(str(published_at).replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
+                except Exception:
+                    norm_published = str(published_at)
+
         with sqlite3.connect(self.path) as c:
             c.execute("""INSERT INTO news_archive(
                 item_hash, source, title, url, published_at, fetched_at,
                 symbols, event_type, sentiment, materiality, raw_json
             ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(item_hash) DO NOTHING""", (
-                h, source, title, url, published_at or now_ts, now_ts,
+                h, source, title, url, norm_published, now_ts,
                 sym_str, event_type, sentiment, materiality, raw_str
             ))
         return h

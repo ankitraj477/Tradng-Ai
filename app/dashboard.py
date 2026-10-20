@@ -935,6 +935,16 @@ HTML = r"""<!doctype html>
 </main>
 
 <script>
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 const formatMoney = val => '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPct = val => (Number(val || 0) >= 0 ? '+' : '') + Number(val || 0).toFixed(2) + '%';
 
@@ -943,13 +953,18 @@ let autoTradingActive = true;
 async function toggleAutoTrading() {
     const btn = document.getElementById('auto-trade-btn');
     const label = document.getElementById('auto-trade-label');
-    autoTradingActive = !autoTradingActive;
+    const nextState = !autoTradingActive;
+    autoTradingActive = nextState;
     if (btn && label) {
         btn.className = 'auto-trade-btn' + (autoTradingActive ? ' active' : ' paused');
         label.textContent = autoTradingActive ? 'AUTO TRADING ON' : 'AUTO TRADING OFF';
     }
     try {
-        const res = await fetch('/api/auto-trading/toggle', { method: 'POST' });
+        const res = await fetch('/api/auto-trading/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: nextState })
+        });
         if (res.ok) {
             const data = await res.json();
             autoTradingActive = !!data.auto_trading;
@@ -1087,9 +1102,9 @@ async function updateDashboard() {
                 <div class="pos-card">
                     <div class="pos-card-main">
                         <div class="pos-info">
-                            <div class="pos-symbol">${p.symbol}</div>
+                            <div class="pos-symbol">${escapeHtml(p.symbol)}</div>
                             <div class="pos-meta">
-                                <span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${p.side} · ${qty} QTY</span>
+                                <span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${escapeHtml(p.side)} · ${qty} QTY</span>
                                 <span class="faint">Avg ${formatMoney(entry)}</span>
                             </div>
                         </div>
@@ -1101,7 +1116,7 @@ async function updateDashboard() {
                     <div class="pos-card-footer">
                         <div class="pos-bound"><span class="faint">SL:</span> <span class="text-down">${formatMoney(p.stop_loss)}</span></div>
                         <div class="pos-bound"><span class="faint">TP:</span> <span class="text-up">${formatMoney(p.target)}</span></div>
-                        <div class="pos-bound"><span class="faint">Age:</span> <span>${ageStr}</span></div>
+                        <div class="pos-bound"><span class="faint">Age:</span> <span>${escapeHtml(ageStr)}</span></div>
                     </div>
                 </div>`;
             }).join('');
@@ -1126,10 +1141,10 @@ async function updateDashboard() {
                         <div class="activity-icon ${isWin ? 'icon-win' : 'icon-loss'}">${isWin ? '▲' : '▼'}</div>
                         <div>
                             <div class="activity-title">
-                                <span>${t.symbol}</span>
-                                <span class="pill ${t.side === 'LONG' ? 'pill-long' : 'pill-short'}">${t.side}</span>
+                                <span>${escapeHtml(t.symbol)}</span>
+                                <span class="pill ${t.side === 'LONG' ? 'pill-long' : 'pill-short'}">${escapeHtml(t.side)}</span>
                             </div>
-                            <div class="activity-sub">${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)} · <span class="faint">${t.exit_reason || 'exit'}</span></div>
+                            <div class="activity-sub">${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)} · <span class="faint">${escapeHtml(t.exit_reason || 'exit')}</span></div>
                         </div>
                     </div>
                     <div class="activity-right">
@@ -1158,14 +1173,14 @@ async function updateDashboard() {
                 return `
                 <div class="decision-card">
                     <div class="decision-head">
-                        <span class="decision-sym">${d.symbol}</span>
+                        <span class="decision-sym">${escapeHtml(d.symbol)}</span>
                         <div style="display:flex;align-items:center;gap:6px;">
-                            <span class="pill ${pillClass}">${act}</span>
-                            <span class="pill pill-cyan">${d.strategy || 'Trend'}</span>
+                            <span class="pill ${pillClass}">${escapeHtml(act)}</span>
+                            <span class="pill pill-cyan">${escapeHtml(d.strategy || 'Trend')}</span>
                             <span class="faint" style="font-family:var(--font-mono);font-size:11px;">${Math.round(d.confidence || 0)}%</span>
                         </div>
                     </div>
-                    <div class="decision-reason">${d.reason || 'Technical setup matched model policy'}</div>
+                    <div class="decision-reason">${escapeHtml(d.reason || 'Technical setup matched model policy')}</div>
                 </div>`;
             }).join('');
         }
@@ -1208,10 +1223,28 @@ def _holding_minutes(opened_at):
 
 
 def create_app(db, cfg=None, provider=None):
+    import os
+    from flask import request
     cfg = cfg or {}
     flask_app = Flask(__name__)
     short_margin = cfg.get("execution", {}).get("short_margin_pct", 0.25)
     learning = LearningEngine(db, cfg)
+
+    # BUG-011: Token-based authentication for mutating dashboard endpoints
+    dashboard_token = (
+        cfg.get("dashboard", {}).get("token")
+        or os.environ.get("TRADING_AI_DASHBOARD_TOKEN", "")
+    ).strip()
+
+    def _is_authorized():
+        if not dashboard_token:
+            return True
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+        else:
+            token = request.headers.get("X-API-Token") or request.args.get("token", "")
+        return token == dashboard_token
 
     from .ops.kill_switch import CentralKillSwitch
     from .execution import PaperExecution
@@ -1224,12 +1257,24 @@ def create_app(db, cfg=None, provider=None):
 
     @flask_app.get("/health")
     def health():
+        """BUG-031: Expose engine liveness, cycle heartbeat, and trading readiness."""
         try:
             account = db.account()
+            last_cycle = db.get_last_cycle() if hasattr(db, "get_last_cycle") else None
+            exceptions = db.get_exception_counts() if hasattr(db, "get_exception_counts") else {}
+            data_ok = getattr(db, "_data_ok", True)
+            auto_trading = db.is_auto_trading_enabled()
+            is_ready = bool(account and data_ok and auto_trading)
+
             return jsonify({
-                "status": "ok",
+                "status": "ok" if account else "degraded",
+                "ready": is_ready,
                 "paper_only": True,
                 "database": "ok" if account else "uninitialized",
+                "last_cycle_at": last_cycle,
+                "data_ok": data_ok,
+                "auto_trading": auto_trading,
+                "exceptions": exceptions,
                 "market_phase": market_phase(),
                 "holiday": holiday_name()
             })
@@ -1250,8 +1295,18 @@ def create_app(db, cfg=None, provider=None):
 
     @flask_app.post("/api/auto-trading/toggle")
     def toggle_auto_trading():
-        current = db.is_auto_trading_enabled()
-        new_state = not current
+        # BUG-011: Auth check for control plane endpoint
+        if not _is_authorized():
+            return jsonify({"error": "Unauthorized"}), 401
+
+        # BUG-011: Idempotent toggle support if JSON payload specifies 'enabled'
+        data = request.get_json(silent=True) or {}
+        if "enabled" in data:
+            new_state = bool(data["enabled"])
+        else:
+            current = db.is_auto_trading_enabled()
+            new_state = not current
+
         db.set_auto_trading(new_state)
         db.log("INFO", f"Auto-trading {'resumed' if new_state else 'paused'} by user from dashboard.")
         return jsonify({"auto_trading": new_state})
@@ -1263,17 +1318,20 @@ def create_app(db, cfg=None, provider=None):
 
     @flask_app.post("/api/kill-switch/flatten")
     def emergency_flatten():
+        if not _is_authorized():
+            return jsonify({"error": "Unauthorized"}), 401
         closed = kill_switch.flatten_portfolio(reason="Dashboard Emergency Flatten")
         return jsonify({"status": "flattened", "closed_positions": closed})
 
     @flask_app.post("/api/kill-switch/reset")
     def reset_kill_switch():
+        if not _is_authorized():
+            return jsonify({"error": "Unauthorized"}), 401
         kill_switch.reset()
         return jsonify({"status": "reset"})
 
     @flask_app.get("/api/logs")
     def stream_logs():
-        from flask import request
         from .logger import read_recent_logs
         try:
             n = int(request.args.get("lines", 100))
@@ -1355,7 +1413,18 @@ def _load_runtime():
     return create_app(db=db, cfg=cfg)
 
 
-app = _load_runtime()
+def get_app():
+    """BUG-032: Factory for lazy application loading without import-time side effects."""
+    return _load_runtime()
+
+
+def __getattr__(name):
+    """BUG-032: Lazy attribute access so importing create_app does not open the database."""
+    if name == "app":
+        return _load_runtime()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 if __name__ == "__main__":
+    app = _load_runtime()
     app.run(host="127.0.0.1", port=5000, debug=False)

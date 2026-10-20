@@ -100,11 +100,13 @@ class TradingEngine:
         self.news = NewsProvider()
 
         self.intel = MarketIntelligence(
-            self.news
+            self.news,
+            self.cfg,
         )
 
         self.ai = AITrader(
-            self.learning
+            self.learning,
+            self.cfg,
         )
 
         self.pm = PortfolioManager(
@@ -151,6 +153,9 @@ class TradingEngine:
             self.cfg,
             self.provider,
         )
+
+        # BUG-006: Track whether we've done a catch-up close this session
+        self._catch_up_done = False
 
     # ======================================================
     # UNIVERSE
@@ -211,6 +216,33 @@ class TradingEngine:
             self.universe_reason = repr(
                 exc
             )
+
+    # ======================================================
+    # DYNAMIC CONFIG HOT-RELOAD
+    # ======================================================
+
+    def reload_config(self):
+        """
+        Dynamically reload configuration from disk on every cycle.
+        Allows tweaking risk caps, stop loss %, targets, and parameters without restarting.
+        """
+        try:
+            live = self.cfg.get("live_data", False)
+            new_cfg = load_config()
+            new_cfg["live_data"] = live or new_cfg.get("live_data", False)
+            self.cfg = new_cfg
+            if hasattr(self, "ai") and self.ai:
+                self.ai.cfg = self.cfg
+            if hasattr(self, "risk") and self.risk:
+                self.risk.cfg = self.cfg
+            if hasattr(self, "pm") and self.pm:
+                self.pm.cfg = self.cfg
+            if hasattr(self, "exec") and self.exec:
+                self.exec.cfg = self.cfg
+            if hasattr(self, "positions") and self.positions:
+                self.positions.cfg = self.cfg
+        except Exception as exc:
+            self.db.log("WARN", f"Dynamic config reload failed: {exc!r}")
 
     # ======================================================
     # LIVE DATA DIAGNOSTICS
@@ -445,6 +477,7 @@ class TradingEngine:
     # ======================================================
 
     def cycle(self):
+        self.reload_config()
 
         # --------------------------------------------------
         # MARKET CLOSED
@@ -466,6 +499,13 @@ class TradingEngine:
             self.cfg["live_data"]
             and not market_open()
         ):
+
+            # BUG-006: Catch-up close — close any positions that survived past EOD
+            if not self._catch_up_done and self.db.positions():
+                closed = self.positions.catch_up_close()
+                if closed > 0:
+                    self.db.log("WARN", f"CATCH-UP CLOSE: Closed {closed} position(s) that survived past market close.")
+                self._catch_up_done = True
 
             phase = market_phase()
             holiday = holiday_name()
@@ -504,6 +544,10 @@ class TradingEngine:
             self.snapshot()
 
             return
+
+        # Reset catch-up flag when market is open
+        if self.cfg["live_data"] and market_open():
+            self._catch_up_done = False
 
         # --------------------------------------------------
         # REVALIDATE LIVE UNIVERSE
@@ -712,12 +756,15 @@ class TradingEngine:
             }:
 
                 qty = self.pm.size(
-                    proposal
+                    proposal,
+                    size_multiplier=ctx.get("size_multiplier", 1.0),
                 )
 
+                # BUG-009: Pass regime context to risk gate
                 decision = self.risk.approve(
                     proposal,
                     qty,
+                    regime_ctx=ctx,
                 )
 
                 if decision == "APPROVE":
@@ -805,6 +852,9 @@ class TradingEngine:
 
         self.snapshot()
 
+        # BUG-031: Record heartbeat
+        self.db.set_last_cycle()
+
     # ======================================================
     # ACCOUNT SNAPSHOT
     # ======================================================
@@ -856,33 +906,34 @@ class TradingEngine:
 
     def run_forever(self):
 
-        decision_interval = max(
-            60,
-            int(
-                self.cfg[
-                    "market"
-                ][
-                    "decision_interval_minutes"
-                ]
-                * 60
-            ),
-        )
-
-        protection_interval = max(
-            10,
-            int(
-                self.cfg[
-                    "market"
-                ].get(
-                    "protection_interval_seconds",
-                    30,
-                )
-            ),
-        )
-
         next_decision = time.time()
 
         while True:
+
+            decision_interval = max(
+                30,
+                int(
+                    self.cfg[
+                        "market"
+                    ].get(
+                        "decision_interval_minutes",
+                        1,
+                    )
+                    * 60
+                ),
+            )
+
+            protection_interval = max(
+                1,
+                int(
+                    self.cfg[
+                        "market"
+                    ].get(
+                        "protection_interval_seconds",
+                        5,
+                    )
+                ),
+            )
 
             now = time.time()
 
@@ -897,7 +948,8 @@ class TradingEngine:
                     self.cycle()
 
                 except Exception as exc:
-
+                    # BUG-029: Count cycle exceptions
+                    self.db.count_exception("scanner")
                     self.db.log(
                         "ERROR",
                         repr(exc),

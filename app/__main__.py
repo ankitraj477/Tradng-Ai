@@ -17,4 +17,4 @@ if os.getenv("REQUIRE_PREFLIGHT", "true").lower() == "true" and not engine.prefl
     raise SystemExit(2)
 app=create_app(engine.db, engine.cfg, engine.provider)
 threading.Thread(target=engine.run_forever,daemon=True).start()
-app.run(host=os.getenv("APP_HOST","0.0.0.0"),port=int(os.getenv("APP_PORT","5000")),debug=False)
+app.run(host=os.getenv("APP_HOST", "127.0.0.1"), port=int(os.getenv("APP_PORT", "5000")), debug=False)

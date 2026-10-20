@@ -1,0 +1,38 @@
+# Secrets
+*.key
+*.pem
+*.ppk
+*.p12
+.env
+
+# Version control
+.git
+.gitignore
+
+# Python virtual environments
+.venv
+venv
+env
+
+# Caches
+__pycache__
+.pytest_cache
+
+# Runtime data
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/cache/
+
+# Build / IDE artifacts
+.vscode
+.idea
+*.zip
+
+# Docs and audit
+audit/
+docs/
+*.md
+
+# Logs
+logs/

@@ -58,3 +58,20 @@ def test_quote_failure_does_not_spam_error_logs():
         warns = c.execute("SELECT * FROM events WHERE level='WARN'").fetchall()
     assert len(errors) == 0
     assert len(warns) == 1
+
+def test_position_manager_marks_current_price():
+    cfg = {"execution": {"slippage_bps": 0, "brokerage": 0, "sebi_turnover_fee_pct": 0, "gst_pct": 0,
+                         "stamp_duty_non_delivery_pct": 0, "stt_intraday_sell_pct": 0, "trailing_stop_atr": 1.5,
+                         "max_hold_minutes": 390}}
+    db = DB(":memory:")
+    db.ensure_account(10000, 100000)
+    e = PaperExecution(db, cfg)
+    p = {"symbol": "TEST.NS", "price": 100, "stop_loss": 90, "target": 120, "strategy": "Test", "confidence": 80, "atr": 2}
+    assert e.buy(p, 1, "Bullish")
+    assert db.positions()[0]["current_price"] == 100.0
+
+    pm = PositionManager(db, e, ConstantProvider(105.0), cfg)
+    closed = pm.manage()
+    assert closed == 0
+    assert db.positions()[0]["current_price"] == 105.0
+
