@@ -103,7 +103,7 @@ class FNOExecution:
                 (
                     symbol, "BUY_TO_CLOSE", "SELL", entry_credit, current_premium, qty, margin_req,
                     p.get("stop_loss"), p.get("target"), 0.0, net_pnl, pnl_pct,
-                    p.get("strategy"), p.get("confidence"), "Index Options", "Theta Decay Spread",
+                    p.get("strategy"), p.get("confidence"), "Index Options", f"{p.get('strategy', 'F&O Spread')} ({symbol})",
                     reason, "APPROVED", datetime.now(timezone.utc).isoformat(), "FNO",
                     p.get("strike_price", 0.0), p.get("option_type", ""), p.get("expiry_date", "")
                 )

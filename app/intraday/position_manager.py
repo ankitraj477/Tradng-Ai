@@ -91,6 +91,14 @@ class IntradayPositionManager:
 
         return True
 
+    def _sync_bracket_stop(self, symbol, new_stop):
+        """Synchronizes dynamic trailing or breakeven stop loss changes to BracketOrderManager."""
+        if hasattr(self.execution, "bracket_manager"):
+            try:
+                self.execution.bracket_manager.update_stop_loss(symbol, new_stop)
+            except Exception:
+                pass
+
     def manage(self, dt=None):
         closed = 0
         exec_cfg = self.cfg.get("execution", {})
@@ -184,6 +192,7 @@ class IntradayPositionManager:
                                 new_stop = max(stop if stop is not None else 0.0, round(target - buffer, 2))
                                 new_target = round(target + step, 2)
                                 self.db.update_stop_and_target(p["symbol"], new_stop, new_target)
+                                self._sync_bracket_stop(p["symbol"], new_stop)
                                 self.db.log(
                                     "INFO",
                                     f"[Intraday] DYNAMIC TARGET EXPANDED: {p['symbol']} reached {price:.2f}. "
@@ -205,6 +214,7 @@ class IntradayPositionManager:
                             new_stop = max(stop if stop is not None else 0.0, be_stop)
                             if stop is None or new_stop > stop:
                                 self.db.update_stop(p["symbol"], new_stop)
+                                self._sync_bracket_stop(p["symbol"], new_stop)
                                 self.db.log("INFO", f"[Intraday] BREAKEVEN LOCK: {p['symbol']} at {price:.2f}. SL moved to {new_stop:.2f}")
                                 stop = new_stop
 
@@ -213,6 +223,7 @@ class IntradayPositionManager:
                         new_stop = max(stop, round(price - mult * atr, 2))
                         if new_stop > stop:
                             self.db.update_stop(p["symbol"], new_stop)
+                            self._sync_bracket_stop(p["symbol"], new_stop)
                             stop = new_stop
                 else:
                     if stop is not None and price >= stop:
@@ -238,6 +249,7 @@ class IntradayPositionManager:
                                 new_stop = min(stop if stop is not None else float("inf"), round(target + buffer, 2))
                                 new_target = max(0.01, round(target - step, 2))
                                 self.db.update_stop_and_target(p["symbol"], new_stop, new_target)
+                                self._sync_bracket_stop(p["symbol"], new_stop)
                                 self.db.log(
                                     "INFO",
                                     f"[Intraday] DYNAMIC TARGET EXPANDED: {p['symbol']} reached {price:.2f}. "
@@ -259,6 +271,7 @@ class IntradayPositionManager:
                             new_stop = min(stop if stop is not None else float("inf"), be_stop)
                             if stop is None or new_stop < stop:
                                 self.db.update_stop(p["symbol"], new_stop)
+                                self._sync_bracket_stop(p["symbol"], new_stop)
                                 self.db.log("INFO", f"[Intraday] BREAKEVEN LOCK: {p['symbol']} at {price:.2f}. SL moved to {new_stop:.2f}")
                                 stop = new_stop
 
@@ -267,7 +280,9 @@ class IntradayPositionManager:
                         new_stop = min(stop, round(price + mult * atr, 2))
                         if new_stop < stop:
                             self.db.update_stop(p["symbol"], new_stop)
+                            self._sync_bracket_stop(p["symbol"], new_stop)
                             stop = new_stop
             except Exception as e:
                 self.db.log("ERROR", f"[Intraday] Position manager {p['symbol']}: {e!r}")
         return closed
+

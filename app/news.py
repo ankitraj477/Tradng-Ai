@@ -22,7 +22,15 @@ class NewsProvider:
     """Free RSS news layer with conservative company-name/symbol matching and event classification."""
     FEEDS = {
         "Google News Finance":
-        "https://news.google.com/rss/search?q=Indian%20stock%20market&hl=en-IN&gl=IN&ceid=IN:en"
+        "https://news.google.com/rss/search?q=Indian%20stock%20market&hl=en-IN&gl=IN&ceid=IN:en",
+        "Economic Times Markets":
+        "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
+        "Moneycontrol Top News":
+        "https://www.moneycontrol.com/rss/MCtopnews.xml",
+        "Livemint Markets":
+        "https://www.livemint.com/rss/markets",
+        "Global Markets Overview":
+        "https://news.google.com/rss/search?q=global+markets+OR+wall+street+OR+asia+markets&hl=en-IN&gl=IN&ceid=IN:en",
     }
 
     POSITIVE = ("growth","profit","upgrade","approval","wins","surge","order win",

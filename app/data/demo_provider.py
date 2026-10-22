@@ -16,6 +16,13 @@ class DemoProvider(MarketDataProvider):
     def __init__(self, symbols=None):
         self._symbols = symbols or [
             "^NSEI",
+            "^NSEBANK",
+            "^BSESN",
+            "^INDIAVIX",
+            "^GSPC",
+            "^IXIC",
+            "^N225",
+            "^HSI",
             "RELIANCE.NS",
             "TCS.NS",
             "INFY.NS",
@@ -37,6 +44,13 @@ class DemoProvider(MarketDataProvider):
 
         base_prices = {
             "^NSEI": 25000.0,
+            "^NSEBANK": 51000.0,
+            "^BSESN": 82000.0,
+            "^INDIAVIX": 14.5,
+            "^GSPC": 5800.0,
+            "^IXIC": 18500.0,
+            "^N225": 38500.0,
+            "^HSI": 20500.0,
             "RELIANCE.NS": 1400.0,
             "TCS.NS": 3000.0,
             "INFY.NS": 1700.0,

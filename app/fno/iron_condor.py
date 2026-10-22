@@ -40,13 +40,14 @@ class IronCondorStrategy:
             short_put = atm - otm_offset
             long_put = short_put - wing_width
             legs = [
-                {"action": "SELL", "type": "PE", "strike": short_put, "qty": lot_size},
-                {"action": "BUY", "type": "PE", "strike": long_put, "qty": lot_size},
+                {"action": "SELL", "type": "PE", "strike": short_put, "qty": lot_size, "name": f"{index_name} {short_put} PE"},
+                {"action": "BUY", "type": "PE", "strike": long_put, "qty": lot_size, "name": f"{index_name} {long_put} PE (Hedge)"},
             ]
-            symbol = f"{index_name}-{expiry}-BPS"
+            symbol = f"{index_name}-{expiry}-BPS-{short_put}P/{long_put}P"
             reason = f"Bullish PCR ({pcr:.2f}). Sold {short_put} PE / Bought {long_put} PE with defined risk."
             strike_price = short_put
             option_type = "PE"
+            strikes_dict = {"put_short": short_put, "put_long": long_put}
 
         elif pcr < 0.80:
             # Bearish bias: Bear Call Credit Spread
@@ -54,13 +55,14 @@ class IronCondorStrategy:
             short_call = atm + otm_offset
             long_call = short_call + wing_width
             legs = [
-                {"action": "SELL", "type": "CE", "strike": short_call, "qty": lot_size},
-                {"action": "BUY", "type": "CE", "strike": long_call, "qty": lot_size},
+                {"action": "SELL", "type": "CE", "strike": short_call, "qty": lot_size, "name": f"{index_name} {short_call} CE"},
+                {"action": "BUY", "type": "CE", "strike": long_call, "qty": lot_size, "name": f"{index_name} {long_call} CE (Hedge)"},
             ]
-            symbol = f"{index_name}-{expiry}-BCS"
+            symbol = f"{index_name}-{expiry}-BCS-{short_call}C/{long_call}C"
             reason = f"Bearish PCR ({pcr:.2f}). Sold {short_call} CE / Bought {long_call} CE with defined risk."
             strike_price = short_call
             option_type = "CE"
+            strikes_dict = {"call_short": short_call, "call_long": long_call}
 
         else:
             # Neutral / Range-bound: Iron Condor (Both sides theta decay)
@@ -71,18 +73,24 @@ class IronCondorStrategy:
             long_call = short_call + wing_width
 
             legs = [
-                {"action": "SELL", "type": "PE", "strike": short_put, "qty": lot_size},
-                {"action": "BUY", "type": "PE", "strike": long_put, "qty": lot_size},
-                {"action": "SELL", "type": "CE", "strike": short_call, "qty": lot_size},
-                {"action": "BUY", "type": "CE", "strike": long_call, "qty": lot_size},
+                {"action": "SELL", "type": "PE", "strike": short_put, "qty": lot_size, "name": f"{index_name} {short_put} PE"},
+                {"action": "BUY", "type": "PE", "strike": long_put, "qty": lot_size, "name": f"{index_name} {long_put} PE (Hedge)"},
+                {"action": "SELL", "type": "CE", "strike": short_call, "qty": lot_size, "name": f"{index_name} {short_call} CE"},
+                {"action": "BUY", "type": "CE", "strike": long_call, "qty": lot_size, "name": f"{index_name} {long_call} CE (Hedge)"},
             ]
-            symbol = f"{index_name}-{expiry}-CONDOR"
+            symbol = f"{index_name}-{expiry}-CONDOR-{short_put}P/{short_call}C"
             reason = (
                 f"Range-bound Nifty (PCR {pcr:.2f}). Deployed 15-Delta Iron Condor "
                 f"between {short_put} PE and {short_call} CE. 78% probability of profit."
             )
             strike_price = atm
             option_type = "CONDOR"
+            strikes_dict = {
+                "put_short": short_put,
+                "put_long": long_put,
+                "call_short": short_call,
+                "call_long": long_call,
+            }
 
         # Max loss is strictly capped by the wing width minus credit collected
         max_loss_per_share = wing_width - est_credit
@@ -106,5 +114,7 @@ class IronCondorStrategy:
             "strike_price": strike_price,
             "option_type": option_type,
             "legs_info": json.dumps(legs),
+            "legs": legs,
+            "strikes": strikes_dict,
             "est_credit": est_credit,
         }

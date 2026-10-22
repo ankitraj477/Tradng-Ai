@@ -35,8 +35,8 @@ class IntradayDeskRunner:
         if closed > 0:
             self.db.log("INFO", f"[Intraday Desk] Managed and closed {closed} intraday positions")
 
-        # 2. Check market hours and entry window (09:30 - 14:30 IST)
-        if not market_open(now) or not self.timing.can_enter_trades(now):
+        # 2. Check market hours and entry window (09:30 - 14:45 IST)
+        if not market_open(now) or not self.timing.can_enter(now):
             self.db.log("INFO", f"[Intraday Desk] Outside intraday entry window. Monitoring only.")
             return
 

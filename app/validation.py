@@ -49,7 +49,7 @@ def calculate_metrics(equity_curve, trades, starting_capital=100000.0, annualiza
     }
 
 
-def walk_forward_evaluate(datasets, train_bars=120, test_bars=40, purge_bars=5, embargo_bars=2, starting_capital=100000.0):
+def walk_forward_evaluate(datasets, train_bars=120, test_bars=40, purge_bars=5, embargo_bars=2, starting_capital=100000.0, cfg=None):
     """
     Rolling purged and embargoed walk-forward evaluation.
     Only evaluates out-of-sample test slices to prevent lookahead and data leakage.
@@ -82,7 +82,7 @@ def walk_forward_evaluate(datasets, train_bars=120, test_bars=40, purge_bars=5, 
             if len(sub) >= 10: test_data[s] = sub
 
         if test_data:
-            bt = Backtester(starting_cash=equity_progression[-1])
+            bt = Backtester(starting_cash=equity_progression[-1], cfg=cfg)
             res = bt.run_portfolio(test_data)
             combined_trades.extend(res.get("trades_detail", []))
             equity_progression.extend(bt.equity[1:] if len(bt.equity) > 1 else [bt.cash])

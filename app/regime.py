@@ -1,7 +1,8 @@
-def detect(nifty_row=None, india_vix=None, breadth=None, fii_dii_flows=None):
+def detect(nifty_row=None, india_vix=None, breadth=None, fii_dii_flows=None, global_sentiment=None):
     """
     Market Regime Detector ingesting India VIX, NIFTY 50/200 DMA trend,
-    market breadth (% above 50 DMA, Advance/Decline), and institutional net flows.
+    market breadth (% above 50 DMA, Advance/Decline), institutional net flows,
+    and international market sentiment.
     """
     if not nifty_row:
         return {
@@ -66,15 +67,27 @@ def detect(nifty_row=None, india_vix=None, breadth=None, fii_dii_flows=None):
     elif ret > 0:
         regime = "Weak bullish"
         sentiment = "Bullish"
-        allowed_sides = ["LONG"]
+        allowed_sides = ["LONG", "SHORT"]
     elif ret < 0:
         regime = "Weak bearish"
         sentiment = "Bearish"
-        allowed_sides = ["SHORT"]
+        allowed_sides = ["LONG", "SHORT"]
     else:
         regime = "Sideways"
         sentiment = "Neutral"
         allowed_sides = ["LONG", "SHORT"]
+
+    if global_sentiment:
+        gs = str(global_sentiment).upper()
+        if "CRASH" in gs or "HIGH RISK" in gs:
+            size_multiplier = min(size_multiplier, 0.5)
+            if regime not in ("Extreme volatility", "Strong bearish trend"):
+                regime = "High volatility (Global Risk)"
+                sentiment = "Risk-Off"
+        elif "BEAR" in gs and sentiment == "Neutral":
+            sentiment = "Bearish"
+        elif "BULL" in gs and sentiment == "Neutral":
+            sentiment = "Bullish"
 
     return {
         "regime": regime,

@@ -11,7 +11,7 @@ class RiskManager:
         return portfolio_metrics(
             a,
             self.db.positions(),
-            self.cfg["execution"].get("short_margin_pct", 0.25),
+            self.cfg.get("execution", {}).get("short_margin_pct", 0.25),
         )["equity"]
 
     def approve(self, p, qty, regime_ctx=None):
@@ -35,6 +35,16 @@ class RiskManager:
             # BUG-009: Reject if regime says no trading (size_multiplier == 0)
             if regime_ctx.get("size_multiplier", 1.0) <= 0:
                 return "REJECT"
+
+            # News Event Risk Gate (Blocks buying on fraud probes, regulatory actions)
+            if regime_ctx.get("news_items"):
+                from .event_classifier import EventClassifier
+                clf = EventClassifier()
+                news_risk = clf.evaluate_risk_filter(p["symbol"], regime_ctx["news_items"])
+                if news_risk.get("block_entry") and p.get("action") == "BUY":
+                    if hasattr(self, "db") and self.db:
+                        self.db.log("WARN", f"News Risk Filter: Blocked entry for {p['symbol']} - {news_risk.get('reason')}")
+                    return "REJECT"
 
         if "target" in p and "price" in p and p.get("target"):
             from .risk_engine import MinimumMoveGate
@@ -83,7 +93,7 @@ class RiskManager:
 
         account = self.db.account()
 
-        margin_pct = self.cfg["execution"].get("short_margin_pct", 0.25)
+        margin_pct = self.cfg.get("execution", {}).get("short_margin_pct", 0.25)
 
         # Short margin already reserved by existing short positions
         # must not be reused for another trade.
@@ -112,16 +122,18 @@ class RiskManager:
             account.get("peak_value", equity) or equity
         )
 
+        emergency_dd = self.cfg.get("risk", {}).get("emergency_drawdown_pct", 0.20)
         if (
             peak > 0
             and (peak - equity) / peak
-            >= self.cfg["risk"]["emergency_drawdown_pct"]
+            >= emergency_dd
         ):
             return "REJECT"
 
+        max_invested = self.cfg.get("risk", {}).get("max_portfolio_invested_pct", 0.80)
         max_exposure = (
             equity
-            * self.cfg["risk"]["max_portfolio_invested_pct"]
+            * max_invested
         )
 
         current_exposure = sum(

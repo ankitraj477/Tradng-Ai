@@ -1554,6 +1554,7 @@ function renderPositionCard(p, desk) {
 
     let extraPill = `<span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${escapeHtml(p.side)} · ${qty} QTY</span>`;
     let subMeta = `Avg ${formatMoney(entry)}`;
+    let legsHtml = '';
 
     if (pType === 'SWING') {
         const days = p.days_held !== undefined ? p.days_held : 0;
@@ -1561,9 +1562,42 @@ function renderPositionCard(p, desk) {
         subMeta = `Entry ${formatMoney(entry)} · <span class="pill pill-cyan" style="font-size:10px;padding:2px 6px;">Held ${days}d</span>`;
     } else if (pType === 'FNO') {
         const oType = p.option_type || 'SPREAD';
-        const strike = p.strike_price ? `@ ${p.strike_price}` : '';
-        extraPill = `<span class="pill pill-cyan">${escapeHtml(oType)} ${escapeHtml(strike)} · ${qty} QTY</span>`;
-        subMeta = `Net Credit ${formatMoney(entry)} · Exp: ${escapeHtml(p.expiry_date || 'Weekly')}`;
+        extraPill = `<span class="pill pill-cyan">${escapeHtml(oType)} · ${qty} LOTS</span>`;
+        subMeta = `Net Credit ${formatMoney(entry)}/sh · Exp: ${escapeHtml(p.expiry_date || 'Weekly')}`;
+
+        if (p.legs_info) {
+            try {
+                const legs = typeof p.legs_info === 'string' ? JSON.parse(p.legs_info) : p.legs_info;
+                if (Array.isArray(legs) && legs.length > 0) {
+                    legsHtml = `<div class="fno-legs-box" style="margin-top:10px; padding:8px 10px; background:rgba(255,255,255,0.02); border-radius:8px; border:1px solid var(--border-subtle); display:flex; flex-direction:column; gap:6px;">
+                        <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; display:flex; justify-content:space-between;">
+                            <span>Option Spread Legs</span>
+                            <span style="color:var(--cyan);">${escapeHtml(p.strategy || 'Defined Risk')}</span>
+                        </div>` +
+                        legs.map(l => {
+                            const isSell = (l.action || '').toUpperCase() === 'SELL';
+                            const actColor = isSell ? 'var(--rose)' : 'var(--emerald)';
+                            const actBg = isSell ? 'var(--rose-bg)' : 'var(--emerald-bg)';
+                            const legType = (l.type || '').toUpperCase();
+                            const legName = l.name ? escapeHtml(l.name) : `${escapeHtml(l.strike)} ${escapeHtml(legType)}`;
+                            return `<div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+                                <span>
+                                    <span style="font-weight:700; color:${actColor}; background:${actBg}; padding:2px 6px; border-radius:4px; font-size:10px; margin-right:6px;">${escapeHtml(l.action)}</span>
+                                    <span style="font-family:var(--font-mono); font-weight:600;">${legName}</span>
+                                </span>
+                                <span class="faint" style="font-family:var(--font-mono); font-size:11px;">${l.qty || qty} QTY</span>
+                            </div>`;
+                        }).join('') +
+                    `</div>`;
+                } else if (typeof p.legs_info === 'string' && p.legs_info.trim()) {
+                    legsHtml = `<div style="margin-top:8px; font-size:11px; color:var(--text-muted); background:rgba(255,255,255,0.02); padding:6px 8px; border-radius:6px; border:1px solid var(--border-subtle);"><strong>Legs:</strong> ${escapeHtml(p.legs_info)}</div>`;
+                }
+            } catch (e) {
+                if (p.legs_info && String(p.legs_info).trim()) {
+                    legsHtml = `<div style="margin-top:8px; font-size:11px; color:var(--text-muted); background:rgba(255,255,255,0.02); padding:6px 8px; border-radius:6px; border:1px solid var(--border-subtle);"><strong>Legs:</strong> ${escapeHtml(p.legs_info)}</div>`;
+                }
+            }
+        }
     }
 
     return `
@@ -1577,10 +1611,11 @@ function renderPositionCard(p, desk) {
                 </div>
             </div>
             <div class="pos-pricing">
-                <div class="pos-current">${formatMoney(curr)}</div>
+                <div class="pos-current">${formatMoney(curr)}${pType === 'FNO' ? '/sh' : ''}</div>
                 <div class="pos-pnl ${pnl >= 0 ? 'text-up' : 'text-down'}">${pnl >= 0 ? '+' : ''}${formatMoney(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct}%)</div>
             </div>
         </div>
+        ${legsHtml}
         <div class="pos-card-footer">
             <div class="pos-bound"><span class="faint">SL:</span> <span class="text-down">${formatMoney(p.stop_loss)}</span></div>
             <div class="pos-bound"><span class="faint">TP:</span> <span class="text-up">${formatMoney(p.target)}</span></div>

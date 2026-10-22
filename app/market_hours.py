@@ -1,7 +1,10 @@
+import logging
 from datetime import datetime, time
 from pathlib import Path
 import json
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
 
 IST=ZoneInfo("Asia/Kolkata")
 OPEN=time(9,15)
@@ -48,8 +51,24 @@ def now_ist():
     return datetime.now(IST)
 
 
+def is_year_covered(year: int) -> bool:
+    """Checks whether the market holidays table contains any entries for the requested year."""
+    return any(k.startswith(str(year)) for k in HOLIDAYS)
+
+
+def validate_calendar_coverage(dt=None) -> bool:
+    """BUG-028: Validates that the current calendar year is covered by config/market_holidays.json."""
+    dt = dt or now_ist()
+    yr = dt.year if hasattr(dt, "year") else dt.date().year
+    if not is_year_covered(yr):
+        logger.warning("Market holiday calendar does not have entries for year %d. Update config/market_holidays.json", yr)
+        return False
+    return True
+
+
 def holiday_name(dt=None):
     dt = dt or now_ist()
+    validate_calendar_coverage(dt)
     d = dt.date() if hasattr(dt, "date") else dt
     return HOLIDAYS.get(d.isoformat())
 

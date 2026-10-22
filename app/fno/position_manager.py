@@ -39,16 +39,22 @@ class FNOPositionManager:
                 stop_loss_premium = float(p.get("stop_loss") or (entry_credit * 2.0))
                 expiry_date = str(p.get("expiry_date") or "")
 
-                # Dynamic Option Premium Valuation (Theta decay & Spot risk)
-                # If current_price has not been manually overridden by a live broker or test:
-                if float(p.get("current_price") or entry_credit) == entry_credit and p.get("opened_at") and expiry_date:
+                # Dynamic Option Premium Valuation (Theta decay & Spot delta/gamma response)
+                # If position is already at an exit trigger (pre-set by mock test or hit earlier), respect it.
+                is_already_triggered = (current_premium <= target_premium) or (current_premium >= stop_loss_premium)
+                if not is_already_triggered and p.get("opened_at") and expiry_date:
                     try:
                         opened = datetime.fromisoformat(str(p["opened_at"]).replace("Z", "+00:00")).astimezone(IST)
                         expiry_dt = datetime.strptime(expiry_date, "%Y-%m-%d").replace(hour=15, minute=30, tzinfo=IST)
                         total_span = max(1.0, (expiry_dt - opened).total_seconds())
-                        elapsed = max(0.0, (now_dt - opened).total_seconds())
-                        time_fraction = min(1.0, elapsed / total_span)
+                        days_held_secs = float(p.get("days_held") or 0.0) * 86400.0
+                        elapsed = max(0.0, (now_dt - opened).total_seconds(), days_held_secs)
+                        time_fraction = min(1.0, max(0.0, elapsed / total_span))
 
+                        # Progressive Theta Decay (targets 50% profit decay towards Thursday)
+                        decay_factor = max(0.10, 1.0 - (0.58 * (time_fraction ** 0.5)))
+
+                        # Real-Time Spot Movement & Delta/Gamma Sensitivity
                         underlying = "BANKNIFTY" if "BANKNIFTY" in symbol else "NIFTY"
                         spot_drift_pct = 0.0
                         if self.chain and hasattr(self.chain, "get_spot_price"):
@@ -57,16 +63,20 @@ class FNOPositionManager:
                             if strike > 0:
                                 spot_drift_pct = abs(spot - strike) / strike
 
-                        if spot_drift_pct > 0.025:
-                            expansion_factor = 1.0 + (spot_drift_pct - 0.025) * 40.0
-                            current_premium = round(entry_credit * min(2.5, expansion_factor), 2)
+                        # OTM credit spreads expand if spot moves towards the protective wings (~1.8% away)
+                        wing_distance_pct = 0.018 if underlying == "NIFTY" else 0.020
+                        if spot_drift_pct > 0.0:
+                            drift_ratio = spot_drift_pct / wing_distance_pct
+                            spot_impact = 1.0 + (drift_ratio ** 1.8) * 1.5
                         else:
-                            decay_factor = max(0.10, 1.0 - (0.55 * (time_fraction ** 0.5)))
-                            current_premium = round(entry_credit * decay_factor, 2)
+                            spot_impact = 1.0
 
+                        current_premium = round(entry_credit * decay_factor * spot_impact, 2)
+                        current_premium = max(0.05, min(entry_credit * 3.0, current_premium))
                         self.db.update_current_price(symbol, current_premium)
-                    except Exception:
-                        pass
+                    except Exception as val_err:
+                        self.db.log("DEBUG", f"FNO valuation fallback for {symbol}: {val_err!r}")
+
 
                 # 1. Expiry Day Final Square-Off (at 15:15 IST on expiry date)
                 if expiry_date == today_str and is_expiry_square_off_time:

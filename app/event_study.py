@@ -26,8 +26,22 @@ class EventStudy:
 
         t0 = c_dates[0]
         t0_idx = s_close.index.get_loc(t0)
-        t0_px = float(s_close.iloc[t0_idx])
-        b0_px = float(b_close.loc[t0]) if t0 in b_close.index else float(b_close.iloc[0])
+        # BUG-019: Tradeable entry: use Open if available, otherwise Close
+        t0_px = float(stock_df["Open"].iloc[t0_idx]) if "Open" in stock_df.columns else float(s_close.iloc[t0_idx])
+        
+        # Aligned benchmark base price (closest available benchmark date)
+        if t0 in b_close.index:
+            b0_px = float(benchmark_df["Open"].loc[t0]) if "Open" in benchmark_df.columns else float(b_close.loc[t0])
+        else:
+            prior_b = b_close.index[b_close.index <= t0]
+            if len(prior_b) > 0:
+                b0_px = float(b_close.loc[prior_b[-1]])
+            else:
+                next_b = b_close.index[b_close.index >= t0]
+                b0_px = float(b_close.loc[next_b[0]]) if len(next_b) > 0 else None
+
+        if not b0_px or b0_px <= 0:
+            return {}
 
         res = {}
         for h in horizons:
@@ -35,7 +49,12 @@ class EventStudy:
             if target_idx < len(s_close):
                 th_date = s_close.index[target_idx]
                 stk_ret = (float(s_close.iloc[target_idx]) / t0_px) - 1.0
-                bmk_ret = ((float(b_close.loc[th_date]) / b0_px) - 1.0) if th_date in b_close.index else 0.0
+                if th_date in b_close.index:
+                    bth_px = float(b_close.loc[th_date])
+                else:
+                    prior_th = b_close.index[b_close.index <= th_date]
+                    bth_px = float(b_close.loc[prior_th[-1]]) if len(prior_th) > 0 else b0_px
+                bmk_ret = (bth_px / b0_px) - 1.0
                 ar = stk_ret - bmk_ret
                 res[f"ar_{h}d"] = ar
         return res

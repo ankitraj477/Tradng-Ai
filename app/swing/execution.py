@@ -3,12 +3,15 @@ Swing Execution Engine (CNC / Delivery).
 Manages multi-day cash delivery purchases and exits using delivery cost models.
 """
 from datetime import datetime, timezone
+from ..exchange_rules import round_to_tick, validate_order_microstructure
+from ..bracket_orders import BracketOrderManager
 
 
 class SwingExecution:
     def __init__(self, db, cfg=None):
         self.db = db
         self.cfg = cfg or {}
+        self.bracket_manager = BracketOrderManager(self.db)
 
     def _cost(self, notional: float, action: str) -> float:
         """Calculate delivery taxes and fees (STT 0.1% on buy & sell) using unified CostModel."""
@@ -33,7 +36,21 @@ class SwingExecution:
         if qty <= 0:
             return False
         symbol = proposal["symbol"]
-        price = float(proposal["price"])
+        price = round_to_tick(float(proposal["price"]))
+
+        val = validate_order_microstructure(
+            symbol, "BUY", price,
+            stop_loss=proposal.get("stop_loss"),
+            target=proposal.get("target"),
+            prev_close=proposal.get("prev_close")
+        )
+        if not val["ok"]:
+            self.db.log("WARN", f"[SWING] ORDER REJECTED by exchange rules: {val['reason']}")
+            return False
+
+        sl = round_to_tick(proposal["stop_loss"]) if proposal.get("stop_loss") is not None else None
+        tp = round_to_tick(proposal["target"]) if proposal.get("target") is not None else None
+
         notional = round(price * qty, 2)
         cost = self._cost(notional, "BUY")
         total_req = notional + cost
@@ -44,6 +61,7 @@ class SwingExecution:
             or self.cfg.get("enforce_market_hours", False)
             or self.cfg.get("live_data", False)
         )
+
 
         if enforce_hours and not force_fill and not market_open():
             self.db.add_order({
@@ -63,7 +81,13 @@ class SwingExecution:
             return True
 
         with self.db.conn() as c:
-            acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            if not row:
+                now_str = datetime.now(timezone.utc).isoformat()
+                c.execute("INSERT OR IGNORE INTO account VALUES(1, 100000.0, 100000.0, 200000.0, 100000.0, ?)", (now_str,))
+                row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            acc = dict(row)
+
             short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
             open_pos = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
             reserved = sum(float(x['entry_price']) * float(x['qty']) * short_margin_pct for x in open_pos if x['side'] == 'SHORT')
@@ -89,6 +113,9 @@ class SwingExecution:
             )
             c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
                       (total_req, datetime.now(timezone.utc).isoformat()))
+
+        if sl is not None and tp is not None:
+            self.bracket_manager.create_bracket(symbol, "LONG", qty, price, sl, tp)
 
         self.db.log("INFO", f"SWING BUY {symbol} x{qty} @ {price:.2f} (Target: ₹{proposal.get('target', 0):.2f})")
         return True
@@ -136,5 +163,8 @@ class SwingExecution:
             c.execute("UPDATE account SET cash=cash+?, updated_at=? WHERE id=1",
                       (notional - exit_cost, datetime.now(timezone.utc).isoformat()))
 
+        self.bracket_manager.cancel_bracket(symbol, reason=reason)
+
         self.db.log("INFO", f"SWING SELL {symbol} @ {price:.2f} P&L: ₹{net_pnl:.2f} ({pnl_pct:+.2f}%) Reason: {reason}")
         return True
+

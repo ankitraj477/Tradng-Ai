@@ -40,6 +40,6 @@ int main(int argc, char** argv) {
     }
     std::sort(rows.begin(),rows.end(),[](const Row&a,const Row&b){return a.score>b.score;});
     std::cout<<"symbol,price,rsi,relvol,ret5,ret20,score\n";
-    for(size_t i=0;i<std::min<size_t>(rows.size(),50);++i)
+    for(size_t i=0;i<rows.size();++i)
         std::cout<<rows[i].symbol<<","<<rows[i].price<<","<<rows[i].rsi<<","<<rows[i].relvol<<","<<rows[i].ret5<<","<<rows[i].ret20<<","<<rows[i].score<<"\n";
 }

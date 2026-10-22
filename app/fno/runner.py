@@ -20,7 +20,7 @@ class FnoDeskRunner:
         self.cfg = cfg or {}
         self.chain_manager = IndexChainManager(provider)
         self.execution = FnoExecution(db, self.cfg)
-        self.position_manager = FnoPositionManager(db, self.execution, provider, self.cfg)
+        self.position_manager = FnoPositionManager(db, self.execution, self.chain_manager, self.cfg)
         self.strategy = IronCondorStrategy(chain_manager=self.chain_manager, cfg=self.cfg)
 
     def run_cycle(self):

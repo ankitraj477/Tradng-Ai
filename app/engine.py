@@ -20,6 +20,10 @@ from .execution import PaperExecution
 from .regime import detect
 from .learning import LearningEngine
 from .news import NewsProvider
+from .event_classifier import EventClassifier
+from .symbol_resolver import SymbolResolver
+from .news_archive import NewsArchive
+from .global_markets import GlobalMarketScanner
 from .market_intelligence import MarketIntelligence
 from .position_manager import PositionManager
 from .selection import CandidateSelector
@@ -105,11 +109,21 @@ class TradingEngine:
             self.cfg,
         )
 
-        self.news = NewsProvider()
+        self.news_classifier = EventClassifier()
+        self.symbol_resolver = SymbolResolver()
+        self.news_archive = NewsArchive()
+        self.news = NewsProvider(
+            archive=self.news_archive,
+            resolver=self.symbol_resolver,
+            classifier=self.news_classifier,
+        )
+
+        self.global_scanner = GlobalMarketScanner(self.provider)
 
         self.intel = MarketIntelligence(
             self.news,
             self.cfg,
+            global_scanner=self.global_scanner,
         )
 
         self.ai = AITrader(
@@ -541,24 +555,28 @@ class TradingEngine:
             phase = market_phase()
             holiday = holiday_name()
 
+            # Pre-market global cues & morning financial news scan
+            global_info = self.global_scanner.scan_markets() if hasattr(self, "global_scanner") else {}
+            global_sentiment = global_info.get("sentiment", "NEUTRAL")
+            global_summary = global_info.get("summary", "")
+
+            # Fetch pre-market breaking news across markets
+            pre_news = self.news.recent(limit=30) if hasattr(self, "news") else []
+
             self.db.set_market(
-                "CLOSED",
-                "N/A",
+                f"PRE-MARKET ({phase})" if phase == "PRE_OPEN" else "CLOSED",
+                global_sentiment,
                 None,
                 True,
             )
 
-            self.db.log(
-                "INFO",
-                "Indian market "
-                f"{phase.lower()}: "
-                "analysis/preparation cycle."
-                + (
-                    f" Holiday={holiday}"
-                    if holiday
-                    else ""
-                ),
+            prep_msg = (
+                f"Indian market {phase.lower()}: analysis/preparation cycle."
+                + (f" Holiday={holiday}." if holiday else "")
+                + (f" {global_summary}." if global_summary else "")
+                + (f" [News]: Scanned {len(pre_news)} headlines." if pre_news else "")
             )
+            self.db.log("INFO", prep_msg)
 
             self.db.log(
                 "INFO",

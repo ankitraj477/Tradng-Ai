@@ -24,6 +24,9 @@ class SwingDeskRunner:
         self.scanner = Stage2SwingScanner(provider)
         self.strategy = SwingPullbackStrategy(provider)
 
+    def cycle(self):
+        return self.run_cycle()
+
     def run_cycle(self):
         """Execute one complete cycle for the Swing Trading Desk."""
         now = now_ist()
@@ -50,7 +53,7 @@ class SwingDeskRunner:
         # 3. Market Regime Gate (Minervini Rule #1: General Market Direction Confirmation)
         market_state = self.db.market()
         regime = str(market_state.get("regime", "BULLISH")).upper()
-        if "BEAR" in regime:
+        if "STRONG BEARISH" in regime or "EXTREME VOLATILITY" in regime:
             self.db.log("INFO", f"[Swing Desk] General market regime is {regime}. New swing longs paused per Minervini Rule #1.")
             return
 
@@ -120,16 +123,23 @@ class SwingDeskRunner:
                 "risk_decision": "APPROVED" if is_open else "QUEUED_RESEARCH"
             })
 
-            # When market is closed, DO NOT execute or place orders without market open!
+            # When market is closed, queue After-Market Order (AMO) for 09:15 AM IST open
             if not is_open:
+                self.execution.buy_delivery(
+                    symbol=sym,
+                    qty=qty,
+                    price=price,
+                    stop_loss=setup["stop_loss"],
+                    target=setup["target"]
+                )
                 self.db.log(
                     "INFO",
-                    f"[Swing Desk Research] Screened {sym}: Score={cand.get('score')}/100, "
-                    f"R:R=1:{setup.get('rr_ratio', 2.5):.1f}. Published to Research Feed. (Market Closed: No orders placed)"
+                    f"[Swing Desk] QUEUED AMO (Market Closed): {sym} qty={qty} @ ₹{price:.2f} "
+                    f"(Target: ₹{setup['target']:.2f}, SL: ₹{setup['stop_loss']:.2f}). Scheduled for 09:15 AM IST open."
                 )
                 continue
 
-            # Execute only when market is open
+            # Execute directly when market is open
             self.execution.buy_delivery(
                 symbol=sym,
                 qty=qty,

@@ -62,6 +62,10 @@ class CostModel:
         Optionally includes dynamic volume-weighted slippage.
         """
         act = action.upper()
+        if act in ('SHORT', 'SELL'):
+            act = 'SELL'
+        elif act in ('BUY', 'COVER'):
+            act = 'BUY'
         seg = segment.upper()
         val = float(value)
         if val <= 0:

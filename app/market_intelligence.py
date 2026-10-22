@@ -1,14 +1,17 @@
 from .regime import detect
 
 class MarketIntelligence:
-    """Combines index regime and company news into bounded, auditable context."""
+    """Combines index regime, international market cues, and company news into bounded, auditable context."""
 
-    def __init__(self, news_provider, cfg=None):
+    def __init__(self, news_provider, cfg=None, global_scanner=None):
         self.news = news_provider
         self.cfg = cfg or {}
+        self.global_scanner = global_scanner
 
     def build(self, index_row, universe_metadata):
-        regime = detect(index_row)
+        global_overview = self.global_scanner.scan_markets() if self.global_scanner else {"sentiment": "NEUTRAL", "bias": 0, "summary": ""}
+        global_sentiment = global_overview.get("sentiment", "NEUTRAL")
+        regime = detect(index_row, global_sentiment=global_sentiment)
         intel_cfg = self.cfg.get("intelligence", {})
         # BUG-044: Wire news_enabled and max_news_items
         if intel_cfg.get("news_enabled", True):
@@ -18,6 +21,8 @@ class MarketIntelligence:
             items = []
         return {
             **regime,
+            "global_sentiment": global_sentiment,
+            "global_cues": global_overview.get("summary", ""),
             "news_items": items,
             "news_count": len(items),
         }

@@ -51,6 +51,8 @@ class IntradayTimingManager:
         """No entries in first 15 min (9:15-9:30) or after 14:45 IST."""
         return self.get_phase(dt) == "ACTIVE_TRADING"
 
+    can_enter_trades = can_enter
+
     def must_square_off(self, dt=None):
         """Compulsory square-off starting at 15:10 IST."""
         dt = self._normalize_dt(dt)

@@ -31,9 +31,12 @@ class EligibilityFilter:
         if df is None or len(df) < 5:
             return False, "Insufficient price history"
 
-        recent = df.tail(20)
-        daily_turnover = recent["Close"] * recent["Volume"]
-        adtv = float(daily_turnover.mean())
+        turnover = df["Close"] * df["Volume"]
+        if hasattr(df.index, "date"):
+            daily_turnover = turnover.groupby(df.index.date).sum().tail(20)
+        else:
+            daily_turnover = turnover.tail(20)
+        adtv = float(daily_turnover.mean()) if len(daily_turnover) else 0.0
         if adtv < self.min_adtv:
             return False, f"ADTV {adtv:,.0f} below minimum threshold {self.min_adtv:,.0f}"
 

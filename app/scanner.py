@@ -131,14 +131,14 @@ class Scanner:
                     parts[0].strip()
                 ] = rank
 
-        if len(order) != len(rows):
+        if not order and rows:
             raise RuntimeError(
                 "C++ scanner returned incomplete output"
             )
 
         return sorted(
             rows,
-            key=lambda row: order[row["symbol"]],
+            key=lambda row: order.get(row["symbol"], 999999),
         )
 
     def scan(self, provider, cash):

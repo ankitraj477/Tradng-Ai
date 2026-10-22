@@ -42,8 +42,14 @@ def evaluate_parameter_grid(strategy_class, param_grid, datasets, starting_cash=
                     pside, patr, pstop, ptarg = pending.pop(s)
                     p = bt._open(s, row, pside, bt._mark(positions, prices), patr)
                     if p:
-                        if pstop: p["stop"] = pstop
-                        if ptarg: p["target"] = ptarg
+                        fill_px = p["entry"]
+                        if patr and patr > 0:
+                            stop_dist = max(patr * 1.5, fill_px * 0.005)
+                            p["stop"] = round(fill_px - stop_dist, 2) if pside == "LONG" else round(fill_px + stop_dist, 2)
+                            p["target"] = round(fill_px + stop_dist * 2.0, 2) if pside == "LONG" else round(fill_px - stop_dist * 2.0, 2)
+                        else:
+                            if pstop: p["stop"] = pstop
+                            if ptarg: p["target"] = ptarg
                         p["mark"] = prices[s]
                         positions[s] = p
 
@@ -140,8 +146,19 @@ def evaluate_acceptance(strategy_name, perf, baseline_perf, min_trades=50, requi
         reasons.append(f"Failed to beat Equal-Weight baseline ({strat_ret:.2f}% <= {eq_ret:.2f}%)")
 
     # 3. Parameter plateau check
-    if require_plateau and not perf.get("is_plateau", True):
+    if require_plateau and not perf.get("is_plateau", False):
         reasons.append("Failed parameter stability (spiky peak, not a robust plateau)")
+
+    # 4. Maximum Drawdown check
+    strat_dd = perf.get("max_drawdown_pct")
+    base_dd = baseline_perf.get("max_drawdown_pct")
+    if strat_dd is not None and base_dd is not None and strat_dd > base_dd * 1.5:
+        reasons.append(f"Excessive drawdown: {strat_dd:.1f}% exceeds 1.5x baseline {base_dd:.1f}%")
+
+    # 5. Random baseline comparison
+    rand_exp = baseline_perf.get("random_expectancy")
+    if rand_exp is not None and strat_ret <= rand_exp:
+        reasons.append(f"Failed to beat random entry baseline ({strat_ret:.2f}% <= {rand_exp:.2f}%)")
 
     is_accepted = len(reasons) == 0
     return {

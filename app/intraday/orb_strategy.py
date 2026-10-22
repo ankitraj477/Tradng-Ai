@@ -32,11 +32,16 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
 
     def calculate_opening_range(self, intraday_df, current_date):
         """Extracts high, low, and mid of the 09:15 - 09:30 opening range for the date."""
-        session_bars = intraday_df[intraday_df.index.date == current_date]
+        df = intraday_df
+        if df.index.tz is not None:
+            df = df.tz_convert("Asia/Kolkata")
+        
+        cur_date = current_date if hasattr(current_date, "strftime") else pd.to_datetime(current_date).date()
+        session_bars = df[df.index.date == cur_date]
         if session_bars.empty:
             return None
 
-        # Filter bars in 09:15 <= t < 09:30
+        # Filter bars in 09:15 <= t < 09:30 IST
         orb_bars = session_bars.between_time("09:15", "09:29")
         if orb_bars.empty:
             return None

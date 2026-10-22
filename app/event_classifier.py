@@ -10,7 +10,7 @@ class EventClassifier:
     """
     EVENT_PATTERNS = {
         "FRAUD_PROBE": [
-            r"\b(cbi|ed|income tax|it)\s+(raid|probe|searches|investigation)\b",
+            r"\b(cbi|ed|income tax|it dept|i-t dept)\s+(raid|probe|searches|investigation)\b",
             r"\b(forensic audit|accounting fraud|scam|arrested|embezzlement|siphoning)\b",
             r"\b(irregularities|money laundering|fir filed)\b"
         ],
