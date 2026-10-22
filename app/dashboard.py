@@ -2010,6 +2010,19 @@ def create_app(db, cfg=None, provider=None):
         or os.environ.get("TRADING_AI_DASHBOARD_TOKEN", "")
     ).strip()
 
+    import hmac
+
+    @flask_app.after_request
+    def set_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://fonts.gstatic.com data: blob:;"
+        )
+        return response
+
     def _is_authorized():
         if not dashboard_token:
             return True
@@ -2018,7 +2031,7 @@ def create_app(db, cfg=None, provider=None):
             token = auth_header[7:].strip()
         else:
             token = request.headers.get("X-API-Token") or request.args.get("token", "")
-        return token == dashboard_token
+        return hmac.compare_digest(token, dashboard_token)
 
     from .ops.kill_switch import CentralKillSwitch
     from .execution import PaperExecution
@@ -2120,9 +2133,12 @@ def create_app(db, cfg=None, provider=None):
             if not _is_authorized():
                 return jsonify({"error": "Unauthorized"}), 401
             data = request.get_json(silent=True) or {}
-            intraday = float(data.get("intraday", 40.0))
-            swing = float(data.get("swing", 40.0))
-            fno = float(data.get("fno", 20.0))
+            try:
+                intraday = max(0.0, float(data.get("intraday", 40.0)))
+                swing = max(0.0, float(data.get("swing", 40.0)))
+                fno = max(0.0, float(data.get("fno", 20.0)))
+            except (ValueError, TypeError):
+                return jsonify({"error": "Invalid capital allocation numbers"}), 400
             updated = db.set_capital_allocation(intraday, swing, fno)
             db.log("INFO", f"Capital allocation updated: Intraday={updated['intraday']}%, Swing={updated['swing']}%, F&O={updated['fno']}%")
             return jsonify({"status": "ok", "capital_allocation": updated})

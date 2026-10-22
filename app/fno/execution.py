@@ -3,6 +3,7 @@ F&O Execution Engine for Defined-Risk Index Spreads.
 Handles margin allocation, multi-leg recording, and option decay P&L.
 """
 from datetime import datetime, timezone
+from ..exchange_rules import round_to_tick
 
 
 class FNOExecution:
@@ -35,14 +36,21 @@ class FNOExecution:
         symbol = proposal["symbol"]
         qty = int(proposal.get("lot_size", 25))
         margin_req = float(proposal.get("margin_required", 2500.0))
-        entry_credit = float(proposal["price"])
+        entry_credit = round_to_tick(float(proposal["price"]))
+        sl = round_to_tick(proposal["stop_loss"]) if proposal.get("stop_loss") is not None else None
+        tp = round_to_tick(proposal["target"]) if proposal.get("target") is not None else None
 
         with self.db.conn() as c:
-            acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            if not row:
+                now_str = datetime.now(timezone.utc).isoformat()
+                c.execute("INSERT OR IGNORE INTO account VALUES(1, 100000.0, 100000.0, 200000.0, 100000.0, ?)", (now_str,))
+                row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            acc = dict(row) if row else {"cash": 0.0, "initial_capital": 0.0}
             short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
             open_pos = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
             reserved = sum(float(x['entry_price']) * float(x['qty']) * short_margin_pct for x in open_pos if x['side'] == 'SHORT')
-            avail = max(0.0, float(acc['cash']) - reserved)
+            avail = max(0.0, float(acc.get('cash', 0.0)) - reserved)
             if margin_req > avail:
                 return False
 
@@ -55,7 +63,7 @@ class FNOExecution:
                    current_price=excluded.current_price""",
                 (
                     symbol, "SELL", qty, entry_credit, entry_credit,
-                    proposal.get("stop_loss"), proposal.get("target"),
+                    sl, tp,
                     proposal.get("strategy"), proposal.get("confidence", 80),
                     datetime.now(timezone.utc).isoformat(), "INDICES",
                     0.0, margin_req, 0.0, "FNO",
@@ -75,6 +83,7 @@ class FNOExecution:
 
     def close(self, symbol: str, current_premium: float, reason: str) -> bool:
         """Close an option spread and release margin + P&L."""
+        current_premium = round_to_tick(float(current_premium))
         with self.db.conn() as c:
             row = c.execute("SELECT * FROM positions WHERE symbol=? AND UPPER(product_type)='FNO'", (symbol,)).fetchone()
             if not row:

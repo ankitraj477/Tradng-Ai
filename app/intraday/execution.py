@@ -1,5 +1,6 @@
-from datetime import time
+from datetime import datetime, time, timezone
 from ..costs import CostModel
+from ..exchange_rules import round_to_tick, validate_order_microstructure
 from .timing import IntradayTimingManager
 
 
@@ -138,14 +139,32 @@ class IntradayExecution:
     def open_long(self, symbol, qty, price, stop_loss, target, atr=0.0):
         if qty <= 0:
             return False
+        price = round_to_tick(float(price))
+        stop_loss = round_to_tick(float(stop_loss)) if stop_loss is not None else 0.0
+        target = round_to_tick(float(target)) if target is not None else 0.0
+
+        val_check = validate_order_microstructure(symbol, "BUY", price, stop_loss=stop_loss, target=target)
+        if not val_check["ok"]:
+            self.db.log("WARN", f"[Intraday] BUY REJECTED by exchange rules: {val_check['reason']}")
+            return False
+
         val = qty * price
         cost = self.costs.calculate(val, action="BUY", segment="INTRADAY")
         total_req = val + cost
         target_step = abs(target - price) if target else 0.0
 
         with self.db.conn() as c:
-            acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
-            if total_req > acc["cash"]:
+            row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            if not row:
+                now_str = datetime.now(timezone.utc).isoformat()
+                c.execute("INSERT OR IGNORE INTO account VALUES(1, 100000.0, 100000.0, 200000.0, 100000.0, ?)", (now_str,))
+                row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            acc = dict(row) if row else {"cash": 0.0, "initial_capital": 0.0}
+            short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
+            open_pos = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved = sum(float(x['entry_price']) * float(x['qty']) * short_margin_pct for x in open_pos if x['side'] == 'SHORT')
+            avail = max(0.0, float(acc.get('cash', 0.0)) - reserved)
+            if total_req > avail:
                 return False
             c.execute(
                 """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
@@ -168,6 +187,15 @@ class IntradayExecution:
     def open_short(self, symbol, qty, price, stop_loss, target, atr=0.0):
         if qty <= 0:
             return False
+        price = round_to_tick(float(price))
+        stop_loss = round_to_tick(float(stop_loss)) if stop_loss is not None else 0.0
+        target = round_to_tick(float(target)) if target is not None else 0.0
+
+        val_check = validate_order_microstructure(symbol, "SELL", price, stop_loss=stop_loss, target=target)
+        if not val_check["ok"]:
+            self.db.log("WARN", f"[Intraday] SHORT REJECTED by exchange rules: {val_check['reason']}")
+            return False
+
         val = qty * price
         cost = self.costs.calculate(val, action="SELL", segment="INTRADAY")
         short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
@@ -175,11 +203,16 @@ class IntradayExecution:
         target_step = abs(price - target) if target else 0.0
 
         with self.db.conn() as c:
-            acc = dict(c.execute("SELECT * FROM account WHERE id=1").fetchone())
+            row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            if not row:
+                now_str = datetime.now(timezone.utc).isoformat()
+                c.execute("INSERT OR IGNORE INTO account VALUES(1, 100000.0, 100000.0, 200000.0, 100000.0, ?)", (now_str,))
+                row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            acc = dict(row) if row else {"cash": 0.0, "initial_capital": 0.0}
             positions = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
             reserved_margin = sum(float(x["entry_price"]) * float(x["qty"]) * short_margin_pct
                                   for x in positions if x["side"] == "SHORT")
-            available_cash = max(0.0, float(acc["cash"]) - reserved_margin)
+            available_cash = max(0.0, float(acc.get("cash", 0.0)) - reserved_margin)
             if margin_req > available_cash:
                 return False
             c.execute(
@@ -203,6 +236,7 @@ class IntradayExecution:
 
     def close(self, symbol, exit_price, reason, category=""):
         from ..execution import PaperExecution
+        exit_price = round_to_tick(float(exit_price))
         exec_engine = PaperExecution(self.db, self.cfg)
         return exec_engine.close(symbol, exit_price, reason, category)
 

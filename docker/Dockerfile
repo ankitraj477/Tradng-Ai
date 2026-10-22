@@ -15,7 +15,7 @@ RUN mkdir -p /app/data /app/logs && chown -R trader:trader /app
 
 USER trader
 
-ENV APP_HOST=127.0.0.1 APP_PORT=5000
+ENV APP_HOST=0.0.0.0 APP_PORT=5000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health')" || exit 1

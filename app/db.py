@@ -330,14 +330,17 @@ class DB:
 
     def set_capital_allocation(self, intraday, swing, fno):
         import json
-        total = float(intraday) + float(swing) + float(fno)
+        i = max(0.0, float(intraday))
+        s = max(0.0, float(swing))
+        f = max(0.0, float(fno))
+        total = i + s + f
         if total <= 0:
-            intraday, swing, fno = 40.0, 40.0, 20.0
+            i, s, f = 40.0, 40.0, 20.0
             total = 100.0
         data = {
-            "intraday": round(float(intraday) / total * 100.0, 1),
-            "swing": round(float(swing) / total * 100.0, 1),
-            "fno": round(float(fno) / total * 100.0, 1)
+            "intraday": round(i / total * 100.0, 1),
+            "swing": round(s / total * 100.0, 1),
+            "fno": round(f / total * 100.0, 1)
         }
         self.set_setting("capital_allocation", json.dumps(data))
         return data

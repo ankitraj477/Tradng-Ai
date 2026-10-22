@@ -25,11 +25,15 @@ int main(int argc, char** argv) {
         std::stringstream ss(line);
         Row r; std::string s;
         std::getline(ss,r.symbol,',');
-        std::getline(ss,s,','); r.price=std::stod(s);
-        std::getline(ss,s,','); r.rsi=std::stod(s);
-        std::getline(ss,s,','); r.relvol=std::stod(s);
-        std::getline(ss,s,','); r.ret5=std::stod(s);
-        std::getline(ss,s,','); r.ret20=std::stod(s);
+        try {
+            std::getline(ss,s,','); r.price = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.rsi = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.relvol = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.ret5 = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.ret20 = s.empty() ? 0.0 : std::stod(s);
+        } catch (...) {
+            continue;
+        }
         r.score=0;
         if(r.rsi>55) r.score+=20;
         if(r.relvol>1.2) r.score+=25;

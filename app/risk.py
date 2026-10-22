@@ -91,7 +91,7 @@ class RiskManager:
         if not ok_heat:
             return "REJECT"
 
-        account = self.db.account()
+        account = self.db.account() or {}
 
         margin_pct = self.cfg.get("execution", {}).get("short_margin_pct", 0.25)
 
@@ -107,7 +107,7 @@ class RiskManager:
 
         available_cash = max(
             0.0,
-            float(account["cash"]) - reserved_margin,
+            float(account.get("cash", 0.0)) - reserved_margin,
         )
 
         if p["action"] == "BUY":
@@ -176,7 +176,7 @@ class RiskManager:
         if risk.get("kill_switch", False):
             return False, "kill switch enabled"
 
-        account = self.db.account()
+        account = self.db.account() or {}
 
         from .accounting import portfolio_metrics
 
