@@ -22,6 +22,7 @@ class Position:
     entry_cost: float = 0.0
     opened_at: str = ""
     side: str = "LONG"
+    highest_close: float = 0.0
 
     @property
     def key(self) -> Tuple[str, str]:
@@ -117,7 +118,8 @@ class Ledger:
                     qty=fill.qty,
                     entry_price=fill.price,
                     entry_cost=costs,
-                    opened_at=str(fill.asof) if fill.asof else ""
+                    opened_at=str(fill.asof) if fill.asof else "",
+                    highest_close=fill.price
                 )
             else:
                 # Weighted average entry price & cumulative cost
