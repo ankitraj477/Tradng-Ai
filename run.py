@@ -32,6 +32,13 @@ def main():
     print("   [4] 4-Section Dashboard UI        -> http://127.0.0.1:5000")
     print("=" * 60)
 
+    import sys
+    from app.ops.instance_lock import SingleInstanceLock
+    lock = SingleInstanceLock()
+    if not lock.acquire():
+        print("\n[WARNING] Another Tradng-Ai engine is already running. Exiting duplicate instance to protect database.")
+        sys.exit(0)
+
     engine = TradingEngine(live=args.live)
     app = create_app(engine.db, engine.cfg, engine.provider)
 

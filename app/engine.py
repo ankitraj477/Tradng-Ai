@@ -949,16 +949,16 @@ class TradingEngine:
             ),
         )
 
-        peak = max(
-            float(
-                account.get(
-                    "peak_value",
-                    0,
-                )
-                or 0
-            ),
-            metrics["equity"],
-        )
+        current_peak = float(account.get("peak_value", 0) or 0)
+        if current_peak > 0 and metrics["equity"] > 1.5 * current_peak:
+            self.db.log(
+                "WARN",
+                f"Equity valuation spike detected: ₹{metrics['equity']:.2f} vs current peak ₹{current_peak:.2f}. "
+                "Holding peak value unchanged to prevent corrupted risk baseline."
+            )
+            peak = current_peak
+        else:
+            peak = max(current_peak, metrics["equity"])
 
         self.db.update_account(
             account["cash"],
@@ -1071,7 +1071,12 @@ class TradingEngine:
 
 
 if __name__ == "__main__":
+    import sys
+    from .ops.instance_lock import SingleInstanceLock
+    lock = SingleInstanceLock()
+    if not lock.acquire():
+        print("[WARNING] Another Tradng-Ai engine is already running. Exiting duplicate instance.")
+        sys.exit(0)
 
     engine = TradingEngine()
-
     engine.run_forever()

@@ -45,15 +45,21 @@ class CentralKillSwitch:
             pass
         return True
 
-    def reset(self):
-        """Resets the kill switch after verification."""
+    def reset(self, reset_drawdown_peak=True):
+        """Resets the kill switch and restores normal trading baseline."""
         self._tripped = False
         self._trip_reason = None
         self._tripped_at = None
         try:
             self.db.set_setting("emergency_kill_switch", "NORMAL")
             self.db.set_setting("emergency_kill_reason", "")
-            self.db.log("INFO", "KILL-SWITCH RESET: Normal operations restored.")
+            self.db.set_auto_trading(True)
+            if reset_drawdown_peak:
+                acc = self.db.account()
+                if acc:
+                    clean_peak = max(float(acc.get("starting_capital", 100000.0)), float(acc.get("cash", 100000.0)))
+                    self.db.update_account(acc["cash"], clean_peak)
+            self.db.log("INFO", "KILL-SWITCH RESET: Normal operations and drawdown baseline restored.")
         except Exception:
             pass
         return True

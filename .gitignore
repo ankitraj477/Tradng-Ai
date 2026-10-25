@@ -16,6 +16,7 @@ env/
 # Runtime data
 data/*.db
 data/*.db-*
+data/*.lock
 data/cache/
 data/dataset_manifest.json
 
@@ -29,4 +30,8 @@ cpp/scanner.exe
 .DS_Store
 Thumbs.db
 *.zip
+*.tar.gz
+deploy.tar.gz
 logs/
+review/
+
