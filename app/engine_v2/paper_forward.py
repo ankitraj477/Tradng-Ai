@@ -21,9 +21,6 @@ from .simulate import Proposal, simulate_fill
 from .risk import PortfolioRiskManager
 from ..costs import CostModel
 from ..strategy_config import load_strategy_config, StrategyConfig
-from ..sleeves.momentum import decide as decide_momentum
-from ..sleeves.trend import decide as decide_trend
-from ..sleeves.meanrev import decide as decide_meanrev
 
 
 class DataOutageGuard:
@@ -271,6 +268,10 @@ class PaperForwardRunner:
             cfg_a = self.strategy_cfg.raw.get("sleeves", {}).get("A", {})
             cfg_b = self.strategy_cfg.raw.get("sleeves", {}).get("B", {})
             cfg_c = self.strategy_cfg.raw.get("sleeves", {}).get("C", {})
+
+            from ..sleeves.momentum import decide as decide_momentum
+            from ..sleeves.trend import decide as decide_trend
+            from ..sleeves.meanrev import decide as decide_meanrev
 
             # Sleeve A
             try:
