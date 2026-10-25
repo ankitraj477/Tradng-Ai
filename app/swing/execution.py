@@ -102,7 +102,7 @@ class SwingExecution:
                                          strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
                                          product_type, days_held)
                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                   ON CONFLICT(symbol) DO UPDATE SET
+                   ON CONFLICT(sleeve, symbol) DO UPDATE SET
                    qty=qty+excluded.qty, current_price=excluded.current_price""",
                 (
                     symbol, "LONG", qty, price, price, proposal.get("stop_loss"), proposal.get("target"),

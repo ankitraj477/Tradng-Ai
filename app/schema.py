@@ -3,11 +3,12 @@ CREATE TABLE IF NOT EXISTS account (
  id INTEGER PRIMARY KEY CHECK(id=1), cash REAL NOT NULL, starting_capital REAL NOT NULL,
  target_capital REAL NOT NULL, peak_value REAL NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS positions (
- symbol TEXT PRIMARY KEY, side TEXT NOT NULL, qty INTEGER NOT NULL, entry_price REAL NOT NULL,
+ sleeve TEXT NOT NULL DEFAULT 'core', symbol TEXT NOT NULL, side TEXT NOT NULL, qty INTEGER NOT NULL, entry_price REAL NOT NULL,
  current_price REAL NOT NULL, stop_loss REAL, target REAL, strategy TEXT, confidence REAL,
  opened_at TEXT NOT NULL, sector TEXT, atr REAL, entry_cost REAL DEFAULT 0, target_step REAL DEFAULT 0,
  product_type TEXT DEFAULT 'INTRADAY', days_held INTEGER DEFAULT 0, strike_price REAL DEFAULT 0,
- option_type TEXT DEFAULT '', expiry_date TEXT DEFAULT '', legs_info TEXT DEFAULT '');
+ option_type TEXT DEFAULT '', expiry_date TEXT DEFAULT '', legs_info TEXT DEFAULT '',
+ PRIMARY KEY (sleeve, symbol));
 CREATE TABLE IF NOT EXISTS trades (
  id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, action TEXT NOT NULL, side TEXT NOT NULL,
  entry_price REAL, exit_price REAL, qty INTEGER NOT NULL, capital REAL NOT NULL, stop_loss REAL, target REAL,

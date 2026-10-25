@@ -590,16 +590,20 @@ class TradingEngine:
                 "market closed",
             )
 
-            # Trigger off-market swing AMO placement and F&O research
-            try:
-                self.swing_desk.run_cycle()
-            except Exception as exc:
-                self.db.log("ERROR", f"Swing desk off-market cycle: {exc!r}")
+            # Trigger off-market swing AMO placement and F&O research (Gate 0: desks.enabled guard)
+            desks_cfg = self.cfg.get("desks", {})
+            if desks_cfg.get("enabled", False):
+                if desks_cfg.get("swing", False):
+                    try:
+                        self.swing_desk.run_cycle()
+                    except Exception as exc:
+                        self.db.log("ERROR", f"Swing desk off-market cycle: {exc!r}")
 
-            try:
-                self.fno_desk.run_cycle()
-            except Exception as exc:
-                self.db.log("ERROR", f"F&O desk off-market cycle: {exc!r}")
+                if desks_cfg.get("fno", False):
+                    try:
+                        self.fno_desk.run_cycle()
+                    except Exception as exc:
+                        self.db.log("ERROR", f"F&O desk off-market cycle: {exc!r}")
 
             self.snapshot()
             return
@@ -905,21 +909,26 @@ class TradingEngine:
 
         self.positions.manage()
 
-        # Trigger all 3 decoupled desks in the unified cycle
-        try:
-            self.intraday_desk.run_cycle()
-        except Exception as exc:
-            self.db.log("ERROR", f"Intraday desk cycle: {exc!r}")
+        # Trigger decoupled desks if enabled (Gate 0: desks.enabled guard)
+        desks_cfg = self.cfg.get("desks", {})
+        if desks_cfg.get("enabled", False):
+            if desks_cfg.get("intraday", False):
+                try:
+                    self.intraday_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"Intraday desk cycle: {exc!r}")
 
-        try:
-            self.swing_desk.run_cycle()
-        except Exception as exc:
-            self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
+            if desks_cfg.get("swing", False):
+                try:
+                    self.swing_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
 
-        try:
-            self.fno_desk.run_cycle()
-        except Exception as exc:
-            self.db.log("ERROR", f"F&O desk cycle: {exc!r}")
+            if desks_cfg.get("fno", False):
+                try:
+                    self.fno_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"F&O desk cycle: {exc!r}")
 
         # --------------------------------------------------
         # ACCOUNT SNAPSHOT
@@ -1045,8 +1054,12 @@ class TradingEngine:
                     if self.db.positions():
                         if not self.cfg["live_data"] or market_open():
                             self.positions.manage(now_ist() if self.cfg.get("live_data") else None)
-                            self.swing_desk.position_manager.manage()
-                            self.fno_desk.position_manager.manage()
+                            desks_cfg = self.cfg.get("desks", {})
+                            if desks_cfg.get("enabled", False):
+                                if desks_cfg.get("swing", False):
+                                    self.swing_desk.position_manager.manage()
+                                if desks_cfg.get("fno", False):
+                                    self.fno_desk.position_manager.manage()
 
                 except Exception as exc:
 

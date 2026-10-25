@@ -84,6 +84,14 @@
   },
 
   "dashboard": {
-    "token": ""
+    "token": "tradng-pro-2026",
+    "fail_closed": true
+  },
+
+  "desks": {
+    "enabled": false,
+    "intraday": false,
+    "swing": false,
+    "fno": false
   }
 }

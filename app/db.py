@@ -92,6 +92,8 @@ class DB:
                 c.execute("ALTER TABLE positions ADD COLUMN expiry_date TEXT DEFAULT ''")
             if "legs_info" not in cols:
                 c.execute("ALTER TABLE positions ADD COLUMN legs_info TEXT DEFAULT ''")
+            if "sleeve" not in cols:
+                c.execute("ALTER TABLE positions ADD COLUMN sleeve TEXT NOT NULL DEFAULT 'core'")
 
             t_cols={r[1] for r in c.execute("PRAGMA table_info(trades)").fetchall()}
             if "product_type" not in t_cols:
@@ -142,18 +144,24 @@ class DB:
         with self.conn() as c:
             r=c.execute("SELECT * FROM account WHERE id=1").fetchone(); return dict(r) if r else None
 
-    def ensure_account(self, starting, target):
+    def ensure_account(self, starting, target, force_reset=False):
+        """Ensure account exists. R2-009: Never silently reset cash or peak_value."""
         acc = self.account()
         if not acc:
             with self.conn() as c:
                 c.execute("INSERT INTO account VALUES(1,?,?,?,?,?)", (starting, starting, target, starting, now()))
+        elif force_reset:
+            with self.conn() as c:
+                c.execute("UPDATE account SET starting_capital=?, cash=?, target_capital=?, peak_value=?, updated_at=? WHERE id=1",
+                          (starting, starting, target, starting, now()))
         else:
             with self.conn() as c:
-                if not self.positions() and acc["starting_capital"] != starting:
-                    c.execute("UPDATE account SET starting_capital=?, cash=?, target_capital=?, peak_value=?, updated_at=? WHERE id=1",
-                              (starting, starting, target, starting, now()))
+                if acc["target_capital"] != target and acc["starting_capital"] != starting:
+                    c.execute("UPDATE account SET target_capital=?, starting_capital=?, updated_at=? WHERE id=1", (target, starting, now()))
                 elif acc["target_capital"] != target:
                     c.execute("UPDATE account SET target_capital=?, updated_at=? WHERE id=1", (target, now()))
+                elif acc["starting_capital"] != starting:
+                    c.execute("UPDATE account SET starting_capital=?, updated_at=? WHERE id=1", (starting, now()))
 
     def update_position_atr(self, symbol, atr):
         with self.conn() as c:
@@ -227,6 +235,73 @@ class DB:
 
     def positions(self):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM positions ORDER BY opened_at")]
+
+    def get_position(self, symbol, sleeve="core"):
+        with self.conn() as c:
+            r = c.execute("SELECT * FROM positions WHERE symbol=? AND sleeve=?", (symbol, sleeve)).fetchone()
+            return dict(r) if r else None
+
+    def upsert_position(self, p, sleeve="core"):
+        """
+        R2-006: Key positions by (sleeve, symbol).
+        When adding to an existing position, compute weighted average entry price
+        and cumulative entry cost.
+        """
+        symbol = p["symbol"]
+        qty = int(p["qty"])
+        entry_price = float(p["entry_price"])
+        entry_cost = float(p.get("entry_cost", 0.0) or 0.0)
+        current_price = float(p.get("current_price", entry_price))
+        stop_loss = float(p["stop_loss"]) if p.get("stop_loss") is not None else None
+        target = float(p["target"]) if p.get("target") is not None else None
+        strategy = p.get("strategy", "")
+        confidence = float(p.get("confidence", 0.0) or 0.0)
+        opened_at = p.get("opened_at", now())
+        sector = p.get("sector", "Unknown")
+        atr = float(p.get("atr", 0.0) or 0.0)
+        target_step = float(p.get("target_step", 0.0) or 0.0)
+        product_type = p.get("product_type", "INTRADAY")
+        days_held = int(p.get("days_held", 0) or 0)
+        strike_price = float(p.get("strike_price", 0.0) or 0.0)
+        option_type = p.get("option_type", "")
+        expiry_date = p.get("expiry_date", "")
+        legs_info = p.get("legs_info", "")
+
+        with self.conn() as c:
+            row = c.execute("SELECT * FROM positions WHERE sleeve=? AND symbol=?", (sleeve, symbol)).fetchone()
+            if row:
+                old = dict(row)
+                old_qty = int(old["qty"])
+                old_entry = float(old["entry_price"])
+                old_cost = float(old.get("entry_cost", 0.0) or 0.0)
+                tot_qty = old_qty + qty
+                w_entry = ((old_qty * old_entry) + (qty * entry_price)) / tot_qty if tot_qty > 0 else entry_price
+                cum_cost = old_cost + entry_cost
+                c.execute("""UPDATE positions SET qty=?, entry_price=?, current_price=?, entry_cost=?,
+                                                  stop_loss=COALESCE(?, stop_loss), target=COALESCE(?, target),
+                                                  atr=COALESCE(?, atr), target_step=COALESCE(?, target_step),
+                                                  days_held=COALESCE(?, days_held)
+                             WHERE sleeve=? AND symbol=?""",
+                          (tot_qty, w_entry, current_price, cum_cost, stop_loss, target, atr, target_step, days_held, sleeve, symbol))
+            else:
+                c.execute("""INSERT INTO positions(sleeve, symbol, side, qty, entry_price, current_price, stop_loss, target,
+                                                    strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
+                                                    product_type, days_held, strike_price, option_type, expiry_date, legs_info)
+                             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                          (sleeve, symbol, p["side"], qty, entry_price, current_price, stop_loss, target,
+                           strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
+                           product_type, days_held, strike_price, option_type, expiry_date, legs_info))
+
+    def positions_by_sleeve(self, sleeve="core"):
+        with self.conn() as c:
+            return [dict(r) for r in c.execute("SELECT * FROM positions WHERE sleeve=? ORDER BY opened_at", (sleeve,))]
+
+    def delete_position(self, symbol, sleeve=None):
+        with self.conn() as c:
+            if sleeve:
+                c.execute("DELETE FROM positions WHERE symbol=? AND sleeve=?", (symbol, sleeve))
+            else:
+                c.execute("DELETE FROM positions WHERE symbol=?", (symbol,))
 
     def trades(self,limit=10):
         with self.conn() as c:return [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?",(limit,))]

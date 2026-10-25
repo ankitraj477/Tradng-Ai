@@ -59,7 +59,7 @@ class FNOExecution:
                                          strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
                                          product_type, strike_price, option_type, expiry_date, legs_info)
                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                   ON CONFLICT(symbol) DO UPDATE SET
+                   ON CONFLICT(sleeve, symbol) DO UPDATE SET
                    current_price=excluded.current_price""",
                 (
                     symbol, "SELL", qty, entry_credit, entry_credit,

@@ -1352,6 +1352,40 @@ function escapeHtml(str) {
 const formatMoney = val => '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPct = val => (Number(val || 0) >= 0 ? '+' : '') + Number(val || 0).toFixed(2) + '%';
 
+function getAuthToken() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        if (urlToken) {
+            localStorage.setItem('dashboard_token', urlToken.trim());
+            return urlToken.trim();
+        }
+        return (localStorage.getItem('dashboard_token') || 'tradng-pro-2026').trim();
+    } catch (e) {
+        return 'tradng-pro-2026';
+    }
+}
+
+async function authFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    const token = getAuthToken();
+    if (token) {
+        options.headers['Authorization'] = 'Bearer ' + token;
+        options.headers['X-API-Token'] = token;
+    }
+    let res = await fetch(url, options);
+    if (res.status === 401) {
+        const inputToken = prompt("Enter dashboard access token:");
+        if (inputToken) {
+            localStorage.setItem('dashboard_token', inputToken.trim());
+            options.headers['Authorization'] = 'Bearer ' + inputToken.trim();
+            options.headers['X-API-Token'] = inputToken.trim();
+            res = await fetch(url, options);
+        }
+    }
+    return res;
+}
+
 let autoTradingActive = true;
 
 async function toggleAutoTrading() {
@@ -1364,7 +1398,7 @@ async function toggleAutoTrading() {
         label.textContent = autoTradingActive ? 'AUTO TRADING ON' : 'AUTO TRADING OFF';
     }
     try {
-        const res = await fetch('/api/auto-trading/toggle', {
+        const res = await authFetch('/api/auto-trading/toggle', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled: nextState })
@@ -1482,7 +1516,7 @@ async function saveCapitalAllocation() {
         return;
     }
     try {
-        const res = await fetch('/api/capital-allocation', {
+        const res = await authFetch('/api/capital-allocation', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(currentAlloc)
@@ -2024,13 +2058,17 @@ def create_app(db, cfg=None, provider=None):
         return response
 
     def _is_authorized():
+        # Gate 0 (R2-001): Fail-closed auth
+        fail_closed = cfg.get("dashboard", {}).get("fail_closed", False)
         if not dashboard_token:
-            return True
+            return not fail_closed
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
         else:
             token = request.headers.get("X-API-Token") or request.args.get("token", "")
+        if not token:
+            return False
         return hmac.compare_digest(token, dashboard_token)
 
     from .ops.kill_switch import CentralKillSwitch
