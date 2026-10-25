@@ -109,13 +109,13 @@ def test_gate0_legacy_desks_disabled_behind_config():
     }
 
     engine = TradingEngine(cfg=cfg, db=db)
+    engine.reload_config = MagicMock()
+    engine.market_context = MagicMock(return_value={"ok": True, "regime": "BULL", "sentiment": "NEUTRAL", "nifty": 22000.0, "reason": "ok"})
     engine.intraday_desk = MagicMock()
     engine.swing_desk = MagicMock()
     engine.fno_desk = MagicMock()
     engine.global_scanner = MagicMock()
-    engine.global_scanner.scan_markets.return_value = {"sentiment": "NEUTRAL", "summary": "test"}
     engine.news = MagicMock()
-    engine.news.recent.return_value = []
 
     # Run cycle with desks.enabled = False
     engine.cycle()
