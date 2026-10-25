@@ -7,5 +7,14 @@ Sleeves package for systematic multi-sleeve architecture.
 """
 
 from .momentum import decide as decide_momentum
+from .trend import decide as decide_trend
+from .meanrev import decide as decide_meanrev
+from .combined_portfolio import run_combined_backtest, generate_combined_portfolio_report
 
-__all__ = ["decide_momentum"]
+__all__ = [
+    "decide_momentum",
+    "decide_trend",
+    "decide_meanrev",
+    "run_combined_backtest",
+    "generate_combined_portfolio_report"
+]

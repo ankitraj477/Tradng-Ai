@@ -29,6 +29,9 @@ def compute_wilder_rsi2(close_series: pd.Series, period: int = 2) -> float:
     if len(close_series) < period + 1:
         return 50.0
 
+    if len(close_series) > 60:
+        close_series = close_series.iloc[-60:]
+
     arr = close_series.to_numpy(dtype=float)
     diff = np.diff(arr)
     if len(diff) == 0:
