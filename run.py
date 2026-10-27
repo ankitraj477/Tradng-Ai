@@ -40,6 +40,13 @@ def main():
         sys.exit(0)
 
     engine = TradingEngine(live=args.live)
+    # Ensure all desks are active for unified multi-desk trading
+    engine.cfg.setdefault("desks", {})
+    engine.cfg["desks"]["enabled"] = True
+    engine.cfg["desks"]["swing"] = True
+    engine.cfg["desks"]["fno"] = True
+    engine.reload_config(engine.cfg)
+
     app = create_app(engine.db, engine.cfg, engine.provider)
 
     # Trigger engine loop in background (runs Intraday, Swing, F&O simultaneously)

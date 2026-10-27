@@ -89,9 +89,9 @@
   },
 
   "desks": {
-    "enabled": false,
+    "enabled": true,
     "intraday": false,
-    "swing": false,
-    "fno": false
+    "swing": true,
+    "fno": true
   }
-}
+}

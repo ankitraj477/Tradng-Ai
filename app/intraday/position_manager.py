@@ -32,6 +32,8 @@ class IntradayPositionManager:
         atr = float(p.get("atr", 0) or 0)
         if atr > 0:
             return atr
+        if not hasattr(self.provider, "history") or not callable(getattr(self.provider, "history", None)):
+            return 0.0
         try:
             df = self.provider.history(p["symbol"], period="5d", interval="5m")
             x = indicators(df)

@@ -51,13 +51,16 @@ class NewsProvider:
         items=[]
         for source,url in self.FEEDS.items():
             try:
+                # Use curl UA for Cloudflare-protected RSS feeds like Moneycontrol to avoid 403 Forbidden
+                ua = "curl/7.81.0" if "moneycontrol" in url.lower() else (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                )
                 req=urllib.request.Request(
                     url,
                     headers={
-                        "User-Agent": (
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                        )
+                        "User-Agent": ua,
+                        "Accept": "*/*"
                     }
                 )
                 with urllib.request.urlopen(req, timeout=5) as resp:
@@ -97,11 +100,16 @@ class NewsProvider:
                     if self.archive:
                         self.archive.archive_item(source, title, e.get("link",""), norm_pub, matches, ev_type, sent, mat)
             except Exception as feed_err:
-                # BUG-029: Log failures instead of silently swallowing them
+                # BUG-029: Log failures cleanly without flooding logs every minute
                 import logging
-                logging.getLogger("tradng_ai.news").warning(
-                    f"News feed fetch failed for {source} ({url}): {feed_err}"
-                )
+                logger = logging.getLogger("tradng_ai.news")
+                if not hasattr(self, "_warned_feeds"):
+                    self._warned_feeds = set()
+                if source not in self._warned_feeds:
+                    logger.warning(f"News feed fetch failed for {source} ({url}): {feed_err}")
+                    self._warned_feeds.add(source)
+                else:
+                    logger.debug(f"News feed fetch failed for {source} ({url}): {feed_err}")
                 continue
         return items[:limit]
 

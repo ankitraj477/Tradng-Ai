@@ -1,10 +1,10 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import Flask, jsonify, render_template_string
 
 
 from .accounting import portfolio_metrics
-from .market_hours import market_phase, now_ist, holiday_name, market_open
+from .market_hours import market_phase, now_ist, holiday_name, market_open, IST
 from .learning import LearningEngine
 from .runtime import preflight
 
@@ -1688,6 +1688,16 @@ function renderTradeRow(t) {
     const pnl = Number(t.pnl || 0);
     const isWin = pnl >= 0;
     const pType = (t.product_type || 'INTRADAY').toUpperCase();
+    const timing = t.timing_display || '';
+    const holdSec = Number(t.holding_seconds || 0);
+    let holdStr = '';
+    if (holdSec >= 86400) {
+        holdStr = (holdSec / 86400).toFixed(1) + 'd';
+    } else if (holdSec >= 3600) {
+        holdStr = (holdSec / 3600).toFixed(1) + 'h';
+    } else if (holdSec >= 60) {
+        holdStr = Math.round(holdSec / 60) + 'm';
+    }
     return `
     <div class="activity-row">
         <div class="activity-left">
@@ -1697,8 +1707,12 @@ function renderTradeRow(t) {
                     <span>${escapeHtml(t.symbol)}</span>
                     <span class="pill ${t.side === 'LONG' ? 'pill-long' : 'pill-short'}">${escapeHtml(t.side)}</span>
                     <span class="pill pill-muted" style="font-size:10px;padding:1px 5px;">${escapeHtml(pType)}</span>
+                    ${timing ? `<span class="pill pill-cyan" style="font-size:10px;padding:1px 6px;letter-spacing:0;"><i style="font-style:normal;opacity:0.8;">🕒</i> ${escapeHtml(timing)}</span>` : ''}
                 </div>
-                <div class="activity-sub">${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)} · <span class="faint">${escapeHtml(t.exit_reason || 'exit')}</span></div>
+                <div class="activity-sub">
+                    ${formatMoney(t.entry_price)} → ${formatMoney(t.exit_price)} • <span class="faint">${escapeHtml(t.exit_reason || 'exit')}</span>
+                    ${holdStr ? ` • <span class="faint">Held ${escapeHtml(holdStr)}</span>` : ''}
+                </div>
             </div>
         </div>
         <div class="activity-right">
@@ -1707,6 +1721,7 @@ function renderTradeRow(t) {
         </div>
     </div>`;
 }
+
 
 async function updateDashboard() {
     try {
@@ -2030,6 +2045,39 @@ def _holding_minutes(opened_at):
         return 0.0
 
 
+def _enrich_trade(t):
+    """Enriches trade records with human-readable IST entry and exit timestamps."""
+    if not t:
+        return t
+    t = dict(t)
+    try:
+        raw_created = str(t.get("created_at") or "")
+        created_dt = datetime.fromisoformat(raw_created.replace("Z", "+00:00")).astimezone(IST)
+        exit_time_str = created_dt.strftime("%I:%M %p")
+        exit_date_str = created_dt.strftime("%d %b %Y")
+        t["exit_time_ist"] = f"{exit_date_str}, {exit_time_str}"
+        t["exit_time"] = exit_time_str
+        t["exit_date"] = created_dt.strftime("%Y-%m-%d")
+
+        holding_sec = float(t.get("holding_seconds") or 0.0)
+        entry_dt = created_dt - timedelta(seconds=holding_sec)
+        entry_time_str = entry_dt.strftime("%I:%M %p")
+        entry_date_str = entry_dt.strftime("%d %b %Y")
+        t["entry_time_ist"] = f"{entry_date_str}, {entry_time_str}"
+        t["entry_time"] = entry_time_str
+        t["entry_date"] = entry_dt.strftime("%Y-%m-%d")
+
+        if t["entry_date"] == t["exit_date"]:
+            t["timing_display"] = f"{created_dt.strftime('%d %b')} · {entry_time_str} → {exit_time_str}"
+        else:
+            t["timing_display"] = f"{entry_dt.strftime('%d %b')} {entry_time_str} → {created_dt.strftime('%d %b')} {exit_time_str}"
+    except Exception:
+        t["exit_time_ist"] = str(t.get("created_at", ""))
+        t["entry_time_ist"] = ""
+        t["timing_display"] = ""
+    return t
+
+
 def create_app(db, cfg=None, provider=None):
     import os
     from flask import request
@@ -2190,7 +2238,8 @@ def create_app(db, cfg=None, provider=None):
             return jsonify({"error": "Trading account is not initialized."}), 503
 
         positions = db.positions()
-        trades = db.trades(20)
+        raw_trades = db.trades(30)
+        trades = [_enrich_trade(t) for t in raw_trades]
         metrics = portfolio_metrics(account, positions, short_margin)
         realized = db.total_realized_pnl()
         pnl = metrics["equity"] - account["starting_capital"]
@@ -2212,9 +2261,16 @@ def create_app(db, cfg=None, provider=None):
         positions_swing = [p for p in positions if str(p.get("product_type", "")).upper() == "SWING"]
         positions_fno = [p for p in positions if str(p.get("product_type", "")).upper() == "FNO"]
 
-        trades_intra = [t for t in trades if str(t.get("product_type", "INTRADAY")).upper() == "INTRADAY"]
-        trades_swing = [t for t in trades if str(t.get("product_type", "")).upper() == "SWING"]
-        trades_fno = [t for t in trades if str(t.get("product_type", "")).upper() == "FNO"]
+        # Today's trades strictly in Indian Standard Time (IST):
+        today_raw = db.trades_today() if hasattr(db, "trades_today") else []
+        trades_today = [_enrich_trade(t) for t in today_raw]
+        trades_intra = [t for t in trades_today if str(t.get("product_type", "INTRADAY")).upper() == "INTRADAY"]
+
+        # Desk trades (swing and fno history)
+        trades_swing_raw = db.trades_by_product("SWING", 30) if hasattr(db, "trades_by_product") else [t for t in raw_trades if str(t.get("product_type", "")).upper() == "SWING"]
+        trades_fno_raw = db.trades_by_product("FNO", 30) if hasattr(db, "trades_by_product") else [t for t in raw_trades if str(t.get("product_type", "")).upper() == "FNO"]
+        trades_swing = [_enrich_trade(t) for t in trades_swing_raw]
+        trades_fno = [_enrich_trade(t) for t in trades_fno_raw]
 
         from .fno.index_chain import IndexChainManager
         fno_chain = IndexChainManager(provider)

@@ -391,6 +391,25 @@ class DB:
                 return [dict(r) for r in c.execute("SELECT * FROM trades WHERE UPPER(product_type)=? ORDER BY id DESC LIMIT ?", (product_type.upper(), limit))]
             return [dict(r) for r in c.execute("SELECT * FROM trades ORDER BY id DESC LIMIT ?", (limit,))]
 
+    def trades_today(self, product_type=None, limit=100):
+        """Returns trades closed today in Indian Standard Time (IST)."""
+        today_ist = now_ist_date()
+        with self.conn() as c:
+            if product_type:
+                query = """
+                    SELECT * FROM trades 
+                    WHERE date(datetime(created_at, '+330 minutes')) = ?
+                      AND UPPER(product_type) = ?
+                    ORDER BY id DESC LIMIT ?
+                """
+                return [dict(r) for r in c.execute(query, (today_ist, product_type.upper(), limit))]
+            query = """
+                SELECT * FROM trades 
+                WHERE date(datetime(created_at, '+330 minutes')) = ?
+                ORDER BY id DESC LIMIT ?
+            """
+            return [dict(r) for r in c.execute(query, (today_ist, limit))]
+
     def get_capital_allocation(self):
         import json
         raw = self.get_setting("capital_allocation", "")

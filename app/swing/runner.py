@@ -65,10 +65,11 @@ class SwingDeskRunner:
         starting = float(account.get("starting_capital", 100000.0)) if account else 100000.0
         max_swing_desk_capital = min(starting * swing_alloc_pct, cash)
 
-        # Count active swing positions (max 3 concurrent swing holdings for focus)
+        # Count active swing positions + pending AMOs (max 3 concurrent swing holdings for focus)
         current_active = self.db.positions_by_product("SWING")
-        if len(current_active) >= 3:
-            self.db.log("INFO", f"[Swing Desk] Max concurrent swing holdings reached (3). Monitoring active trades.")
+        pending_orders = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "SWING"]
+        if (len(current_active) + len(pending_orders)) >= 3:
+            self.db.log("INFO", f"[Swing Desk] Max concurrent swing holdings/orders reached ({len(current_active)} active, {len(pending_orders)} queued). Monitoring active trades.")
             return
 
         # 5. Scan for Stage 2 Trend Template & 20 EMA Pullback candidates
@@ -78,14 +79,19 @@ class SwingDeskRunner:
         candidates = self.scanner.scan_stage2_candidates(universe[:40])
 
         for cand in candidates:
-            # Re-check active swing count inside loop
+            # Re-check active swing count + pending orders inside loop
             current_active = self.db.positions_by_product("SWING")
-            if len(current_active) >= 3:
+            pending_orders = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "SWING"]
+            if (len(current_active) + len(pending_orders)) >= 3:
                 break
 
             sym = cand["symbol"]
             existing = [p for p in current_active if p["symbol"] == sym]
             if existing:
+                continue
+
+            already_queued = [o for o in pending_orders if o.get("symbol") == sym]
+            if already_queued:
                 continue
 
             # Quality Filter: Minervini score must be >= 80
