@@ -1030,6 +1030,10 @@ HTML = r"""<!doctype html>
                         <div class="title">Pipeline</div>
                         <div id="intel-pipeline" class="val">--</div>
                     </div>
+                    <div class="intel-item">
+                        <div class="title">Shorting Gate</div>
+                        <div id="intel-shorting" class="val" style="color:var(--emerald);font-size:12px;">AUTO-OFF</div>
+                    </div>
                 </div>
                 <div style="margin-top:6px;">
                     <div class="stat-label" style="margin-bottom:6px;">Strategy Calibration Weights</div>
@@ -1050,12 +1054,13 @@ HTML = r"""<!doctype html>
                 <div>
                     <div>Intraday Day Trading Desk (MIS)</div>
                     <div style="font-size:11px; color:var(--text-muted); font-weight:400;">
-                        Strict 15:10 IST EOD auto square-off • ORB + VWAP + Breakeven Lock at +0.5R • Dynamic Runner Trailing Stop (75% Win Rate Logic)
+                        Strict 15:10 IST EOD auto square-off • ORB + VWAP • Automated Regime Shorting Gate • Fast Breakeven Lock at +0.33R • Min ₹5,000 Notional
                     </div>
                 </div>
             </div>
             <div style="display:flex; gap:8px;">
                 <span class="banner-tag" style="background:rgba(6,182,212,0.15); color:var(--cyan); border:1px solid rgba(6,182,212,0.3);">MIS PRODUCT</span>
+                <span class="banner-tag" style="background:rgba(16,185,129,0.15); color:var(--emerald); border:1px solid rgba(16,185,129,0.3);">AUTO-SHORT GATE</span>
                 <span class="banner-tag" style="background:rgba(244,63,94,0.15); color:var(--rose); border:1px solid rgba(244,63,94,0.3);">SQUARE-OFF 15:10 IST</span>
             </div>
         </div>
@@ -2008,12 +2013,25 @@ async function updateDashboard() {
             }).join('');
         }
 
-        // Market State
+        // Market State & Automated Shorting Status
         const m = data.market || {};
         document.getElementById('intel-regime').textContent = m.regime || 'Neutral';
         document.getElementById('intel-sentiment').textContent = m.global_sentiment || 'Neutral';
         document.getElementById('intel-phase').textContent = data.market_phase || 'Active';
         document.getElementById('intel-pipeline').textContent = m.data_ok ? 'Healthy' : 'Live Polling';
+
+        const shortingEl = document.getElementById('intel-shorting');
+        if (shortingEl) {
+            const regimeStr = String(m.regime || '').toLowerCase();
+            const isBearish = regimeStr.includes('strong bearish') || regimeStr.includes('bearish trend');
+            if (isBearish) {
+                shortingEl.textContent = 'BEAR UNLOCKED';
+                shortingEl.style.color = 'var(--rose)';
+            } else {
+                shortingEl.textContent = 'AUTO-OFF (PROTECTED)';
+                shortingEl.style.color = 'var(--emerald)';
+            }
+        }
 
         // Learning Weights
         const learn = data.learning || {};
