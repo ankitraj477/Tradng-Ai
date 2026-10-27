@@ -107,7 +107,7 @@ class IntradayPositionManager:
         mult = float(exec_cfg.get("trailing_stop_atr", 1.5))
         max_minutes = float(exec_cfg.get("max_hold_minutes", 390))
         dynamic_target_expansion = exec_cfg.get("dynamic_target_expansion", True)
-        breakeven_lock_ratio = float(exec_cfg.get("breakeven_lock_ratio", 0.50))
+        breakeven_lock_ratio = float(exec_cfg.get("breakeven_lock_ratio", 0.33))
         buffer_ratio = float(exec_cfg.get("trailing_buffer_ratio", 1.0 / 3.0))
 
         check_dt = dt if dt is not None else (now_ist() if self.cfg.get("live_data", False) else None)

@@ -157,12 +157,20 @@ class ORBDeskStrategy:
         self.cfg = cfg or {}
         self.strategy = OpeningRangeBreakoutStrategy()
 
-    def evaluate(self, symbol):
+    def evaluate(self, symbol, market_regime=None):
         try:
             intraday_df = self.provider.history(symbol, period="5d", interval="5m")
             daily_df = self.provider.history(symbol, period="60d", interval="1d")
             sig = self.strategy.decide(symbol, intraday_df, daily_df)
             if sig:
+                if market_regime:
+                    regime_lower = str(market_regime).lower()
+                    # Automated macro filter: suppress short breakdown if market is not confirmed bearish
+                    if sig["action"] == "SHORT" and not any(k in regime_lower for k in ("strong bearish", "bearish trend", "downtrend")):
+                        return None
+                    # Suppress long breakout in an active market crash
+                    if sig["action"] == "BUY" and "strong bearish" in regime_lower:
+                        return None
                 from types import SimpleNamespace
                 return SimpleNamespace(**sig)
         except Exception:

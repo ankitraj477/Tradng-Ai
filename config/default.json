@@ -13,7 +13,8 @@
     "max_drawdown_pct": 0.15,
     "kill_switch": false,
     "daily_loss_limit_pct": 0.05,
-    "max_portfolio_heat_pct": 0.06
+    "max_portfolio_heat_pct": 0.06,
+    "min_trade_notional": 5000.0
   },
 
   "execution": {
@@ -35,7 +36,7 @@
     "stop_loss_pct": 0.02,
     "target_pct": 0.04,
     "dynamic_target_expansion": true,
-    "breakeven_lock_ratio": 0.50,
+    "breakeven_lock_ratio": 0.33,
     "trailing_buffer_ratio": 0.3333333333
   },
 
@@ -88,9 +89,11 @@
     "fail_closed": true
   },
 
+  "allow_shorts": "auto",
+
   "desks": {
     "enabled": true,
-    "intraday": false,
+    "intraday": true,
     "swing": true,
     "fno": true
   }

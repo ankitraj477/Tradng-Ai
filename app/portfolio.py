@@ -127,7 +127,7 @@ class PortfolioManager:
         else:
             qty_by_sector = qty_by_risk
 
-        return max(
+        final_qty = max(
             0,
             min(
                 qty_by_risk,
@@ -136,3 +136,8 @@ class PortfolioManager:
                 qty_by_sector,
             ),
         )
+        min_notional = float(self.cfg.get("risk", {}).get("min_trade_notional", 0.0))
+        if final_qty > 0 and min_notional > 0 and (final_qty * proposal["price"]) < min_notional:
+            return 0
+
+        return final_qty

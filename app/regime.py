@@ -7,7 +7,7 @@ def detect(nifty_row=None, india_vix=None, breadth=None, fii_dii_flows=None, glo
     if not nifty_row:
         return {
             "regime": "Mixed/uncertain", "sentiment": "Neutral", "nifty": "Unknown",
-            "size_multiplier": 1.0, "allowed_sides": ["LONG", "SHORT"]
+            "size_multiplier": 1.0, "allowed_sides": ["LONG"]
         }
 
     r = nifty_row
@@ -67,7 +67,7 @@ def detect(nifty_row=None, india_vix=None, breadth=None, fii_dii_flows=None, glo
     elif ret > 0:
         regime = "Weak bullish"
         sentiment = "Bullish"
-        allowed_sides = ["LONG", "SHORT"]
+        allowed_sides = ["LONG"]
     elif ret < 0:
         regime = "Weak bearish"
         sentiment = "Bearish"
@@ -75,7 +75,7 @@ def detect(nifty_row=None, india_vix=None, breadth=None, fii_dii_flows=None, glo
     else:
         regime = "Sideways"
         sentiment = "Neutral"
-        allowed_sides = ["LONG", "SHORT"]
+        allowed_sides = ["LONG"]
 
     if global_sentiment:
         gs = str(global_sentiment).upper()
