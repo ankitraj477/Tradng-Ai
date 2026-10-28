@@ -96,7 +96,7 @@ def test_fno_execution_tick_rounding_and_defensive_account(cfg):
         "margin_required": 2500.0,
         "strategy": "Iron Condor"
     }
-    ok = fno_exec.open_spread(proposal)
+    ok = fno_exec.open_spread(proposal, force_fill=True)
     assert ok is True
 
     positions = db.positions()

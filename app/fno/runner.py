@@ -23,6 +23,39 @@ class FnoDeskRunner:
         self.position_manager = FnoPositionManager(db, self.execution, self.chain_manager, self.cfg)
         self.strategy = IronCondorStrategy(chain_manager=self.chain_manager, cfg=self.cfg)
 
+    def _fill_pending_amos(self):
+        """Execute any queued F&O After-Market Orders (AMOs) when market opens."""
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        if enforce_hours and not market_open():
+            return
+
+        pending = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
+        for order in pending:
+            sym = order["symbol"]
+            strat = order.get("strategy", "Iron Condor")
+
+            # Check max concurrent F&O positions
+            if len(self.db.positions_by_product("FNO")) >= 3:
+                break
+
+            underlying = "BANKNIFTY" if "BANKNIFTY" in sym else "NIFTY"
+            spread = self.strategy.propose(underlying)
+            if not spread:
+                continue
+
+            success = self.execution.open_spread(spread, lots=1, force_fill=True)
+            if success:
+                self.db.update_order_status(order["id"], "FILLED")
+                self.db.log("INFO", f"[F&O AMO FILLED] Market Open (09:15 IST): Executed F&O AMO for {strat} on {sym} into Active Spreads.")
+            else:
+                self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Insufficient Margin")
+                self.db.log("WARN", f"[F&O AMO CANCELLED] Could not execute F&O AMO for {sym} (insufficient margin).")
+
     def run_cycle(self):
         """Execute one complete cycle for the F&O Options Desk."""
         now = now_ist()
@@ -33,26 +66,39 @@ class FnoDeskRunner:
         if closed > 0:
             self.db.log("INFO", f"[F&O Desk] Managed and closed {closed} option spreads")
 
+        # 1b. If market is open, fill any pending F&O AMOs
+        self._fill_pending_amos()
+
         # 2. Check if auto trading is enabled
         if not self.db.is_auto_trading_enabled():
             return
 
-        # 3. Capital check for F&O desk
+        # 3. Capital check for F&O desk (active positions + pending AMOs)
         active_fno = self.db.positions_by_product("FNO")
-        if len(active_fno) >= 3:
-            self.db.log("INFO", f"[F&O Desk] Max concurrent F&O spreads reached (3). Monitoring decay.")
+        pending_fno = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
+        if (len(active_fno) + len(pending_fno)) >= 3:
+            self.db.log("INFO", f"[F&O Desk] Max concurrent F&O spreads reached ({len(active_fno)} active, {len(pending_fno)} queued). Monitoring decay.")
             return
 
         # 4. Generate defined-risk spreads on Nifty 50 & Bank Nifty
         from ..market_hours import market_open
-        is_open = market_open()
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        is_open = market_open() if enforce_hours else True
 
         for index_sym in ("NIFTY", "BANKNIFTY"):
-            current_fno = self.db.positions_by_product("FNO")
-            if len(current_fno) >= 3:
+            active_fno = self.db.positions_by_product("FNO")
+            pending_fno = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
+            if (len(active_fno) + len(pending_fno)) >= 3:
                 break
-            existing = [p for p in current_fno if index_sym in p["symbol"]]
+            existing = [p for p in active_fno if index_sym in p["symbol"]]
             if existing:
+                continue
+            already_queued = [o for o in pending_fno if index_sym in o.get("symbol", "")]
+            if already_queued:
                 continue
 
             spread = self.strategy.propose(index_sym)
@@ -70,24 +116,11 @@ class FnoDeskRunner:
                     f"Net Credit: ₹{spread['price']:.2f}, Max Loss: ₹{spread['max_loss']:.2f}, "
                     f"50% Target: ₹{spread['target']:.2f}, Expiry: {spread['expiry_date']}"
                 ),
-                "risk_decision": "APPROVED" if is_open else "QUEUED_RESEARCH"
+                "risk_decision": "APPROVED" if is_open else "QUEUED_AMO"
             })
 
-            if not is_open:
-                self.db.log(
-                    "INFO",
-                    f"[F&O Research] Proposed {spread['strategy']} on {index_sym}: "
-                    f"Net Credit ₹{spread['price']:.2f}. Published to Research Feed. (Market Closed: No orders placed)"
-                )
-                continue
-
+            # Open spread directly or queue AMO if market is closed
             self.execution.open_spread(spread, lots=1)
-            self.db.log(
-                "INFO",
-                f"[F&O Desk] OPENED {spread['strategy']} on {index_sym}: "
-                f"Net Credit=₹{spread['price']:.2f}, Max Loss=₹{spread['max_loss']:.2f}, "
-                f"50% Profit Target=₹{spread['target']:.2f}, Exp={spread['expiry_date']}"
-            )
 
 
 def run_fno_standalone():

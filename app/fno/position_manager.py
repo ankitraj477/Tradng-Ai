@@ -52,7 +52,7 @@ class FNOPositionManager:
                         time_fraction = min(1.0, max(0.0, elapsed / total_span))
 
                         # Progressive Theta Decay (targets 50% profit decay towards Thursday)
-                        decay_factor = max(0.10, 1.0 - (0.58 * (time_fraction ** 0.5)))
+                        decay_factor = max(0.10, 1.0 - (0.65 * (time_fraction ** 0.5)))
 
                         # Real-Time Spot Movement & Delta/Gamma Sensitivity
                         underlying = "BANKNIFTY" if "BANKNIFTY" in symbol else "NIFTY"

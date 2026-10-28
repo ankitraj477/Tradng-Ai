@@ -237,3 +237,16 @@ def test_market_closed_amo_orders_flow():
         assert pending[0]["order_type"] == "AMO"
         assert pending[0]["status"] == "PENDING"
 
+        # F&O desk should also queue AMO off-market
+        fno_exec = FNOExecution(db, cfg)
+        chain = IndexChainManager(MockProvider(22000.0))
+        strat = IronCondorStrategy(chain)
+        fno_prop = strat.propose("NIFTY")
+        assert fno_prop is not None
+        assert fno_exec.open_spread(fno_prop, lots=1)
+        assert len(db.positions_by_product("FNO")) == 0
+        fno_pending = [o for o in db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
+        assert len(fno_pending) == 1
+        assert fno_pending[0]["order_type"] == "AMO"
+        assert fno_pending[0]["status"] == "PENDING"
+

@@ -11,8 +11,8 @@ class FNOExecution:
         self.db = db
         self.cfg = cfg or {}
 
-    def open_spread(self, proposal, lots=1) -> bool:
-        """Open a defined-risk option spread or condor."""
+    def open_spread(self, proposal, lots=1, force_fill=False) -> bool:
+        """Open a defined-risk option spread or condor. Queues AMO if market is closed."""
         if hasattr(proposal, "__dict__") and not isinstance(proposal, dict):
             underlying = getattr(proposal, "underlying", "NIFTY")
             strat = getattr(proposal, "strategy_name", "Iron_Condor").replace(" ", "_")
@@ -39,6 +39,35 @@ class FNOExecution:
         entry_credit = round_to_tick(float(proposal["price"]))
         sl = round_to_tick(proposal["stop_loss"]) if proposal.get("stop_loss") is not None else None
         tp = round_to_tick(proposal["target"]) if proposal.get("target") is not None else None
+
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+
+        # Off-market hours: Queue as After-Market Order (AMO)
+        if enforce_hours and not force_fill and not market_open():
+            self.db.add_order({
+                "symbol": symbol,
+                "action": "SELL",
+                "side": "SHORT",
+                "qty": qty,
+                "price": entry_credit,
+                "stop_loss": sl,
+                "target": tp,
+                "product_type": "FNO",
+                "order_type": "AMO",
+                "status": "PENDING",
+                "strategy": proposal.get("strategy", "Iron Condor")
+            })
+            self.db.log(
+                "INFO",
+                f"[F&O AMO PLACED] Market CLOSED. Placed F&O After-Market Order (AMO) for {proposal.get('strategy')} on {symbol} "
+                f"x{qty} @ ₹{entry_credit:.2f} credit. Will execute at 09:15 AM IST."
+            )
+            return True
 
         with self.db.conn() as c:
             row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
@@ -74,6 +103,21 @@ class FNOExecution:
             # Reserve margin in cash
             c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
                       (margin_req, datetime.now(timezone.utc).isoformat()))
+
+        # Record executed order in orders table
+        self.db.add_order({
+            "symbol": symbol,
+            "action": "SELL",
+            "side": "SHORT",
+            "qty": qty,
+            "price": entry_credit,
+            "stop_loss": sl,
+            "target": tp,
+            "product_type": "FNO",
+            "order_type": "REGULAR",
+            "status": "FILLED",
+            "strategy": proposal.get("strategy", "Iron Condor")
+        })
 
         self.db.log(
             "INFO",

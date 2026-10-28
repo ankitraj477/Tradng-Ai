@@ -1798,6 +1798,7 @@ async function updateDashboard() {
         document.getElementById('progress-percent').textContent = prog.toFixed(2) + '% of Goal';
 
         // Synchronize Capital Allocation if not actively sliding
+        totalEquityCached = Number(data.portfolio || 100000);
         if (!isUserAdjustingAlloc && data.capital_allocation) {
             currentAlloc = data.capital_allocation;
             updateAllocDisplay();
@@ -1926,19 +1927,35 @@ async function updateDashboard() {
 
         // 4. Desk 3: Futures & Options (F&O Tab)
         const posFno = data.positions_fno || [];
+        const ordersFno = data.orders_fno || (data.pending_orders || []).filter(o => String(o.product_type || '').toUpperCase() === 'FNO');
         const tradesFno = data.trades_fno || [];
         const pFnoBody = document.getElementById('positions-fno-body');
         const tFnoBody = document.getElementById('trades-fno-body');
         const fnoBadge = document.getElementById('fno-pos-badge');
         const fnoCount = document.getElementById('fno-open-count');
-        if (fnoBadge) fnoBadge.textContent = posFno.length + ' SPREADS';
-        if (fnoCount) fnoCount.textContent = posFno.length;
+        if (fnoBadge) {
+            if (posFno.length > 0) {
+                fnoBadge.textContent = posFno.length + ' SPREADS';
+            } else if (ordersFno.length > 0) {
+                fnoBadge.textContent = ordersFno.length + ' QUEUED';
+            } else {
+                fnoBadge.textContent = '0 SPREADS';
+            }
+        }
+        if (fnoCount) fnoCount.textContent = posFno.length + ordersFno.length;
 
         if (pFnoBody) {
-            if (posFno.length === 0) {
+            if (posFno.length === 0 && ordersFno.length === 0) {
                 pFnoBody.innerHTML = `<div class="empty-state"><span style="font-size:20px;opacity:0.6;">🎯</span><span>No active F&O spreads or option positions</span></div>`;
             } else {
-                pFnoBody.innerHTML = posFno.map(p => renderPositionCard(p, 'fno')).join('');
+                let html = '';
+                if (posFno.length > 0) {
+                    html += posFno.map(p => renderPositionCard(p, 'fno')).join('');
+                }
+                if (ordersFno.length > 0) {
+                    html += ordersFno.map(o => renderOrderCard(o)).join('');
+                }
+                pFnoBody.innerHTML = html;
             }
         }
 
@@ -2295,6 +2312,9 @@ def create_app(db, cfg=None, provider=None):
         fno_expiry = fno_chain.get_next_expiry()
         fno_pcr = fno_chain.estimate_pcr("NIFTY")
 
+        pending_all = db.pending_orders() if hasattr(db, "pending_orders") else []
+        orders_fno = [o for o in pending_all if str(o.get("product_type", "")).upper() == "FNO"]
+
         return jsonify({
             "version": "2.5",
             "paper_only": True,
@@ -2332,7 +2352,8 @@ def create_app(db, cfg=None, provider=None):
             "fno_pcr": fno_pcr,
             "market_open": market_open(),
             "orders": db.orders(50),
-            "pending_orders": db.pending_orders(),
+            "pending_orders": pending_all,
+            "orders_fno": orders_fno,
             "updated_at": now_ist().isoformat(),
             "equity_curve": db.equity()
         })

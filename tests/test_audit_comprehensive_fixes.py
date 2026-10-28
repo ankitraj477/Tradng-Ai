@@ -111,7 +111,7 @@ def test_fno_exact_margin_recording_and_release(test_db, cfg):
         "legs_info": "Long 24500 CE / Short 24700 CE"
     }
 
-    ok = fno_exec.open_spread(proposal, 50)
+    ok = fno_exec.open_spread(proposal, 50, force_fill=True)
     assert ok is True
 
     pos = test_db.positions_by_product("FNO")[0]

@@ -27,14 +27,13 @@ class IndexChainManager:
     def get_next_expiry(ref_date: date = None) -> str:
         """
         Calculate next weekly expiry (Thursday).
-        If Thursday has passed or is today after 15:30, returns next Thursday.
+        If today is Thursday (0 DTE) or Wednesday (1 DTE), rolls to next Thursday
+        to ensure adequate theta decay horizon (>= 2 DTE) for new spread entries.
         """
         today = ref_date or datetime.now(IST).date()
         days_ahead = (3 - today.weekday()) % 7  # 3 = Thursday
-        if days_ahead == 0:
-            now_t = datetime.now(IST).time()
-            if now_t.hour >= 15 and now_t.minute >= 30:
-                days_ahead = 7
+        if days_ahead <= 1:
+            days_ahead += 7
         target_thursday = today + timedelta(days=days_ahead)
         return target_thursday.strftime("%Y-%m-%d")
 
