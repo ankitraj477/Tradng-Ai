@@ -47,7 +47,7 @@
   "min_fresh_data_coverage_pct": 0.70,
   "max_candidates": 50,
   "max_open_positions": 5,
-  "protection_interval_seconds": 5,
+  "protection_interval_seconds": 2,
   "history_period": "60d"
 },
 

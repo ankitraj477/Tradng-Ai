@@ -5,6 +5,7 @@ stop-loss limits, and Thursday 15:15 IST expiry square-off.
 """
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from .sr_levels import IndexSRCalculator
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -15,10 +16,13 @@ class FNOPositionManager:
         self.execution = execution
         self.chain = chain_manager
         self.cfg = cfg or {}
+        self.sr_calc = IndexSRCalculator(provider=getattr(chain_manager, "provider", None) if chain_manager else None)
 
     def manage(self, dt=None) -> int:
         """
-        Evaluate and protect all open FNO positions.
+        Evaluate and protect all open FNO positions every 2 seconds.
+        Enforces dynamic Support/Resistance defense, trailing profit locks,
+        50% theta decay profit-taking, and Thursday expiry square-offs.
         Returns number of closed contracts.
         """
         closed = 0
@@ -38,11 +42,31 @@ class FNOPositionManager:
                 target_premium = float(p.get("target") or (entry_credit * target_ratio))
                 stop_loss_premium = float(p.get("stop_loss") or (entry_credit * 2.0))
                 expiry_date = str(p.get("expiry_date") or "")
+                underlying = "BANKNIFTY" if "BANKNIFTY" in symbol else "NIFTY"
+                spot = 24850.0 if underlying == "NIFTY" else 51400.0
+                if self.chain and hasattr(self.chain, "get_spot_price"):
+                    spot = self.chain.get_spot_price(underlying)
+
+                # 1. Dynamic Support & Resistance Defense Check (Runs first every 2 sec):
+                # If spot severely breaks outer S1 Support or R1 Resistance toward short wings, exit early
+                if self.sr_calc:
+                    sr = self.sr_calc.calculate_levels(underlying, spot)
+                    s1 = sr.get("support_1", 0.0)
+                    r1 = sr.get("resistance_1", 999999.0)
+                    if s1 > 0 and spot < (s1 * 0.993):
+                        self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} S1 {s1} Violated)")
+                        closed += 1
+                        continue
+                    if r1 < 999999 and spot > (r1 * 1.007):
+                        self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} R1 {r1} Violated)")
+                        closed += 1
+                        continue
 
                 # Dynamic Option Premium Valuation (Theta decay & Spot delta/gamma response)
-                # If position is already at an exit trigger (pre-set by mock test or hit earlier), respect it.
                 is_already_triggered = (current_premium <= target_premium) or (current_premium >= stop_loss_premium)
-                if not is_already_triggered and p.get("opened_at") and expiry_date:
+                days_held = float(p.get("days_held") or 0.0)
+                should_recalculate = (days_held > 0) or (current_premium == entry_credit)
+                if not is_already_triggered and should_recalculate and p.get("opened_at") and expiry_date:
                     try:
                         opened = datetime.fromisoformat(str(p["opened_at"]).replace("Z", "+00:00")).astimezone(IST)
                         expiry_dt = datetime.strptime(expiry_date, "%Y-%m-%d").replace(hour=15, minute=30, tzinfo=IST)
@@ -55,15 +79,10 @@ class FNOPositionManager:
                         decay_factor = max(0.10, 1.0 - (0.65 * (time_fraction ** 0.5)))
 
                         # Real-Time Spot Movement & Delta/Gamma Sensitivity
-                        underlying = "BANKNIFTY" if "BANKNIFTY" in symbol else "NIFTY"
-                        spot_drift_pct = 0.0
-                        if self.chain and hasattr(self.chain, "get_spot_price"):
-                            spot = self.chain.get_spot_price(underlying)
-                            strike = float(p.get("strike_price") or spot)
-                            if strike > 0:
-                                spot_drift_pct = abs(spot - strike) / strike
+                        strike = float(p.get("strike_price") or spot)
+                        spot_drift_pct = abs(spot - strike) / strike if strike > 0 else 0.0
 
-                        # OTM credit spreads expand if spot moves towards the protective wings (~1.8% away)
+                        # OTM credit spreads expand if spot moves towards the protective wings
                         wing_distance_pct = 0.018 if underlying == "NIFTY" else 0.020
                         if spot_drift_pct > 0.0:
                             drift_ratio = spot_drift_pct / wing_distance_pct
@@ -77,24 +96,29 @@ class FNOPositionManager:
                     except Exception as val_err:
                         self.db.log("DEBUG", f"FNO valuation fallback for {symbol}: {val_err!r}")
 
-
-                # 1. Expiry Day Final Square-Off (at 15:15 IST on expiry date)
+                # 2. Expiry Day Final Square-Off (at 15:15 IST on expiry date)
                 if expiry_date == today_str and is_expiry_square_off_time:
                     self.execution.close(symbol, current_premium, "Thursday Expiry Square-off")
                     closed += 1
                     continue
 
-                # 2. Dynamic Trailing Breakeven Lock:
-                # If premium has decayed by >= 25% (unrealized gain), tighten stop-loss to entry credit
-                # to ensure a winning options trade never turns into a loss!
-                if current_premium <= entry_credit * 0.75 and stop_loss_premium > entry_credit:
+                # 3. Dynamic Multi-Tier Trailing Profit Locks:
+                # Tier 1: At +25% profit (premium decayed by 25%), move stop loss to entry credit (breakeven lock)
+                # Tier 2: At +40% profit (premium decayed by 40%), trail stop to entry * 0.80 (lock in +20% profit)
+                if current_premium <= entry_credit * 0.60 and stop_loss_premium > entry_credit * 0.80:
+                    stop_loss_premium = round(entry_credit * 0.80, 2)
+                    try:
+                        self.db.update_position_stops(symbol, stop_loss=stop_loss_premium, target=target_premium)
+                    except Exception:
+                        pass
+                elif current_premium <= entry_credit * 0.75 and stop_loss_premium > entry_credit:
                     stop_loss_premium = entry_credit
                     try:
                         self.db.update_position_stops(symbol, stop_loss=entry_credit, target=target_premium)
                     except Exception:
                         pass
 
-                # 3. Realistic Profit-Taking Rule (Locks in profit when theta decays to target)
+                # 4. Realistic Profit-Taking Rule (Locks in profit when theta decays to target)
                 if current_premium <= target_premium:
                     decay_pct = int(round((1.0 - target_ratio) * 100))
                     reason = "50% Profit Target (Theta Decayed)" if decay_pct == 50 else f"Profit Target Reached ({decay_pct}% Theta Decayed)"
@@ -102,7 +126,7 @@ class FNOPositionManager:
                     closed += 1
                     continue
 
-                # 4. Stop Loss Rule (Premium expanded beyond stop loss limit)
+                # 5. Stop Loss Rule (Premium expanded beyond stop loss limit)
                 if current_premium >= stop_loss_premium:
                     self.execution.close(symbol, current_premium, "Option Stop Loss (Adverse Move)")
                     closed += 1

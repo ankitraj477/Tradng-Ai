@@ -35,6 +35,9 @@ class FnoDeskRunner:
             return
 
         pending = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
+        market_info = self.db.market()
+        current_regime = str(market_info.get("regime", "Neutral"))
+
         for order in pending:
             sym = order["symbol"]
             strat = order.get("strategy", "Iron Condor")
@@ -44,8 +47,10 @@ class FnoDeskRunner:
                 break
 
             underlying = "BANKNIFTY" if "BANKNIFTY" in sym else "NIFTY"
-            spread = self.strategy.propose(underlying)
+            spread = self.strategy.propose(underlying, market_regime=current_regime)
             if not spread:
+                self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Market Open S/R / Regime Mismatch")
+                self.db.log("WARN", f"[F&O AMO CANCELLED] Market Open (09:15 IST): Cancelled {strat} on {sym} due to adverse morning gap / regime change.")
                 continue
 
             success = self.execution.open_spread(spread, lots=1, force_fill=True)
@@ -80,7 +85,7 @@ class FnoDeskRunner:
             self.db.log("INFO", f"[F&O Desk] Max concurrent F&O spreads reached ({len(active_fno)} active, {len(pending_fno)} queued). Monitoring decay.")
             return
 
-        # 4. Generate defined-risk spreads on Nifty 50 & Bank Nifty
+        # 4. Generate defined-risk spreads on Nifty 50 & Bank Nifty with S/R validation
         from ..market_hours import market_open
         enforce_hours = (
             self.cfg.get("execution", {}).get("enforce_market_hours", False)
@@ -88,6 +93,8 @@ class FnoDeskRunner:
             or self.cfg.get("live_data", False)
         )
         is_open = market_open() if enforce_hours else True
+        market_info = self.db.market()
+        current_regime = str(market_info.get("regime", "Neutral"))
 
         for index_sym in ("NIFTY", "BANKNIFTY"):
             active_fno = self.db.positions_by_product("FNO")
@@ -101,8 +108,9 @@ class FnoDeskRunner:
             if already_queued:
                 continue
 
-            spread = self.strategy.propose(index_sym)
+            spread = self.strategy.propose(index_sym, market_regime=current_regime)
             if not spread:
+                self.db.log("INFO", f"[F&O Research] Stand down on {index_sym}: S/R boundary or market regime ({current_regime}) did not qualify.")
                 continue
 
             # Record AI Decision & Research for Dashboard
