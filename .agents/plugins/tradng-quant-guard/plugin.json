@@ -1,0 +1,4 @@
+{
+  "name": "tradng-quant-guard",
+  "description": "Institutional quant safety, NSE regulatory invariant enforcement, look-ahead bias prevention, and automated test hooks for Tradng-Ai."
+}

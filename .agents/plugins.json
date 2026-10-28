@@ -1,0 +1,22 @@
+{
+  "entries": [
+    {
+      "path": "plugins/tradng-quant-guard"
+    },
+    {
+      "path": "plugins/sqlite-inspector"
+    },
+    {
+      "path": "plugins/quant-research-kit"
+    },
+    {
+      "path": "plugins/multi-desk-ops"
+    },
+    {
+      "path": "plugins/cpp-scanner-toolchain"
+    },
+    {
+      "path": "plugins/dashboard-qa-tester"
+    }
+  ]
+}

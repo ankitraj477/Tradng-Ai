@@ -1,0 +1,26 @@
+{
+  "quant-security-guard": {
+    "PostToolUse": [
+      {
+        "matcher": "replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/run_safety_tests.py",
+            "timeout": 45
+          }
+        ]
+      },
+      {
+        "matcher": "multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python scripts/run_safety_tests.py",
+            "timeout": 45
+          }
+        ]
+      }
+    ]
+  }
+}

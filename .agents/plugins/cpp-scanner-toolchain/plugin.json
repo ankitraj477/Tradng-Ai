@@ -1,0 +1,4 @@
+{
+  "name": "cpp-scanner-toolchain",
+  "description": "C++ build, optimization, and benchmarking toolchain for the Tradng-Ai ultra-low-latency market screener."
+}

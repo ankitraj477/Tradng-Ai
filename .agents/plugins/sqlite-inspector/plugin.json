@@ -1,0 +1,4 @@
+{
+  "name": "sqlite-inspector",
+  "description": "Direct SQLite database inspection and query tools for Tradng-Ai paper trading ledger, orders, and state databases."
+}
