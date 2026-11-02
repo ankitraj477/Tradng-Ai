@@ -26,9 +26,18 @@ def validate_history(df, max_age_seconds=900, require_fresh=True):
         return False, "missing values"
     if (df[["Open", "High", "Low", "Close"]] <= 0).any().any():
         return False, "invalid prices"
-    if (df["High"] < df[["Open", "Close"]].max(axis=1) - 1e-4).any():
+    high_s = df["High"].iloc[:, 0] if isinstance(df["High"], pd.DataFrame) else df["High"]
+    low_s = df["Low"].iloc[:, 0] if isinstance(df["Low"], pd.DataFrame) else df["Low"]
+    oc_max = df[["Open", "Close"]].max(axis=1)
+    if isinstance(oc_max, pd.DataFrame):
+        oc_max = oc_max.iloc[:, 0]
+    oc_min = df[["Open", "Close"]].min(axis=1)
+    if isinstance(oc_min, pd.DataFrame):
+        oc_min = oc_min.iloc[:, 0]
+
+    if (high_s < oc_max - 1e-4).any():
         return False, "invalid high"
-    if (df["Low"] > df[["Open", "Close"]].min(axis=1) + 1e-4).any():
+    if (low_s > oc_min + 1e-4).any():
         return False, "invalid low"
     if df.index.duplicated().any():
         return False, "duplicate timestamps"

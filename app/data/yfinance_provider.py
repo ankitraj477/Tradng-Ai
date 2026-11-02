@@ -195,6 +195,9 @@ class YFinanceProvider(MarketDataProvider):
                 for column in df.columns
             ]
 
+        if df.columns.duplicated().any():
+            df = df.loc[:, ~df.columns.duplicated()]
+
         if not required.issubset(
             df.columns
         ):
