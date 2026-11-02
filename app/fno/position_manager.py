@@ -83,14 +83,22 @@ class FNOPositionManager:
 
                     # Baseline sanity check: baseline must be within 5% of spot to prevent mismatched exit
                     if abs(spot - baseline_close) / max(1.0, spot) < 0.05:
-                        # If short put wing exists, exit only if spot drops past support TOWARDS short put
-                        if s1 > 0 and spot < (s1 * 0.993):
+                        is_condor = "CONDOR" in symbol
+                        is_bps = "BPS" in symbol or "Bull Put" in str(p.get("strategy", ""))
+                        is_bcs = "BCS" in symbol or "Bear Call" in str(p.get("strategy", ""))
+
+                        has_put_wing = is_condor or is_bps or (short_put is not None and not is_bcs)
+                        has_call_wing = is_condor or is_bcs or (short_call is not None and not is_bps)
+
+                        # Put wing defense (CONDOR or BPS): exit only if spot drops past support TOWARDS short put
+                        if has_put_wing and s1 > 0 and spot < (s1 * 0.993):
                             if short_put is None or spot < (short_put * 1.01):
                                 self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} S1 {s1} Violated)")
                                 closed += 1
                                 continue
-                        # If short call wing exists, exit only if spot rises past resistance TOWARDS short call
-                        if r1 < 999999 and spot > (r1 * 1.007):
+
+                        # Call wing defense (CONDOR or BCS): exit only if spot rises past resistance TOWARDS short call
+                        if has_call_wing and r1 < 999999 and spot > (r1 * 1.007):
                             if short_call is None or spot > (short_call * 0.99):
                                 self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} R1 {r1} Violated)")
                                 closed += 1
