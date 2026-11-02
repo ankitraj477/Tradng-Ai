@@ -281,6 +281,8 @@ class TradingEngine:
                 self.swing_desk.cfg = self.cfg
             if hasattr(self, "fno_desk") and self.fno_desk:
                 self.fno_desk.cfg = self.cfg
+                if self.cfg.get("desks", {}).get("enabled", False) and self.cfg.get("desks", {}).get("fno", False):
+                    self.fno_desk.start_fast_monitor()
             if "capital" in new_cfg:
                 self.db.ensure_account(
                     float(new_cfg["capital"].get("starting", 100000.0)),
@@ -989,6 +991,8 @@ class TradingEngine:
     def run_forever(self):
 
         next_decision = time.time()
+        if hasattr(self, "fno_desk") and self.fno_desk and self.cfg.get("desks", {}).get("enabled", False) and self.cfg.get("desks", {}).get("fno", False):
+            self.fno_desk.start_fast_monitor()
 
         while True:
 

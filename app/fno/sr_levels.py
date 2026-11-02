@@ -12,6 +12,8 @@ class IndexSRCalculator:
     every cycle to validate strike selection and market consolidation.
     """
     _anchored_bars: Dict[str, Any] = {}
+    _session_bars_cache: Dict[str, Any] = {}
+    _session_bars_time: Dict[str, float] = {}
 
     def __init__(self, provider=None):
         self.provider = provider
@@ -20,18 +22,38 @@ class IndexSRCalculator:
         """
         Compute Classic & Fibonacci Pivot Support and Resistance levels.
         """
+        import time as _time
         sym = "^NSEI" if index_name.upper() == "NIFTY" else "^NSEBANK"
         high, low, close = None, None, None
+        now_ts = _time.time()
 
-        # 1. Attempt to fetch latest daily/intraday bar from provider
-        if self.provider and hasattr(self.provider, "history"):
+        # Check short-term cache for daily/session bars (60s TTL)
+        if index_name.upper() in self._session_bars_cache and (now_ts - self._session_bars_time.get(index_name.upper(), 0)) < 60.0:
+            high, low, close = self._session_bars_cache[index_name.upper()]
+
+        # 1. Attempt to fetch latest daily/session bars from provider
+        if (not high or not low or not close) and self.provider and hasattr(self.provider, "history"):
             try:
                 hist = self.provider.history(sym, "5d")
                 if hist is not None and not hist.empty:
-                    last_bar = hist.iloc[-1]
-                    high = float(last_bar.get("High", 0.0))
-                    low = float(last_bar.get("Low", 0.0))
-                    close = float(last_bar.get("Close", 0.0))
+                    # If provider returns intraday 5m bars, aggregate by day to get proper session H/L/C
+                    if hasattr(hist.index, "date"):
+                        dates = sorted(list(set(hist.index.date)))
+                        ref_day = dates[-2] if len(dates) >= 2 else dates[-1]
+                        day_bars = hist[hist.index.date == ref_day]
+                        if not day_bars.empty:
+                            high = float(day_bars["High"].max())
+                            low = float(day_bars["Low"].min())
+                            close = float(day_bars["Close"].iloc[-1])
+                    if high is None or low is None or close is None:
+                        last_bar = hist.iloc[-1]
+                        high = float(last_bar.get("High", 0.0))
+                        low = float(last_bar.get("Low", 0.0))
+                        close = float(last_bar.get("Close", 0.0))
+
+                    if high and low and close and high > low:
+                        self._session_bars_cache[index_name.upper()] = (high, low, close)
+                        self._session_bars_time[index_name.upper()] = now_ts
             except Exception:
                 pass
 

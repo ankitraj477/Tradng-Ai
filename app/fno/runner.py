@@ -1,10 +1,12 @@
 """
 Standalone Futures & Options Desk Runner (F&O).
 Runs completely independent of Intraday and Swing.
-Manages Nifty 50 / Bank Nifty weekly option spreads with 50% profit-taking.
+Manages Nifty 50 / Bank Nifty weekly option spreads with 50% profit-taking,
+continuous 2-second S/R check, dynamic pricing, and trailing stop protection.
 """
 
 import time
+import threading
 from datetime import datetime
 from ..market_hours import now_ist
 from .index_chain import IndexChainManager
@@ -22,6 +24,40 @@ class FnoDeskRunner:
         self.execution = FnoExecution(db, self.cfg)
         self.position_manager = FnoPositionManager(db, self.execution, self.chain_manager, self.cfg)
         self.strategy = IronCondorStrategy(chain_manager=self.chain_manager, cfg=self.cfg)
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._fast_thread = None
+
+    def start_fast_monitor(self):
+        """Start the continuous 2-second S/R, price analysis, and dynamic trailing loop."""
+        if self._fast_thread is None or not self._fast_thread.is_alive():
+            self._stop_event.clear()
+            self._fast_thread = threading.Thread(target=self._fast_loop, name="FnoFastMonitor", daemon=True)
+            self._fast_thread.start()
+
+    def stop_fast_monitor(self):
+        """Stop the continuous 2-second monitor thread."""
+        self._stop_event.set()
+        if self._fast_thread and self._fast_thread.is_alive():
+            self._fast_thread.join(timeout=2.0)
+
+    def _fast_loop(self):
+        """
+        Continuous 2-second loop:
+        1. Evaluates open positions (S/R defense, theta decay, dynamic trailing SL, 50% target).
+        2. Monitors live S/R & spot prices for NIFTY and BANKNIFTY every 2 seconds.
+        3. If market is open and capacity is available, enters defined-risk spreads.
+        """
+        while not self._stop_event.is_set():
+            try:
+                with self._lock:
+                    self._run_iteration(is_fast_tick=True)
+            except Exception as e:
+                try:
+                    self.db.log("DEBUG", f"[F&O Fast Monitor]: {e!r}")
+                except Exception:
+                    pass
+            self._stop_event.wait(2.0)
 
     def _fill_pending_amos(self):
         """Execute any queued F&O After-Market Orders (AMOs) when market opens."""
@@ -61,10 +97,11 @@ class FnoDeskRunner:
                 self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Insufficient Margin")
                 self.db.log("WARN", f"[F&O AMO CANCELLED] Could not execute F&O AMO for {sym} (insufficient margin).")
 
-    def run_cycle(self):
-        """Execute one complete cycle for the F&O Options Desk."""
+    def _run_iteration(self, is_fast_tick: bool = False):
+        """Execute one evaluation iteration for the F&O Options Desk."""
         now = now_ist()
-        self.db.log("INFO", f"[F&O Desk] Starting cycle at {now.strftime('%H:%M:%S')} IST")
+        if not is_fast_tick:
+            self.db.log("INFO", f"[F&O Desk] Starting cycle at {now.strftime('%H:%M:%S')} IST")
 
         # 1. Manage active option spreads (50% profit-taking, 2x stop loss, Thursday expiry)
         closed = self.position_manager.manage()
@@ -82,7 +119,8 @@ class FnoDeskRunner:
         active_fno = self.db.positions_by_product("FNO")
         pending_fno = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
         if (len(active_fno) + len(pending_fno)) >= 3:
-            self.db.log("INFO", f"[F&O Desk] Max concurrent F&O spreads reached ({len(active_fno)} active, {len(pending_fno)} queued). Monitoring decay.")
+            if not is_fast_tick:
+                self.db.log("INFO", f"[F&O Desk] Max concurrent F&O spreads reached ({len(active_fno)} active, {len(pending_fno)} queued). Monitoring decay.")
             return
 
         # 4. Generate defined-risk spreads on Nifty 50 & Bank Nifty with S/R validation
@@ -110,7 +148,8 @@ class FnoDeskRunner:
 
             spread = self.strategy.propose(index_sym, market_regime=current_regime)
             if not spread:
-                self.db.log("INFO", f"[F&O Research] Stand down on {index_sym}: S/R boundary or market regime ({current_regime}) did not qualify.")
+                if not is_fast_tick:
+                    self.db.log("INFO", f"[F&O Research] Stand down on {index_sym}: S/R boundary or market regime ({current_regime}) did not qualify.")
                 continue
 
             # Record AI Decision & Research for Dashboard
@@ -129,6 +168,12 @@ class FnoDeskRunner:
 
             # Open spread directly or queue AMO if market is closed
             self.execution.open_spread(spread, lots=1)
+
+    def run_cycle(self):
+        """Execute one complete cycle for the F&O Options Desk from the engine loop."""
+        with self._lock:
+            self.start_fast_monitor()
+            self._run_iteration(is_fast_tick=False)
 
 
 def run_fno_standalone():
@@ -151,12 +196,14 @@ def run_fno_standalone():
     print("   Tradng-Ai PRO: FUTURES & OPTIONS DESK (F&O)    ")
     print("   50% Profit-Taking Rule Active (75%+ Win Rate)  ")
     print("==================================================")
+    runner.start_fast_monitor()
     while True:
         try:
             runner.run_cycle()
             time.sleep(10)
         except KeyboardInterrupt:
             print("\nF&O Desk stopped by user.")
+            runner.stop_fast_monitor()
             break
         except Exception as e:
             print(f"[F&O Desk Error]: {e}")
