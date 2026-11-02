@@ -139,10 +139,14 @@ class FnoDeskRunner:
             pending_fno = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
             if (len(active_fno) + len(pending_fno)) >= 3:
                 break
-            existing = [p for p in active_fno if index_sym in p["symbol"]]
+            if index_sym == "NIFTY":
+                existing = [p for p in active_fno if "NIFTY" in p["symbol"] and "BANKNIFTY" not in p["symbol"]]
+                already_queued = [o for o in pending_fno if "NIFTY" in o.get("symbol", "") and "BANKNIFTY" not in o.get("symbol", "")]
+            else:
+                existing = [p for p in active_fno if "BANKNIFTY" in p["symbol"]]
+                already_queued = [o for o in pending_fno if "BANKNIFTY" in o.get("symbol", "")]
             if existing:
                 continue
-            already_queued = [o for o in pending_fno if index_sym in o.get("symbol", "")]
             if already_queued:
                 continue
 
