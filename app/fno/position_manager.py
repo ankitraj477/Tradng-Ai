@@ -107,63 +107,80 @@ class FNOPositionManager:
                 # Dynamic Option Premium Valuation (Theta decay & Spot delta/gamma response)
                 is_already_triggered = (current_premium <= target_premium) or (current_premium >= stop_loss_premium)
                 days_held = float(p.get("days_held") or 0.0)
-                should_recalculate = (days_held > 0) or (current_premium == entry_credit)
-                if not is_already_triggered and should_recalculate and p.get("opened_at") and expiry_date:
+                opened_dt_val = None
+                elapsed_secs = 0.0
+                if p.get("opened_at"):
                     try:
-                        opened = datetime.fromisoformat(str(p["opened_at"]).replace("Z", "+00:00")).astimezone(IST)
+                        opened_dt_val = datetime.fromisoformat(str(p["opened_at"]).replace("Z", "+00:00")).astimezone(IST)
+                        elapsed_secs = max(0.0, (now_dt - opened_dt_val).total_seconds())
+                    except Exception:
+                        pass
+
+                # Recalculate continuously in live trading (elapsed_secs >= 1.0), or when days advance, or at entry
+                should_recalculate = (days_held > 0) or (elapsed_secs >= 1.0) or (current_premium == entry_credit)
+                if not is_already_triggered and should_recalculate and opened_dt_val and expiry_date:
+                    try:
+                        opened = opened_dt_val
                         expiry_dt = datetime.strptime(expiry_date, "%Y-%m-%d").replace(hour=15, minute=30, tzinfo=IST)
                         total_span = max(1.0, (expiry_dt - opened).total_seconds())
-                        days_held_secs = float(p.get("days_held") or 0.0) * 86400.0
-                        elapsed = max(0.0, (now_dt - opened).total_seconds(), days_held_secs)
+                        days_held_secs = days_held * 86400.0
+                        elapsed = max(0.0, elapsed_secs, days_held_secs)
                         time_fraction = min(1.0, max(0.0, elapsed / total_span))
 
                         # Progressive Theta Decay (targets 50% profit decay towards Thursday)
                         decay_factor = max(0.10, 1.0 - (0.65 * (time_fraction ** 0.5)))
 
-                        # Real-Time Spot Movement & Delta/Gamma Sensitivity:
-                        # For OTM credit spreads (Bull Put Spread, Bear Call Spread, Iron Condor):
-                        # Profit is maximized when spot stays safely away from short strikes.
-                        # Premium only EXPANDS (adverse impact) if spot moves dangerously close to or breaches a short strike.
+                        # Real-Time Spot Movement & Delta Sensitivity:
+                        delta_factor = 1.0
+                        if short_put is not None and short_call is not None:
+                            # Iron Condor: centered between strikes
+                            center = (short_put + short_call) / 2.0
+                            span = max(1.0, (short_call - short_put) / 2.0)
+                            dist = abs(spot - center)
+                            drift_ratio = dist / span
+                            delta_factor = 1.0 + (drift_ratio ** 1.5) * 0.20
+                        elif short_put is not None:
+                            # Bull Put Spread: favorable if spot rises further above put strike
+                            cushion = (spot - short_put) / short_put if short_put > 0 else 0.015
+                            normal_cushion = 0.015
+                            if cushion >= normal_cushion:
+                                delta_factor = max(0.70, 1.0 - (cushion - normal_cushion) * 10.0)
+                            else:
+                                delta_factor = 1.0 + (normal_cushion - cushion) * 15.0
+                        elif short_call is not None:
+                            # Bear Call Spread: favorable if spot drops further below call strike
+                            cushion = (short_call - spot) / short_call if short_call > 0 else 0.015
+                            normal_cushion = 0.015
+                            if cushion >= normal_cushion:
+                                delta_factor = max(0.70, 1.0 - (cushion - normal_cushion) * 10.0)
+                            else:
+                                delta_factor = 1.0 + (normal_cushion - cushion) * 15.0
+
+                        # Wing boundary buffer check (cushion before emergency defense)
                         adverse_drift = 0.0
                         safe_buffer_pct = 0.010  # 1.0% minimum safe cushion (~230 pts on NIFTY, ~540 pts on BANKNIFTY)
 
                         if short_put is not None and short_call is not None:
-                            # Iron Condor: two short wings
                             put_cushion = (spot - short_put) / short_put if short_put > 0 else 1.0
                             call_cushion = (short_call - spot) / short_call if short_call > 0 else 1.0
                             min_cushion = min(put_cushion, call_cushion)
                             if min_cushion < safe_buffer_pct:
                                 adverse_drift = max(0.0, (safe_buffer_pct - min_cushion) / safe_buffer_pct)
                         elif short_put is not None:
-                            # Bull Put Spread: adverse if spot falls towards short_put
                             put_cushion = (spot - short_put) / short_put if short_put > 0 else 1.0
                             if put_cushion < safe_buffer_pct:
                                 adverse_drift = max(0.0, (safe_buffer_pct - put_cushion) / safe_buffer_pct)
                         elif short_call is not None:
-                            # Bear Call Spread: adverse if spot rises towards short_call
                             call_cushion = (short_call - spot) / short_call if short_call > 0 else 1.0
                             if call_cushion < safe_buffer_pct:
                                 adverse_drift = max(0.0, (safe_buffer_pct - call_cushion) / safe_buffer_pct)
-                        else:
-                            # Fallback using option_type and strike_price
-                            opt_type = str(p.get("option_type", "")).upper()
-                            strike = float(p.get("strike_price") or spot)
-                            if "PE" in opt_type or "PUT" in opt_type:
-                                cushion = (spot - strike) / strike if strike > 0 else 1.0
-                                if cushion < safe_buffer_pct:
-                                    adverse_drift = max(0.0, (safe_buffer_pct - cushion) / safe_buffer_pct)
-                            elif "CE" in opt_type or "CALL" in opt_type:
-                                cushion = (strike - spot) / strike if strike > 0 else 1.0
-                                if cushion < safe_buffer_pct:
-                                    adverse_drift = max(0.0, (safe_buffer_pct - cushion) / safe_buffer_pct)
 
                         if adverse_drift > 0.0:
                             spot_impact = 1.0 + (adverse_drift ** 1.5) * 1.5
                         else:
-                            # Safe range: spot is well outside strikes, option enjoys steady decay
                             spot_impact = 1.0
 
-                        current_premium = round(entry_credit * decay_factor * spot_impact, 2)
+                        current_premium = round(entry_credit * decay_factor * delta_factor * spot_impact, 2)
                         current_premium = max(0.05, min(entry_credit * 3.0, current_premium))
                         self.db.update_current_price(symbol, current_premium)
                     except Exception as val_err:

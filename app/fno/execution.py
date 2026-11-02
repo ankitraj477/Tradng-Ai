@@ -95,7 +95,7 @@ class FNOExecution:
                     sl, tp,
                     proposal.get("strategy"), proposal.get("confidence", 80),
                     datetime.now(timezone.utc).isoformat(), "INDICES",
-                    0.0, margin_req, 0.0, "FNO",
+                    float(proposal.get("sr_levels", {}).get("spot") or 0.0), margin_req, 0.0, "FNO",
                     proposal.get("strike_price", 0.0), proposal.get("option_type", ""),
                     proposal.get("expiry_date", ""), proposal.get("legs_info", "")
                 )
