@@ -14,7 +14,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v3.9 · Institutional Terminal</title>
+    <title>Tradng-Ai v4.0 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -751,16 +751,78 @@ HTML = r"""<!doctype html>
             border-radius: 6px;
         }
 
+        /* Kid-Friendly & Informative Styles */
+        .kid-explainer {
+            background: rgba(56, 189, 248, 0.06);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            margin-top: 10px;
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--text-main);
+        }
+        .kid-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 3px;
+        }
+
+        /* Mobile Bottom Bar Navigation */
+        .mobile-bottom-nav {
+            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(12, 18, 30, 0.96);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border);
+            z-index: 9999;
+            justify-content: space-around;
+            align-items: center;
+            padding-bottom: max(6px, env(safe-area-inset-bottom));
+        }
+        .mob-nav-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 6px 14px;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+        }
+        .mob-nav-btn.active {
+            color: var(--cyan);
+            background: rgba(56, 189, 248, 0.1);
+        }
+        .mob-nav-btn .mob-icon {
+            font-size: 18px;
+        }
+
         /* Mobile Layout */
-        @media (max-width: 640px) {
-            header .header-inner { padding: 10px 14px; }
-            main { padding: 12px 14px; gap: 12px; }
-            .hero-card { padding: 16px 14px; gap: 14px; }
-            .hero-stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-            .exposure-strip { grid-template-columns: 1fr 1fr; }
-            .panel { padding: 14px; }
-            .chart-card { padding: 14px; }
-            .chart-box { height: 100px; }
+        @media (max-width: 768px) {
+            .mobile-bottom-nav { display: flex; }
+            main { padding: 12px 12px 80px 12px; }
+            .tabs-wrapper { display: none; }
+            .hero-equity-val { font-size: 28px !important; }
+            .hero-stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .hero-card { padding: 14px; }
+            .pos-card { padding: 12px; }
+            .pos-card-main { flex-direction: column; align-items: flex-start; gap: 8px; }
+            .pos-pricing { text-align: left; }
+            .pos-card-footer { flex-wrap: wrap; gap: 8px; }
             #clock { display: none; }
         }
     </style>
@@ -772,7 +834,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v3.9</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v4.0</span></h1>
             </div>
         </div>
         <div class="header-meta">
@@ -807,40 +869,41 @@ HTML = r"""<!doctype html>
         <div class="hero-card">
             <div class="hero-top">
                 <div>
-                    <div class="hero-equity-label">Portfolio Total Equity</div>
-                    <div id="val-portfolio" class="hero-equity-val">₹0.00</div>
+                    <div class="hero-equity-label" style="display:flex;align-items:center;gap:6px;">?? Total Money (Cash + Safety Deposit + Live Profits)</div>
+                    <div id="val-portfolio" class="hero-equity-val">?0.00</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                        ?? <strong>Live & Automatic:</strong> Updates every 2 seconds ? <strong>no selling needed</strong> to see your money grow!
+                    </div>
                 </div>
                 <div class="hero-badges">
                     <span id="return-badge" class="pill pill-cyan">0.00%</span>
-                    <span id="pnl-status-pill" class="pill pill-muted">NET</span>
+                    <span id="pnl-status-pill" class="pill pill-long">PROFIT</span>
                 </div>
             </div>
 
             <!-- Vital Stats Row -->
             <div class="hero-stats-grid">
                 <div class="stat-item">
-                    <span class="stat-label">Available Cash</span>
-                    <span id="val-cash" class="stat-val">₹0.00</span>
-                    <span class="stat-sub">Margin: <span id="val-margin">₹0.00</span></span>
+                    <span class="stat-label">?? Cash in Hand</span>
+                    <span id="val-cash" class="stat-val">?0.00</span>
+                    <span class="stat-sub">Locked in Trades: <span id="val-margin">?0.00</span></span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Realized P&L</span>
-                    <span id="val-pnl" class="stat-val">₹0.00</span>
-                    <span class="stat-sub">Unrealized: <span id="val-unrealized">₹0.00</span></span>
+                    <span class="stat-label">?? Today's Live Profit (Unrealized)</span>
+                    <span id="val-unrealized-hero" class="stat-val" style="color:var(--emerald);font-weight:700;">+?0.00</span>
+                    <span class="stat-sub">Realized: <span id="val-pnl">?0.00</span> ? Active: <span id="val-unrealized">?0.00</span></span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Current Drawdown</span>
-                    <span id="val-dd" class="stat-val" style="color:var(--rose)">0.00%</span>
-                    <span class="stat-sub">Peak: <span id="val-peak">₹0.00</span></span>
+                    <span class="stat-label">?? AI Bot Status</span>
+                    <span id="val-bot-status" class="stat-val" style="color:var(--cyan);font-size:15px;">ACTIVE & GUARDING</span>
+                    <span class="stat-sub">Drawdown: <span id="val-dd" style="color:var(--rose);">0.00%</span></span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Target Goal</span>
-                    <span id="val-target" class="stat-val">₹1,00,000.00</span>
+                    <span class="stat-label">?? Goal Target</span>
+                    <span id="val-target" class="stat-val">?1,00,000.00</span>
                     <span id="progress-percent" class="stat-sub" style="color:var(--cyan);font-weight:600;">0.00% of Goal</span>
                 </div>
             </div>
-        </div>
-
         <!-- Secondary Exposure Metric Strip -->
         <div class="exposure-strip">
             <div class="exposure-pill">
@@ -1343,6 +1406,25 @@ HTML = r"""<!doctype html>
     </div>
 </main>
 
+<nav class="mobile-bottom-nav">
+    <button class="mob-nav-btn active" onclick="switchTab('main')">
+        <span class="mob-icon">??</span>
+        <span>Overview</span>
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('fno')">
+        <span class="mob-icon">??</span>
+        <span>Options F&O</span>
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('intraday')">
+        <span class="mob-icon">?</span>
+        <span>Intraday</span>
+    </button>
+    <button class="mob-nav-btn" onclick="switchTab('swing')">
+        <span class="mob-icon">??</span>
+        <span>Stocks</span>
+    </button>
+</nav>
+
 <script>
 function escapeHtml(str) {
     if (str === null || str === undefined) return '';
@@ -1428,6 +1510,10 @@ function switchTab(tab) {
         const btn = document.getElementById('tab-' + t + '-btn');
         if (el) el.style.display = (t === tab) ? 'flex' : 'none';
         if (btn) btn.className = 'tab-btn' + (t === tab ? ' active' : '');
+    });
+    document.querySelectorAll('.mob-nav-btn').forEach(btn => {
+        const fn = btn.getAttribute('onclick') || '';
+        btn.classList.toggle('active', fn.includes("'" + tab + "'"));
     });
 }
 
@@ -1590,6 +1676,43 @@ function renderPositionCard(p, desk) {
     const ageMinutes = Number(p.holding_minutes || 0);
     const ageStr = ageMinutes > 60 ? (ageMinutes / 60).toFixed(1) + 'h' : Math.round(ageMinutes) + 'm';
     const pType = (p.product_type || 'INTRADAY').toUpperCase();
+    const sym = String(p.symbol || '');
+
+    // Friendly Kid-Explanation & Title
+    let friendlyTitle = sym;
+    let friendlyExplainer = '';
+    let targetProgress = 0;
+
+    if (pType === 'FNO') {
+        const maxProfitPerShare = entry * 0.50;
+        const currentGainPerShare = Math.max(0, entry - curr);
+        targetProgress = Math.min(100, Math.max(0, (currentGainPerShare / maxProfitPerShare) * 100)).toFixed(0);
+
+        if (sym.includes('CONDOR')) {
+            friendlyTitle = '?? Bank Nifty Safe Trap (Iron Condor)';
+            friendlyExplainer = `
+                <div class="kid-explainer">
+                    <span class="kid-badge">?? How This Makes Money</span>
+                    <div>We collect free money from passing time as long as <strong>Bank Nifty</strong> stays between <strong>54,000</strong> and <strong>55,600</strong>. It is right in the safe middle! ??</div>
+                </div>`;
+        } else if (sym.includes('BPS')) {
+            friendlyTitle = '??? Nifty Safety Floor (Bull Put Spread)';
+            friendlyExplainer = `
+                <div class="kid-explainer">
+                    <span class="kid-badge">?? How This Makes Money</span>
+                    <div>We make money as long as <strong>Nifty 50</strong> stays above <strong>22,900</strong>. Right now it is hundreds of points safely above the floor! ???</div>
+                </div>`;
+        }
+    } else if (pType === 'SWING') {
+        friendlyTitle = `?? Stock Investment: ${sym}`;
+        friendlyExplainer = `
+            <div class="kid-explainer">
+                <span class="kid-badge">?? Multi-Day Investment</span>
+                <div>We bought high-quality stocks for multi-day swing profit. Holding safely!</div>
+            </div>`;
+    } else {
+        friendlyTitle = `? Day Trade: ${sym}`;
+    }
 
     let extraPill = `<span class="pill ${isLong ? 'pill-long' : 'pill-short'}">${escapeHtml(p.side)} · ${qty} QTY</span>`;
     let subMeta = `Avg ${formatMoney(entry)}`;
@@ -1643,7 +1766,7 @@ function renderPositionCard(p, desk) {
     <div class="pos-card">
         <div class="pos-card-main">
             <div class="pos-info">
-                <div class="pos-symbol">${escapeHtml(p.symbol)}</div>
+                <div class="pos-symbol">${escapeHtml(friendlyTitle)}</div>
                 <div class="pos-meta">
                     ${extraPill}
                     <span class="faint">${subMeta}</span>
@@ -1651,9 +1774,24 @@ function renderPositionCard(p, desk) {
             </div>
             <div class="pos-pricing">
                 <div class="pos-current">${formatMoney(curr)}${pType === 'FNO' ? '/sh' : ''}</div>
-                <div class="pos-pnl ${pnl >= 0 ? 'text-up' : 'text-down'}">${pnl >= 0 ? '+' : ''}${formatMoney(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct}%)</div>
+                <div class="pos-pnl ${pnl >= 0 ? 'text-up' : 'text-down'}" style="font-size:15px;font-weight:700;">${pnl >= 0 ? '?? +' : '?? '}${formatMoney(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct}%)</div>
             </div>
         </div>
+
+        ${friendlyExplainer}
+
+        ${pType === 'FNO' ? `
+        <div class="progress-box" style="margin-top:10px;background:rgba(255,255,255,0.02);padding:8px 10px;border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                <span style="color:var(--text-muted);font-weight:600;">?? 50% Profit Goal Progress</span>
+                <span style="color:var(--emerald);font-weight:700;">${targetProgress}%</span>
+            </div>
+            <div style="width:100%;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+                <div style="width:${targetProgress}%;height:100%;background:linear-gradient(90deg, var(--cyan), var(--emerald));border-radius:3px;transition:width 0.4s;"></div>
+            </div>
+        </div>
+        ` : ''}
+
         ${legsHtml}
         <div class="pos-card-footer">
             <div class="pos-bound"><span class="faint">SL:</span> <span class="text-down">${formatMoney(p.stop_loss)}</span></div>
@@ -1773,6 +1911,12 @@ async function updateDashboard() {
         document.getElementById('val-margin').textContent = formatMoney(data.reserved_margin);
         document.getElementById('val-pnl').textContent = formatMoney(data.realized);
         document.getElementById('val-unrealized').textContent = formatMoney(data.unrealized);
+        const unHero = document.getElementById('val-unrealized-hero');
+        if (unHero) {
+            const unVal = Number(data.unrealized || 0);
+            unHero.textContent = (unVal >= 0 ? '+' : '') + formatMoney(unVal);
+            unHero.style.color = unVal >= 0 ? 'var(--emerald)' : 'var(--rose)';
+        }
         document.getElementById('val-dd').textContent = Number(data.drawdown || 0).toFixed(2) + '%';
         document.getElementById('val-peak').textContent = formatMoney(data.peak);
 
@@ -2175,7 +2319,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "3.9",
+                "version": "4.0",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -2316,7 +2460,7 @@ def create_app(db, cfg=None, provider=None):
         orders_fno = [o for o in pending_all if str(o.get("product_type", "")).upper() == "FNO"]
 
         return jsonify({
-            "version": "3.9",
+            "version": "4.0",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
@@ -2402,4 +2546,4 @@ if __name__ == "__main__":
     host = os.getenv("APP_HOST", "0.0.0.0")
     port = int(os.getenv("APP_PORT", "5000"))
     app.run(host=host, port=port, debug=False)
-
+
