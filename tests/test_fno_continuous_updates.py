@@ -45,6 +45,9 @@ def test_fno_continuous_rate_updates_across_cycles():
     strat = IronCondorStrategy(chain)
     prop = strat.propose("NIFTY")
     assert prop is not None
+    # Ensure 7-day span for test determinism regardless of weekday
+    from datetime import timedelta
+    prop["expiry_date"] = (datetime.now(IST).date() + timedelta(days=7)).strftime("%Y-%m-%d")
 
     fno_exec = FNOExecution(db)
     assert fno_exec.open_spread(prop)

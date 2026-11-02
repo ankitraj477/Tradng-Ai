@@ -84,10 +84,10 @@ class FNOExecution:
                 return False
 
             c.execute(
-                """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
+                """INSERT INTO positions(sleeve, symbol, side, qty, entry_price, current_price, stop_loss, target,
                                          strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
                                          product_type, strike_price, option_type, expiry_date, legs_info)
-                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   VALUES('core',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                    ON CONFLICT(sleeve, symbol) DO UPDATE SET
                    current_price=excluded.current_price""",
                 (

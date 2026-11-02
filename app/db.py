@@ -94,6 +94,7 @@ class DB:
                 c.execute("ALTER TABLE positions ADD COLUMN legs_info TEXT DEFAULT ''")
             if "sleeve" not in cols:
                 c.execute("ALTER TABLE positions ADD COLUMN sleeve TEXT NOT NULL DEFAULT 'core'")
+            c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_positions_sleeve_symbol ON positions(sleeve, symbol)")
 
             t_cols={r[1] for r in c.execute("PRAGMA table_info(trades)").fetchall()}
             if "product_type" not in t_cols:
@@ -487,6 +488,16 @@ class DB:
     def cancel_order(self, order_id, reason="Cancelled"):
         with self.conn() as c:
             c.execute("UPDATE orders SET status='CANCELLED', rejection_reason=? WHERE id=?", (reason, order_id))
+
+    def update_order_status(self, order_id, status, rejection_reason=None, executed_at=None):
+        with self.conn() as c:
+            if status == "FILLED":
+                exec_time = executed_at or now()
+                c.execute("UPDATE orders SET status='FILLED', executed_at=? WHERE id=?", (exec_time, order_id))
+            elif status == "CANCELLED":
+                c.execute("UPDATE orders SET status='CANCELLED', rejection_reason=? WHERE id=?", (rejection_reason or "Cancelled", order_id))
+            else:
+                c.execute("UPDATE orders SET status=?, rejection_reason=? WHERE id=?", (status, rejection_reason, order_id))
 
     def clear_positions(self):
         with self.conn() as c:
