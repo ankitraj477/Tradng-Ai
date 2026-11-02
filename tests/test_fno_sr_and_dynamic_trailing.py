@@ -124,3 +124,41 @@ def test_fno_dynamic_sr_defense_exit():
     assert len(db.positions_by_product("FNO")) == 0
     trade = db.trades_by_product("FNO")[0]
     assert "Dynamic S/R Defense" in trade["exit_reason"]
+
+
+def test_fno_directional_drift_valuation_safe_within_wings():
+    """Verify that an OTM spread safely away from short strikes does not trigger false stop loss."""
+    db = DB(":memory:")
+    db.init()
+    db.ensure_account(50000.0, 100000.0)
+
+    # Spot is 23288, short put is 22900 (388 points buffer)
+    provider = MockProvider(23288.0)
+    chain = IndexChainManager(provider)
+    fno_exec = FNOExecution(db)
+
+    proposal = {
+        "symbol": "NIFTY-2026-11-05-BPS-22900P/22750P",
+        "action": "SELL",
+        "price": 45.0,
+        "stop_loss": 90.0,
+        "target": 22.5,
+        "margin_required": 2625.0,
+        "lot_size": 25,
+        "strategy": "NIFTY Bull Put Spread",
+        "strike_price": 22900.0,
+        "option_type": "PE",
+        "expiry_date": "2026-11-05",
+    }
+    assert fno_exec.open_spread(proposal, lots=1, force_fill=True)
+
+    pm = FNOPositionManager(db, fno_exec, chain)
+    closed = pm.manage()
+
+    # Position must stay open safely (not falsely stopped out)
+    assert closed == 0
+    pos = db.positions_by_product("FNO")
+    assert len(pos) == 1
+    # Premium should not exceed entry credit when buffer is healthy
+    assert pos[0]["current_price"] <= 45.0
+

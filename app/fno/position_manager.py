@@ -47,6 +47,32 @@ class FNOPositionManager:
                 if self.chain and hasattr(self.chain, "get_spot_price"):
                     spot = self.chain.get_spot_price(underlying)
 
+                # Parse short strikes from symbol
+                short_put = None
+                short_call = None
+                if "CONDOR-" in symbol:
+                    parts = symbol.split("CONDOR-")[-1].split("/")
+                    if len(parts) == 2:
+                        try:
+                            short_put = float(parts[0].replace("P", "").replace("C", ""))
+                            short_call = float(parts[1].replace("P", "").replace("C", ""))
+                        except Exception:
+                            pass
+                elif "BPS-" in symbol:
+                    parts = symbol.split("BPS-")[-1].split("/")
+                    if len(parts) >= 1:
+                        try:
+                            short_put = float(parts[0].replace("P", "").replace("C", ""))
+                        except Exception:
+                            pass
+                elif "BCS-" in symbol:
+                    parts = symbol.split("BCS-")[-1].split("/")
+                    if len(parts) >= 1:
+                        try:
+                            short_call = float(parts[0].replace("P", "").replace("C", ""))
+                        except Exception:
+                            pass
+
                 # 1. Dynamic Support & Resistance Defense Check (Runs first every 2 sec):
                 # Only exit if spot is valid and breaks through S1 Support or R1 Resistance toward the short wing
                 if self.sr_calc and spot > 0:
@@ -57,31 +83,6 @@ class FNOPositionManager:
 
                     # Baseline sanity check: baseline must be within 5% of spot to prevent mismatched exit
                     if abs(spot - baseline_close) / max(1.0, spot) < 0.05:
-                        short_put = None
-                        short_call = None
-                        if "CONDOR-" in symbol:
-                            parts = symbol.split("CONDOR-")[-1].split("/")
-                            if len(parts) == 2:
-                                try:
-                                    short_put = float(parts[0].replace("P", "").replace("C", ""))
-                                    short_call = float(parts[1].replace("P", "").replace("C", ""))
-                                except Exception:
-                                    pass
-                        elif "BPS-" in symbol:
-                            parts = symbol.split("BPS-")[-1].split("/")
-                            if len(parts) >= 1:
-                                try:
-                                    short_put = float(parts[0].replace("P", "").replace("C", ""))
-                                except Exception:
-                                    pass
-                        elif "BCS-" in symbol:
-                            parts = symbol.split("BCS-")[-1].split("/")
-                            if len(parts) >= 1:
-                                try:
-                                    short_call = float(parts[0].replace("P", "").replace("C", ""))
-                                except Exception:
-                                    pass
-
                         # If short put wing exists, exit only if spot drops past support TOWARDS short put
                         if s1 > 0 and spot < (s1 * 0.993):
                             if short_put is None or spot < (short_put * 1.01):
@@ -111,16 +112,47 @@ class FNOPositionManager:
                         # Progressive Theta Decay (targets 50% profit decay towards Thursday)
                         decay_factor = max(0.10, 1.0 - (0.65 * (time_fraction ** 0.5)))
 
-                        # Real-Time Spot Movement & Delta/Gamma Sensitivity
-                        strike = float(p.get("strike_price") or spot)
-                        spot_drift_pct = abs(spot - strike) / strike if strike > 0 else 0.0
+                        # Real-Time Spot Movement & Delta/Gamma Sensitivity:
+                        # For OTM credit spreads (Bull Put Spread, Bear Call Spread, Iron Condor):
+                        # Profit is maximized when spot stays safely away from short strikes.
+                        # Premium only EXPANDS (adverse impact) if spot moves dangerously close to or breaches a short strike.
+                        adverse_drift = 0.0
+                        safe_buffer_pct = 0.010  # 1.0% minimum safe cushion (~230 pts on NIFTY, ~540 pts on BANKNIFTY)
 
-                        # OTM credit spreads expand if spot moves towards the protective wings
-                        wing_distance_pct = 0.018 if underlying == "NIFTY" else 0.020
-                        if spot_drift_pct > 0.0:
-                            drift_ratio = spot_drift_pct / wing_distance_pct
-                            spot_impact = 1.0 + (drift_ratio ** 1.8) * 1.5
+                        if short_put is not None and short_call is not None:
+                            # Iron Condor: two short wings
+                            put_cushion = (spot - short_put) / short_put if short_put > 0 else 1.0
+                            call_cushion = (short_call - spot) / short_call if short_call > 0 else 1.0
+                            min_cushion = min(put_cushion, call_cushion)
+                            if min_cushion < safe_buffer_pct:
+                                adverse_drift = max(0.0, (safe_buffer_pct - min_cushion) / safe_buffer_pct)
+                        elif short_put is not None:
+                            # Bull Put Spread: adverse if spot falls towards short_put
+                            put_cushion = (spot - short_put) / short_put if short_put > 0 else 1.0
+                            if put_cushion < safe_buffer_pct:
+                                adverse_drift = max(0.0, (safe_buffer_pct - put_cushion) / safe_buffer_pct)
+                        elif short_call is not None:
+                            # Bear Call Spread: adverse if spot rises towards short_call
+                            call_cushion = (short_call - spot) / short_call if short_call > 0 else 1.0
+                            if call_cushion < safe_buffer_pct:
+                                adverse_drift = max(0.0, (safe_buffer_pct - call_cushion) / safe_buffer_pct)
                         else:
+                            # Fallback using option_type and strike_price
+                            opt_type = str(p.get("option_type", "")).upper()
+                            strike = float(p.get("strike_price") or spot)
+                            if "PE" in opt_type or "PUT" in opt_type:
+                                cushion = (spot - strike) / strike if strike > 0 else 1.0
+                                if cushion < safe_buffer_pct:
+                                    adverse_drift = max(0.0, (safe_buffer_pct - cushion) / safe_buffer_pct)
+                            elif "CE" in opt_type or "CALL" in opt_type:
+                                cushion = (strike - spot) / strike if strike > 0 else 1.0
+                                if cushion < safe_buffer_pct:
+                                    adverse_drift = max(0.0, (safe_buffer_pct - cushion) / safe_buffer_pct)
+
+                        if adverse_drift > 0.0:
+                            spot_impact = 1.0 + (adverse_drift ** 1.5) * 1.5
+                        else:
+                            # Safe range: spot is well outside strikes, option enjoys steady decay
                             spot_impact = 1.0
 
                         current_premium = round(entry_credit * decay_factor * spot_impact, 2)
