@@ -62,7 +62,7 @@ class IndexSRCalculator:
             if index_name.upper() in self._anchored_bars:
                 high, low, close = self._anchored_bars[index_name.upper()]
             else:
-                base_spot = spot_price or (24850.0 if index_name.upper() == "NIFTY" else 51400.0)
+                base_spot = spot_price or (23250.0 if index_name.upper() == "NIFTY" else 54700.0)
                 daily_range_pct = 0.008 if index_name.upper() == "NIFTY" else 0.012
                 high = round(base_spot * (1.0 + daily_range_pct), 2)
                 low = round(base_spot * (1.0 - daily_range_pct), 2)

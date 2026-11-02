@@ -43,24 +43,57 @@ class FNOPositionManager:
                 stop_loss_premium = float(p.get("stop_loss") or (entry_credit * 2.0))
                 expiry_date = str(p.get("expiry_date") or "")
                 underlying = "BANKNIFTY" if "BANKNIFTY" in symbol else "NIFTY"
-                spot = 24850.0 if underlying == "NIFTY" else 51400.0
+                spot = 23250.0 if underlying == "NIFTY" else 54700.0
                 if self.chain and hasattr(self.chain, "get_spot_price"):
                     spot = self.chain.get_spot_price(underlying)
 
                 # 1. Dynamic Support & Resistance Defense Check (Runs first every 2 sec):
-                # If spot severely breaks outer S1 Support or R1 Resistance toward short wings, exit early
-                if self.sr_calc:
+                # Only exit if spot is valid and breaks through S1 Support or R1 Resistance toward the short wing
+                if self.sr_calc and spot > 0:
                     sr = self.sr_calc.calculate_levels(underlying, spot)
                     s1 = sr.get("support_1", 0.0)
                     r1 = sr.get("resistance_1", 999999.0)
-                    if s1 > 0 and spot < (s1 * 0.993):
-                        self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} S1 {s1} Violated)")
-                        closed += 1
-                        continue
-                    if r1 < 999999 and spot > (r1 * 1.007):
-                        self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} R1 {r1} Violated)")
-                        closed += 1
-                        continue
+                    baseline_close = float(sr.get("close") or spot)
+
+                    # Baseline sanity check: baseline must be within 5% of spot to prevent mismatched exit
+                    if abs(spot - baseline_close) / max(1.0, spot) < 0.05:
+                        short_put = None
+                        short_call = None
+                        if "CONDOR-" in symbol:
+                            parts = symbol.split("CONDOR-")[-1].split("/")
+                            if len(parts) == 2:
+                                try:
+                                    short_put = float(parts[0].replace("P", "").replace("C", ""))
+                                    short_call = float(parts[1].replace("P", "").replace("C", ""))
+                                except Exception:
+                                    pass
+                        elif "BPS-" in symbol:
+                            parts = symbol.split("BPS-")[-1].split("/")
+                            if len(parts) >= 1:
+                                try:
+                                    short_put = float(parts[0].replace("P", "").replace("C", ""))
+                                except Exception:
+                                    pass
+                        elif "BCS-" in symbol:
+                            parts = symbol.split("BCS-")[-1].split("/")
+                            if len(parts) >= 1:
+                                try:
+                                    short_call = float(parts[0].replace("P", "").replace("C", ""))
+                                except Exception:
+                                    pass
+
+                        # If short put wing exists, exit only if spot drops past support TOWARDS short put
+                        if s1 > 0 and spot < (s1 * 0.993):
+                            if short_put is None or spot < (short_put * 1.01):
+                                self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} S1 {s1} Violated)")
+                                closed += 1
+                                continue
+                        # If short call wing exists, exit only if spot rises past resistance TOWARDS short call
+                        if r1 < 999999 and spot > (r1 * 1.007):
+                            if short_call is None or spot > (short_call * 0.99):
+                                self.execution.close(symbol, current_premium, f"Dynamic S/R Defense ({underlying} R1 {r1} Violated)")
+                                closed += 1
+                                continue
 
                 # Dynamic Option Premium Valuation (Theta decay & Spot delta/gamma response)
                 is_already_triggered = (current_premium <= target_premium) or (current_premium >= stop_loss_premium)
