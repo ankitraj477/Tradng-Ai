@@ -14,7 +14,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v4.2 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v4.3 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -39,6 +39,7 @@ HTML = r"""<!doctype html>
             --amber: #f59e0b;
             --amber-bg: rgba(245, 158, 11, 0.12);
             --indigo: #6366f1;
+            --indigo-bg: rgba(99, 102, 241, 0.12);
             --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
             --radius-lg: 18px;
@@ -121,7 +122,7 @@ HTML = r"""<!doctype html>
             flex-wrap: wrap;
         }
 
-        /* View Mode Switcher (Kid vs Pro) */
+        /* View Mode Switcher */
         .mode-toggle {
             display: inline-flex;
             background: rgba(255, 255, 255, 0.05);
@@ -254,7 +255,7 @@ HTML = r"""<!doctype html>
             box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
         }
 
-        /* Hero Piggy Bank Card (Kid-Friendly & Clear) */
+        /* Hero Piggy Bank Card */
         .hero-card {
             background: linear-gradient(135deg, rgba(16, 25, 42, 0.95) 0%, rgba(12, 18, 30, 0.98) 100%);
             border: 1px solid var(--border);
@@ -318,7 +319,7 @@ HTML = r"""<!doctype html>
             flex-wrap: wrap;
         }
 
-        /* 4 Friendly Money Jars (Responsive Grid) */
+        /* 4 Friendly Money Jars */
         .hero-stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -379,13 +380,16 @@ HTML = r"""<!doctype html>
         .pill-short { background: var(--rose-bg); color: var(--rose); border: 1px solid rgba(244, 63, 94, 0.25); }
         .pill-cyan { background: var(--cyan-bg); color: var(--cyan); border: 1px solid rgba(56, 189, 248, 0.25); }
         .pill-amber { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.25); }
+        .pill-indigo { background: var(--indigo-bg); color: var(--indigo); border: 1px solid rgba(99, 102, 241, 0.25); }
 
-        /* Kid-Friendly Game Cards for Active Trades */
+        /* Section Titles */
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
         }
         .section-title {
             font-size: 16px;
@@ -406,6 +410,7 @@ HTML = r"""<!doctype html>
             gap: 14px;
         }
 
+        /* Game Cards */
         .trade-game-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -551,7 +556,37 @@ HTML = r"""<!doctype html>
             border-radius: 6px;
         }
 
-        /* AI Activity Feed (Plain English) */
+        /* History Filter Tabs */
+        .history-filters {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding-bottom: 2px;
+            margin-bottom: 12px;
+        }
+        .history-filters::-webkit-scrollbar { display: none; }
+        .hist-filter-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .hist-filter-btn:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+        .hist-filter-btn.active {
+            background: var(--cyan);
+            color: #070d18;
+            border-color: var(--cyan);
+            box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
+        }
+
+        /* Activity Card & Items */
         .activity-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -567,16 +602,16 @@ HTML = r"""<!doctype html>
         }
         .activity-item:last-child { border-bottom: none; }
         .activity-icon-badge {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 15px;
+            font-size: 16px;
             flex-shrink: 0;
         }
-        .activity-content { flex: 1; }
+        .activity-content { flex: 1; min-width: 0; }
         .activity-headline {
             font-size: 13px;
             font-weight: 700;
@@ -584,21 +619,27 @@ HTML = r"""<!doctype html>
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
         }
         .activity-desc {
             font-size: 12px;
             color: var(--text-muted);
-            margin-top: 2px;
+            margin-top: 3px;
             line-height: 1.4;
         }
-        .activity-time {
+        .activity-subline {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 11px;
             color: var(--text-faint);
             font-family: var(--font-mono);
-            margin-top: 4px;
+            margin-top: 5px;
+            flex-wrap: wrap;
         }
 
-        /* Quantitative Exposure & Allocation (Visible in Pro Mode) */
+        /* Pro Section */
         .pro-section {
             display: none;
             flex-direction: column;
@@ -620,7 +661,6 @@ HTML = r"""<!doctype html>
         .exposure-box .lbl { font-size: 11px; color: var(--text-muted); }
         .exposure-box .val { font-size: 16px; font-weight: 800; font-family: var(--font-mono); margin-top: 2px; }
 
-        /* Allocation Sliders */
         .alloc-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -692,7 +732,6 @@ HTML = r"""<!doctype html>
         .mob-nav-btn:active { transform: scale(0.94); }
         .mob-icon { font-size: 18px; }
 
-        /* Mobile Breakpoints */
         @media (max-width: 768px) {
             .mobile-bottom-nav { display: flex; }
             .tabs-wrapper { display: none; }
@@ -720,11 +759,11 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v4.2</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v4.3</span></h1>
             </div>
         </div>
         <div class="header-controls">
-            <!-- Mode Toggle: Kid-Simple vs Pro Trader -->
+            <!-- Mode Toggle -->
             <div class="mode-toggle">
                 <button id="btn-mode-simple" class="mode-btn active" onclick="switchMode('simple')">
                     <span>🧒</span> Simple View
@@ -734,7 +773,7 @@ HTML = r"""<!doctype html>
                 </button>
             </div>
 
-            <!-- Auto-Trading Live Switch -->
+            <!-- Auto-Trading Switch -->
             <button id="auto-trade-btn" class="auto-trade-btn active" onclick="toggleAutoTrading()" title="Click to Pause / Resume Auto-Trading">
                 <span class="auto-trade-dot"></span>
                 <span id="auto-trade-label">AUTO TRADING ON</span>
@@ -762,7 +801,7 @@ HTML = r"""<!doctype html>
         </div>
     </div>
 
-    <!-- SECTION 1: THE PIGGY BANK (Total Balance & Jars) -->
+    <!-- SECTION 1: OVERVIEW TAB -->
     <div id="sec-overview" style="display:flex; flex-direction:column; gap:16px;">
         <div class="hero-card">
             <div class="hero-top">
@@ -887,7 +926,7 @@ HTML = r"""<!doctype html>
             </div>
         </div>
 
-        <!-- SECTION 2: ACTIVE TRADES (Kid-Friendly Cards) -->
+        <!-- SECTION 2: ACTIVE TRADES -->
         <div>
             <div class="section-header">
                 <div class="section-title">
@@ -895,64 +934,83 @@ HTML = r"""<!doctype html>
                 </div>
                 <div class="section-sub">Real-time defined-risk spreads working right now</div>
             </div>
-            <div id="positions-container" class="cards-grid">
-                <!-- Dynamically populated by JS renderGameCards -->
-            </div>
+            <div id="positions-container" class="cards-grid"></div>
         </div>
 
-        <!-- SECTION 3: RECENT ACTIVITY & WINS -->
-        <div>
+        <!-- SECTION 3: COMPLETE TRADE HISTORY WITH DESK FILTERS -->
+        <div id="section-history-overview">
             <div class="section-header">
                 <div class="section-title">
-                    <span>📜</span> Recent Wins & Activity
+                    <span>📜</span> Complete Trade History (<span id="total-trades-count">0</span> Recorded)
                 </div>
-                <div class="section-sub">Plain English explanations of what the AI did</div>
+                <div class="section-sub">Tap below to view full historical trades for each desk</div>
             </div>
             <div class="activity-card">
-                <div id="trades-container">
-                    <!-- Dynamically populated by JS renderActivityFeed -->
+                <!-- Filter Tabs for Instant History Browsing -->
+                <div class="history-filters">
+                    <button id="filter-btn-ALL" class="hist-filter-btn active" onclick="setHistoryFilter('ALL')">🌐 All Trades (<span id="cnt-all">0</span>)</button>
+                    <button id="filter-btn-FNO" class="hist-filter-btn" onclick="setHistoryFilter('FNO')">🎯 Options F&O (<span id="cnt-fno">0</span>)</button>
+                    <button id="filter-btn-INTRADAY" class="hist-filter-btn" onclick="setHistoryFilter('INTRADAY')">⚡ Day Trades MIS (<span id="cnt-intra">0</span>)</button>
+                    <button id="filter-btn-SWING" class="hist-filter-btn" onclick="setHistoryFilter('SWING')">📈 Stock Swing CNC (<span id="cnt-swing">0</span>)</button>
                 </div>
+                <div id="trades-container"></div>
             </div>
         </div>
     </div>
 
-    <!-- DESK TABS (Intraday, Swing, F&O, Pro Terminal) -->
-    <div id="sec-fno" style="display:none; flex-direction:column; gap:14px;">
+    <!-- DESK TAB: F&O -->
+    <div id="sec-fno" style="display:none; flex-direction:column; gap:16px;">
         <div class="section-header">
             <div class="section-title">🎯 Futures & Options Desk (Defined-Risk Spreads)</div>
+            <div class="section-sub">Iron Condors & Bull Put Spreads with guaranteed maximum loss</div>
         </div>
         <div id="fno-cards-container" class="cards-grid"></div>
-        <div class="activity-card" style="margin-top:14px;">
-            <div style="font-size:14px; font-weight:700; margin-bottom:10px;">Options Trade History</div>
+        <div class="activity-card">
+            <div style="font-size:14px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                <span>🎯 Options Spreads History (<span id="fno-history-count">0</span> trades)</span>
+                <span class="pill pill-cyan">DEFINED RISK</span>
+            </div>
             <div id="fno-trades-container"></div>
         </div>
     </div>
 
-    <div id="sec-intraday" style="display:none; flex-direction:column; gap:14px;">
+    <!-- DESK TAB: INTRADAY -->
+    <div id="sec-intraday" style="display:none; flex-direction:column; gap:16px;">
         <div class="section-header">
-            <div class="section-title">⚡ Day Trading Desk (MIS)</div>
+            <div class="section-title">⚡ Day Trading Desk (MIS Intraday)</div>
+            <div class="section-sub">Quick 1-day momentum trades, auto-squared off at 15:10 IST</div>
         </div>
         <div id="intraday-cards-container" class="cards-grid"></div>
-        <div class="activity-card" style="margin-top:14px;">
-            <div style="font-size:14px; font-weight:700; margin-bottom:10px;">Day Trades Closed Today</div>
+        <div class="activity-card">
+            <div style="font-size:14px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                <span>⚡ Intraday Day Trades History (<span id="intra-history-count">0</span> trades)</span>
+                <span class="pill pill-amber">AUTO MIS 15:10</span>
+            </div>
             <div id="intraday-trades-container"></div>
         </div>
     </div>
 
-    <div id="sec-swing" style="display:none; flex-direction:column; gap:14px;">
+    <!-- DESK TAB: SWING -->
+    <div id="sec-swing" style="display:none; flex-direction:column; gap:16px;">
         <div class="section-header">
             <div class="section-title">📈 Stock Investment Desk (CNC Delivery)</div>
+            <div class="section-sub">Multi-day swing positions in high-quality NSE stocks</div>
         </div>
         <div id="swing-cards-container" class="cards-grid"></div>
-        <div class="activity-card" style="margin-top:14px;">
-            <div style="font-size:14px; font-weight:700; margin-bottom:10px;">Stock Portfolio History</div>
+        <div class="activity-card">
+            <div style="font-size:14px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                <span>📈 Swing Stock Portfolio History (<span id="swing-history-count">0</span> trades)</span>
+                <span class="pill pill-long">DELIVERY CNC</span>
+            </div>
             <div id="swing-trades-container"></div>
         </div>
     </div>
 
-    <div id="sec-pro" style="display:none; flex-direction:column; gap:14px;">
+    <!-- DESK TAB: PRO TERMINAL -->
+    <div id="sec-pro" style="display:none; flex-direction:column; gap:16px;">
         <div class="section-header">
             <div class="section-title">🔬 Quantitative Research & Engine Health</div>
+            <div class="section-sub">Institutional risk invariants, Greeks, and Sharpe analytics</div>
         </div>
         <div class="hero-card">
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
@@ -993,7 +1051,7 @@ HTML = r"""<!doctype html>
     </button>
     <button id="mob-btn-activity" class="mob-nav-btn" onclick="switchMobileTab('activity')">
         <span class="mob-icon">📜</span>
-        <span>Activity</span>
+        <span>History</span>
     </button>
     <button id="mob-btn-controls" class="mob-nav-btn" onclick="switchMobileTab('controls')">
         <span class="mob-icon">⚙️</span>
@@ -1002,7 +1060,7 @@ HTML = r"""<!doctype html>
 </nav>
 
 <script>
-// Format Currency in INR
+// Currency Formatting in INR
 const formatMoney = val => '₹' + Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatPct = val => (Number(val || 0) >= 0 ? '+' : '') + Number(val || 0).toFixed(2) + '%';
 
@@ -1024,7 +1082,6 @@ function switchMode(mode) {
     try { localStorage.setItem('tradng_ai_mode', mode); } catch (e) {}
 }
 
-// Restore saved mode if any
 try {
     const savedMode = localStorage.getItem('tradng_ai_mode');
     if (savedMode === 'pro') switchMode('pro');
@@ -1047,7 +1104,6 @@ function switchMobileTab(tab) {
     const btn = document.getElementById('mob-btn-' + tab);
     if (btn) btn.classList.add('active');
 
-    // Show main overview container
     switchDeskTab('overview');
 
     if (tab === 'overview') {
@@ -1056,11 +1112,44 @@ function switchMobileTab(tab) {
         const posEl = document.getElementById('positions-container');
         if (posEl) posEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (tab === 'activity') {
-        const actEl = document.getElementById('trades-container');
+        const actEl = document.getElementById('section-history-overview');
         if (actEl) actEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (tab === 'controls') {
         switchMode(document.body.classList.contains('pro-mode') ? 'simple' : 'pro');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+// History Filter State
+let currentHistoryFilter = 'ALL';
+function setHistoryFilter(desk) {
+    currentHistoryFilter = desk;
+    ['ALL', 'FNO', 'INTRADAY', 'SWING'].forEach(k => {
+        const btn = document.getElementById('filter-btn-' + k);
+        if (btn) btn.classList.toggle('active', k === desk);
+    });
+    renderFilteredHistory();
+}
+
+let cachedData = { trades: [], trades_fno: [], trades_intraday: [], trades_swing: [] };
+
+function renderFilteredHistory() {
+    let list = cachedData.trades || [];
+    if (currentHistoryFilter === 'FNO') {
+        list = cachedData.trades_fno || [];
+    } else if (currentHistoryFilter === 'INTRADAY') {
+        list = cachedData.trades_intraday || [];
+    } else if (currentHistoryFilter === 'SWING') {
+        list = cachedData.trades_swing || [];
+    }
+
+    const container = document.getElementById('trades-container');
+    if (container) {
+        if (!list || list.length === 0) {
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">No ' + escapeHtml(currentHistoryFilter) + ' trades found in records.</div>';
+        } else {
+            container.innerHTML = list.map(renderActivityFeed).join('');
+        }
     }
 }
 
@@ -1220,8 +1309,18 @@ function renderActivityFeed(t) {
     const pnl = Number(t.pnl || 0);
     const isWin = (pnl >= 0);
     const sym = escapeHtml(t.symbol || '');
+    const pType = escapeHtml(String(t.product_type || 'TRADE').toUpperCase());
     const reason = escapeHtml(t.exit_reason || 'Target reached');
     const timeStr = escapeHtml(t.timing_display || t.exit_time_ist || t.created_at || '');
+    const entryP = Number(t.entry_price || 0);
+    const exitP = Number(t.exit_price || 0);
+    const qty = Number(t.qty || 1);
+    const tid = t.id ? `Trade #${t.id}` : '';
+
+    let pillClass = 'pill-cyan';
+    if (pType === 'INTRADAY' || pType === 'MIS') pillClass = 'pill-amber';
+    else if (pType === 'SWING' || pType === 'CNC') pillClass = 'pill-long';
+    else if (pType === 'FNO') pillClass = 'pill-indigo';
 
     return `
         <div class="activity-item">
@@ -1230,13 +1329,23 @@ function renderActivityFeed(t) {
             </div>
             <div class="activity-content">
                 <div class="activity-headline">
-                    <span>${sym}</span>
-                    <span class="${isWin ? 'text-up' : 'text-down'}" style="font-family:var(--font-mono); font-weight:800;">
+                    <span>
+                        <strong>${sym}</strong>
+                        <span class="pill ${pillClass}" style="margin-left:6px; font-size:10px; padding:2px 6px;">${pType}</span>
+                        ${tid ? `<span class="faint" style="font-size:11px; margin-left:4px;">${tid}</span>` : ''}
+                    </span>
+                    <span class="${isWin ? 'text-up' : 'text-down'}" style="font-family:var(--font-mono); font-weight:800; font-size:15px;">
                         ${isWin ? '+ ' : ''}${formatMoney(pnl)}
                     </span>
                 </div>
-                <div class="activity-desc">${reason}</div>
-                <div class="activity-time">${timeStr}</div>
+                <div class="activity-desc">
+                    <strong>Exit Reason:</strong> ${reason}
+                </div>
+                <div class="activity-subline">
+                    <span>${formatMoney(entryP)} ➔ ${formatMoney(exitP)} (${qty} Qty)</span>
+                    <span>•</span>
+                    <span>${timeStr}</span>
+                </div>
             </div>
         </div>`;
 }
@@ -1290,6 +1399,14 @@ async function updateDashboard() {
         const res = await fetch('/api/state');
         if (!res.ok) return;
         const data = await res.json();
+
+        // Save cache for tab/desk filtering
+        cachedData = {
+            trades: data.trades || [],
+            trades_fno: data.trades_fno || [],
+            trades_intraday: data.trades_intraday || [],
+            trades_swing: data.trades_swing || []
+        };
 
         // 1. Total Balance & Badges
         const pf = Number(data.portfolio || 100000);
@@ -1356,37 +1473,60 @@ async function updateDashboard() {
             }
         }
 
-        // Desk Sub-Containers
+        // Desk Sub-Containers for Active Cards
         const fnoCont = document.getElementById('fno-cards-container');
         if (fnoCont) {
             const fnoPos = positions.filter(p => String(p.product_type || '').toUpperCase() === 'FNO');
-            fnoCont.innerHTML = fnoPos.length ? fnoPos.map(renderGameCard).join('') : '<div class="faint">No open F&O spreads</div>';
+            fnoCont.innerHTML = fnoPos.length ? fnoPos.map(renderGameCard).join('') : '<div class="faint" style="padding:16px;text-align:center;background:var(--bg-card);border-radius:12px;">No open F&O spreads currently held.</div>';
         }
 
         const intraCont = document.getElementById('intraday-cards-container');
         if (intraCont) {
             const intraPos = positions.filter(p => String(p.product_type || '').toUpperCase() === 'INTRADAY');
-            intraCont.innerHTML = intraPos.length ? intraPos.map(renderGameCard).join('') : '<div class="faint">No open day trades</div>';
+            intraCont.innerHTML = intraPos.length ? intraPos.map(renderGameCard).join('') : '<div class="faint" style="padding:16px;text-align:center;background:var(--bg-card);border-radius:12px;">No open intraday day trades (market closed).</div>';
         }
 
         const swingCont = document.getElementById('swing-cards-container');
         if (swingCont) {
             const swingPos = positions.filter(p => String(p.product_type || '').toUpperCase() === 'SWING');
-            swingCont.innerHTML = swingPos.length ? swingPos.map(renderGameCard).join('') : '<div class="faint">No open stock investments</div>';
+            swingCont.innerHTML = swingPos.length ? swingPos.map(renderGameCard).join('') : '<div class="faint" style="padding:16px;text-align:center;background:var(--bg-card);border-radius:12px;">No open swing delivery positions currently held.</div>';
         }
 
-        // 5. Render Activity Feed
-        const trades = data.trades || [];
-        const tradesCont = document.getElementById('trades-container');
-        if (tradesCont) {
-            if (trades.length === 0) {
-                tradesCont.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);">No closed trades logged yet.</div>';
-            } else {
-                tradesCont.innerHTML = trades.slice(0, 8).map(renderActivityFeed).join('');
-            }
+        // 5. Populate History Badge Counts
+        const tradesAll = data.trades || [];
+        const tradesFno = data.trades_fno || [];
+        const tradesIntra = data.trades_intraday || [];
+        const tradesSwing = data.trades_swing || [];
+
+        setEl('total-trades-count', tradesAll.length);
+        setEl('cnt-all', tradesAll.length);
+        setEl('cnt-fno', tradesFno.length);
+        setEl('cnt-intra', tradesIntra.length);
+        setEl('cnt-swing', tradesSwing.length);
+        setEl('fno-history-count', tradesFno.length);
+        setEl('intra-history-count', tradesIntra.length);
+        setEl('swing-history-count', tradesSwing.length);
+
+        // 6. Render Overview History based on active filter
+        renderFilteredHistory();
+
+        // 7. Render Specific Desk History Containers!
+        const fnoTradesCont = document.getElementById('fno-trades-container');
+        if (fnoTradesCont) {
+            fnoTradesCont.innerHTML = tradesFno.length ? tradesFno.map(renderActivityFeed).join('') : '<div class="faint" style="padding:16px;text-align:center;">No F&O trade records logged yet.</div>';
         }
 
-        // 6. Strategy Learning Weights
+        const intraTradesCont = document.getElementById('intraday-trades-container');
+        if (intraTradesCont) {
+            intraTradesCont.innerHTML = tradesIntra.length ? tradesIntra.map(renderActivityFeed).join('') : '<div class="faint" style="padding:16px;text-align:center;">No intraday trade records logged yet.</div>';
+        }
+
+        const swingTradesCont = document.getElementById('swing-trades-container');
+        if (swingTradesCont) {
+            swingTradesCont.innerHTML = tradesSwing.length ? tradesSwing.map(renderActivityFeed).join('') : '<div class="faint" style="padding:16px;text-align:center;">No swing trade records logged yet.</div>';
+        }
+
+        // 8. Strategy Learning Weights
         const weightsBox = document.getElementById('learning-weights-container');
         if (weightsBox && data.learning && data.learning.strategy_weights) {
             weightsBox.innerHTML = Object.entries(data.learning.strategy_weights).map(([k, v]) => `
@@ -1510,7 +1650,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "4.2",
+                "version": "4.3",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -1634,7 +1774,8 @@ def create_app(db, cfg=None, provider=None):
         # Today's trades strictly in Indian Standard Time (IST):
         today_raw = db.trades_today() if hasattr(db, "trades_today") else []
         trades_today = [_enrich_trade(t) for t in today_raw]
-        trades_intra = [t for t in trades_today if str(t.get("product_type", "INTRADAY")).upper() == "INTRADAY"]
+        trades_intra_raw = db.trades_by_product("INTRADAY", 50) if hasattr(db, "trades_by_product") else [t for t in raw_trades if str(t.get("product_type", "INTRADAY")).upper() == "INTRADAY"]
+        trades_intra = [_enrich_trade(t) for t in trades_intra_raw]
 
         # Desk trades (swing and fno history)
         trades_swing_raw = db.trades_by_product("SWING", 30) if hasattr(db, "trades_by_product") else [t for t in raw_trades if str(t.get("product_type", "")).upper() == "SWING"]
@@ -1651,7 +1792,7 @@ def create_app(db, cfg=None, provider=None):
         orders_fno = [o for o in pending_all if str(o.get("product_type", "")).upper() == "FNO"]
 
         return jsonify({
-            "version": "4.2",
+            "version": "4.3",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
