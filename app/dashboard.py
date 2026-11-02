@@ -14,7 +14,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v4.3 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v4.4 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -759,7 +759,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v4.3</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v4.4</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -930,9 +930,10 @@ HTML = r"""<!doctype html>
         <div>
             <div class="section-header">
                 <div class="section-title">
-                    <span>🎯</span> Active Investments (<span id="pos-count">0 OPEN</span>)
+                    <span>🎯</span> Active Overnight Positions (<span id="pos-count">0 OPEN</span>)
+                    <span class="pill pill-indigo" style="font-size:10px;">🌙 Held for Thursday Expiry</span>
                 </div>
-                <div class="section-sub">Real-time defined-risk spreads working right now</div>
+                <div class="section-sub">Multi-day defined-risk spreads capturing overnight time decay profits</div>
             </div>
             <div id="positions-container" class="cards-grid"></div>
         </div>
@@ -1274,7 +1275,7 @@ function renderGameCard(p) {
                 <div class="card-title-box">
                     <h3>${escapeHtml(friendlyTitle)}</h3>
                     <div class="card-meta-line">
-                        <span class="pill pill-cyan">${escapeHtml(pType)} · ${qty} QTY</span>
+                        <span class="pill pill-cyan">${escapeHtml(pType)} · ${qty} QTY</span> <span class="pill pill-indigo" style="font-size:10px; margin-left:4px;">🌙 Overnight Hold</span>
                         <span>Entry: ${formatMoney(entry)}</span>
                     </div>
                 </div>
@@ -1650,7 +1651,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "4.3",
+                "version": "4.4",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -1792,7 +1793,7 @@ def create_app(db, cfg=None, provider=None):
         orders_fno = [o for o in pending_all if str(o.get("product_type", "")).upper() == "FNO"]
 
         return jsonify({
-            "version": "4.3",
+            "version": "4.4",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
