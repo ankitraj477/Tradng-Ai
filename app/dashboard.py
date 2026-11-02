@@ -2319,7 +2319,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "4.0",
+                "version": "4.1",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -2460,7 +2460,7 @@ def create_app(db, cfg=None, provider=None):
         orders_fno = [o for o in pending_all if str(o.get("product_type", "")).upper() == "FNO"]
 
         return jsonify({
-            "version": "4.0",
+            "version": "4.1",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
