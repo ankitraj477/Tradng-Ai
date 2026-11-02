@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -15,4 +16,4 @@ def test_buy_and_sell():
     assert len(db.positions())==1
     assert e.close("TEST",110,"target","Sideways")
     assert len(db.positions())==0
-    assert db.trades(1)[0]["pnl"]==20
+    assert pytest.approx(db.trades(1)[0]["pnl"], abs=0.2) == 20

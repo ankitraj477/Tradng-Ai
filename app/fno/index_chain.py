@@ -68,8 +68,8 @@ class IndexChainManager:
                 pass
         if key in self._spot_cache:
             return self._spot_cache[key]
-        # Fallback realistic index prices
-        return 24850.0 if key == "NIFTY" else 51400.0
+        # Fallback realistic index prices (current market level)
+        return 24850.0 if key == "NIFTY" else 54850.0
 
     def estimate_pcr(self, index_name: str = "NIFTY") -> float:
         """

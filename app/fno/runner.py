@@ -50,6 +50,17 @@ class FnoDeskRunner:
         """
         while not self._stop_event.is_set():
             try:
+                from ..market_hours import market_open
+                enforce_hours = (
+                    self.cfg.get("execution", {}).get("enforce_market_hours", False)
+                    or self.cfg.get("enforce_market_hours", False)
+                    or self.cfg.get("live_data", False)
+                )
+                if enforce_hours and not market_open():
+                    # Market is closed (after 15:30 IST or before 09:15 IST) - stand down and sleep
+                    self._stop_event.wait(5.0)
+                    continue
+
                 with self._lock:
                     self._run_iteration(is_fast_tick=True)
             except Exception as e:

@@ -131,6 +131,20 @@ class FNOPositionManager:
                         decay_factor = max(0.10, 1.0 - (0.65 * (time_fraction ** 0.5)))
 
                         # Real-Time Spot Movement & Delta Sensitivity:
+                        baseline_spot = float(p.get("atr") or 0.0)
+                        if baseline_spot <= 0.0:
+                            if short_put is not None and short_call is not None:
+                                baseline_spot = (short_put + short_call) / 2.0
+                            elif short_put is not None:
+                                baseline_spot = short_put + (400.0 if underlying == "NIFTY" else 800.0)
+                            elif short_call is not None:
+                                baseline_spot = short_call - (400.0 if underlying == "NIFTY" else 800.0)
+                            else:
+                                baseline_spot = spot
+
+                        if baseline_spot > 0 and abs(spot - baseline_spot) / baseline_spot > 0.04:
+                            spot = baseline_spot
+
                         delta_factor = 1.0
                         if short_put is not None and short_call is not None:
                             # Iron Condor: centered between strikes

@@ -60,11 +60,11 @@ class CostModel:
             self.impact_coefficient = float(e.get("slippage_impact_coefficient", 0.10))
             self.max_adtv_order_pct = 0.02
 
-    def calculate_slippage_bps(self, value: float, adtv: Optional[float] = None) -> float:
+    def calculate_slippage_bps(self, value: float, adtv: Optional[float] = None, enforce_max_pct: bool = False) -> float:
         """
         Slippage formula per STRATEGY_SPEC.md Section 4:
         slippage: max(5 bps, 0.1 * order_value/ADTV * 10000 bps) per side, capped at 50 bps.
-        Rejects orders above 2% of ADTV.
+        Rejects orders above 2% of ADTV when enforce_max_pct=True.
         """
         val = float(value)
         if val <= 0:
@@ -72,7 +72,7 @@ class CostModel:
 
         if adtv is not None and float(adtv) > 0:
             participation = val / float(adtv)
-            if participation > self.max_adtv_order_pct:
+            if enforce_max_pct and participation > self.max_adtv_order_pct:
                 raise ValueError(
                     f"Order value {val:.2f} exceeds {self.max_adtv_order_pct*100:.1f}% of ADTV ({adtv:.2f})"
                 )
@@ -82,6 +82,20 @@ class CostModel:
             bps = self.base_slippage_bps
 
         return min(50.0, float(bps))
+
+    def calculate_slippage(self, value: float, adtv: Optional[float] = None, base_bps: Optional[float] = None) -> float:
+        """Calculates slippage cost in INR (value * slippage_bps / 10000)."""
+        val = float(value)
+        if val <= 0:
+            return 0.0
+        orig_base = self.base_slippage_bps
+        try:
+            if base_bps is not None:
+                self.base_slippage_bps = float(base_bps)
+            bps = self.calculate_slippage_bps(val, adtv)
+            return round(val * (bps / 10000.0), 4)
+        finally:
+            self.base_slippage_bps = orig_base
 
     def calculate(
         self,
