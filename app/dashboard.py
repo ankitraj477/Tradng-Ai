@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v5.3 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v5.4 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -760,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v5.3</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v5.4</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -798,7 +798,6 @@ HTML = r"""<!doctype html>
             <button id="tab-fno-btn" class="tab-btn" onclick="switchDeskTab('fno')">🎯 Options Safe Spreads (F&O)</button>
             <button id="tab-intraday-btn" class="tab-btn" onclick="switchDeskTab('intraday')">⚡ Day Trades (MIS)</button>
             <button id="tab-swing-btn" class="tab-btn" onclick="switchDeskTab('swing')">📈 Stock Holdings (CNC)</button>
-            <button id="tab-news-btn" class="tab-btn" onclick="switchDeskTab('news')">📰 AI News Intel (<span id="news-count-badge">0</span>)</button>
             <button id="tab-pro-btn" class="tab-btn" onclick="switchDeskTab('pro')">🔬 Quant & Audit Terminal</button>
         </div>
     </div>
@@ -940,37 +939,21 @@ HTML = r"""<!doctype html>
             <div id="positions-container" class="cards-grid"></div>
         </div>
 
-        <!-- AI LIVE NEWS INTEL RADAR (KID-FRIENDLY & MOBILE RESPONSIVE) -->
-        <div id="section-news-overview">
-            <div class="section-header">
-                <div class="section-title">
-                    <span>📰</span> Live Market & Stock News Radar (<span id="overview-news-count">0</span> Active Headlines)
-                    <span class="pill pill-long" style="font-size:10px; margin-left:6px;">🛡️ AI Risk Guard Active</span>
-                </div>
-                <div class="section-sub">Scans RSS feeds every minute: AI flags positive momentum & automatically blocks bad news stocks</div>
-            </div>
-            <div class="activity-card" style="padding:16px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                    <div style="font-size:12px; color:var(--text-muted);">
-                        Real-time headlines from <strong>Economic Times, Moneycontrol, Livemint & Google News</strong>
-                    </div>
-                    <button class="pill pill-cyan" onclick="switchDeskTab('news')" style="cursor:pointer; border:none; font-weight:700;">
-                        Open Full News Radar ➔
-                    </button>
-                </div>
-                <div id="overview-news-container" style="display:flex; flex-direction:column; gap:8px;"></div>
-            </div>
-        </div>
-
-        <!-- SECTION 3: COMPLETE TRADE HISTORY WITH DESK FILTERS -->
+        <!-- SECTION 3: COMPLETE TRADE HISTORY WITH DESK FILTERS (COLLAPSIBLE) -->
         <div id="section-history-overview">
-            <div class="section-header">
-                <div class="section-title">
-                    <span>📜</span> Complete Trade History (<span id="total-trades-count">0</span> Recorded)
+            <div class="section-header" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none; margin-bottom:8px;" onclick="toggleHistoryCollapse()">
+                <div>
+                    <div class="section-title">
+                        <span>📜</span> Complete Trade History (<span id="total-trades-count">0</span> Recorded)
+                        <span id="history-collapse-badge" class="pill pill-cyan" style="font-size:10px; margin-left:8px;">▶ Click to Expand</span>
+                    </div>
+                    <div class="section-sub">Tap here to expand or collapse past completed trade logs</div>
                 </div>
-                <div class="section-sub">Tap below to view full historical trades for each desk</div>
+                <button id="history-collapse-btn" class="pill pill-cyan" style="cursor:pointer; border:none; font-weight:700; padding:6px 14px; font-size:11px;" onclick="event.stopPropagation(); toggleHistoryCollapse();">
+                    ▶ Expand History
+                </button>
             </div>
-            <div class="activity-card">
+            <div id="history-content-collapsible" class="activity-card" style="display:none;">
                 <!-- Filter Tabs for Instant History Browsing -->
                 <div class="history-filters">
                     <button id="filter-btn-ALL" class="hist-filter-btn active" onclick="setHistoryFilter('ALL')">🌐 All Trades (<span id="cnt-all">0</span>)</button>
@@ -991,11 +974,11 @@ HTML = r"""<!doctype html>
         </div>
         <div id="fno-cards-container" class="cards-grid"></div>
         <div class="activity-card">
-            <div style="font-size:14px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:14px; font-weight:800; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" onclick="toggleDeskHistory('fno')">
                 <span>🎯 Options Spreads History (<span id="fno-history-count">0</span> trades)</span>
-                <span class="pill pill-cyan">DEFINED RISK</span>
+                <span id="fno-history-toggle-badge" class="pill pill-cyan" style="font-size:10px;">▶ Expand</span>
             </div>
-            <div id="fno-trades-container"></div>
+            <div id="fno-trades-container" style="display:none; margin-top:12px;"></div>
         </div>
     </div>
 
@@ -1007,11 +990,11 @@ HTML = r"""<!doctype html>
         </div>
         <div id="intraday-cards-container" class="cards-grid"></div>
         <div class="activity-card">
-            <div style="font-size:14px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:14px; font-weight:800; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" onclick="toggleDeskHistory('intraday')">
                 <span>⚡ Intraday Day Trades History (<span id="intra-history-count">0</span> trades)</span>
-                <span class="pill pill-amber">AUTO MIS 15:10</span>
+                <span id="intraday-history-toggle-badge" class="pill pill-amber" style="font-size:10px;">▶ Expand</span>
             </div>
-            <div id="intraday-trades-container"></div>
+            <div id="intraday-trades-container" style="display:none; margin-top:12px;"></div>
         </div>
     </div>
 
@@ -1023,34 +1006,11 @@ HTML = r"""<!doctype html>
         </div>
         <div id="swing-cards-container" class="cards-grid"></div>
         <div class="activity-card">
-            <div style="font-size:14px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:14px; font-weight:800; display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" onclick="toggleDeskHistory('swing')">
                 <span>📈 Swing Stock Portfolio History (<span id="swing-history-count">0</span> trades)</span>
-                <span class="pill pill-long">DELIVERY CNC</span>
+                <span id="swing-history-toggle-badge" class="pill pill-long" style="font-size:10px;">▶ Expand</span>
             </div>
-            <div id="swing-trades-container"></div>
-        </div>
-    </div>
-
-    <!-- DESK TAB: AI NEWS RADAR -->
-    <div id="sec-news" style="display:none; flex-direction:column; gap:16px;">
-        <div class="section-header">
-            <div class="section-title">📰 Real-Time AI Market & Stock News Radar (<span id="news-total-count">0</span> Headlines Scanned)</div>
-            <div class="section-sub">Automated RSS intelligence: sentiment classification, corporate materiality tagging, and adverse risk blacklisting</div>
-        </div>
-        <div class="activity-card">
-            <div class="news-stats-strip" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border);">
-                <div class="pill pill-long" id="pill-news-pos">🟢 Positive: 0</div>
-                <div class="pill pill-short" id="pill-news-neg">🔴 Adverse Risk: 0</div>
-                <div class="pill pill-cyan" id="pill-news-neu">⚪ Neutral: 0</div>
-                <div class="pill pill-indigo" style="margin-left:auto;">🛡️ AI Adverse News Gate: ACTIVE (Protects Capital)</div>
-            </div>
-            <div class="history-filters" style="margin-bottom:12px;">
-                <button id="filter-news-ALL" class="hist-filter-btn active" onclick="setNewsFilter('ALL')">🌐 All News</button>
-                <button id="filter-news-STOCKS" class="hist-filter-btn" onclick="setNewsFilter('STOCKS')">🏷️ Stock Mentions</button>
-                <button id="filter-news-POS" class="hist-filter-btn" onclick="setNewsFilter('POS')">🟢 Bullish Catalysts</button>
-                <button id="filter-news-NEG" class="hist-filter-btn" onclick="setNewsFilter('NEG')">🔴 Adverse Risk Events</button>
-            </div>
-            <div id="news-stream-container" style="display:flex; flex-direction:column; gap:10px;"></div>
+            <div id="swing-trades-container" style="display:none; margin-top:12px;"></div>
         </div>
     </div>
 
@@ -1097,10 +1057,6 @@ HTML = r"""<!doctype html>
         <span class="mob-icon">🎯</span>
         <span>Trades</span>
     </button>
-    <button id="mob-btn-news" class="mob-nav-btn" onclick="switchMobileTab('news')">
-        <span class="mob-icon">📰</span>
-        <span>AI News</span>
-    </button>
     <button id="mob-btn-activity" class="mob-nav-btn" onclick="switchMobileTab('activity')">
         <span class="mob-icon">📜</span>
         <span>History</span>
@@ -1141,7 +1097,7 @@ try {
 
 // Desktop Desk Tab Switcher
 function switchDeskTab(tab) {
-    const sections = ['overview', 'fno', 'intraday', 'swing', 'pro', 'news'];
+    const sections = ['overview', 'fno', 'intraday', 'swing', 'pro'];
     sections.forEach(s => {
         const el = document.getElementById('sec-' + s);
         const btn = document.getElementById('tab-' + s + '-btn');
@@ -1165,17 +1121,44 @@ function switchMobileTab(tab) {
         switchDeskTab('overview');
         const posEl = document.getElementById('positions-container');
         if (posEl) posEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (tab === 'news') {
-        switchDeskTab('news');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (tab === 'activity') {
         switchDeskTab('overview');
+        if (isHistoryCollapsed) toggleHistoryCollapse();
         const actEl = document.getElementById('section-history-overview');
         if (actEl) actEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (tab === 'controls') {
         switchDeskTab('overview');
         switchMode(document.body.classList.contains('pro-mode') ? 'simple' : 'pro');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+// Collapsible History Controllers
+let isHistoryCollapsed = true;
+function toggleHistoryCollapse() {
+    isHistoryCollapsed = !isHistoryCollapsed;
+    const cont = document.getElementById('history-content-collapsible');
+    const btn = document.getElementById('history-collapse-btn');
+    const badge = document.getElementById('history-collapse-badge');
+    if (cont) {
+        cont.style.display = isHistoryCollapsed ? 'none' : 'block';
+    }
+    if (btn) {
+        btn.textContent = isHistoryCollapsed ? '▶ Expand History' : '▼ Collapse History';
+    }
+    if (badge) {
+        badge.textContent = isHistoryCollapsed ? '▶ Click to Expand' : '▼ Tap to Collapse';
+    }
+}
+
+function toggleDeskHistory(desk) {
+    const cont = document.getElementById(desk + '-trades-container');
+    const badge = document.getElementById(desk + '-history-toggle-badge');
+    if (!cont) return;
+    const isHidden = (cont.style.display === 'none' || cont.style.display === '');
+    cont.style.display = isHidden ? 'block' : 'none';
+    if (badge) {
+        badge.textContent = isHidden ? '▼ Collapse' : '▶ Expand';
     }
 }
 
@@ -1535,77 +1518,6 @@ updateClock();
 let currentNewsFilter = 'ALL';
 let cachedNews = [];
 
-function setNewsFilter(filter) {
-    currentNewsFilter = filter;
-    ['ALL', 'STOCKS', 'POS', 'NEG'].forEach(k => {
-        const btn = document.getElementById('filter-news-' + k);
-        if (btn) btn.classList.toggle('active', k === filter);
-    });
-    renderFilteredNews();
-}
-
-function renderNewsItem(n) {
-    const sent = String(n.sentiment || 'NEUTRAL').toUpperCase();
-    const title = escapeHtml(n.title || '');
-    const source = escapeHtml(n.source || 'Financial News');
-    const timeStr = escapeHtml(n.time_ago || n.published_ist || '');
-    const url = escapeHtml(n.url || '#');
-    const takeaway = escapeHtml(n.takeaway || '');
-    const symbols = Array.isArray(n.symbols) ? n.symbols : [];
-
-    let sentBadge = '<span class="pill pill-cyan">⚪ MARKET</span>';
-    let cardBorder = 'var(--border)';
-    if (sent === 'POSITIVE') {
-        sentBadge = '<span class="pill pill-long">🟢 BULLISH</span>';
-        cardBorder = 'rgba(16, 185, 129, 0.25)';
-    } else if (sent === 'NEGATIVE') {
-        sentBadge = '<span class="pill pill-short">🔴 RISK EVENT</span>';
-        cardBorder = 'rgba(244, 63, 94, 0.25)';
-    }
-
-    const symHtml = symbols.map(s => `<span class="pill pill-amber" style="font-size:10px; padding:2px 6px;">${escapeHtml(s)}</span>`).join(' ');
-
-    return `
-        <div class="activity-item" style="border:1px solid ${cardBorder}; border-radius:12px; padding:12px; background:var(--bg-card);">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;">
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                    ${sentBadge}
-                    <span class="faint" style="font-size:11px; font-weight:700;">${source}</span>
-                    <span class="faint" style="font-size:11px;">• ${timeStr}</span>
-                    ${symHtml}
-                </div>
-            </div>
-            <div style="font-size:14px; font-weight:700; line-height:1.4; margin-bottom:6px;">
-                <a href="${url}" target="_blank" rel="noopener noreferrer" style="color:var(--text-main); text-decoration:none; transition:color 0.2s;" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--text-main)'">
-                    ${title}
-                </a>
-            </div>
-            <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
-                <span>🤖 AI Intel:</span> <span>${takeaway}</span>
-            </div>
-        </div>`;
-}
-
-function renderFilteredNews() {
-    const container = document.getElementById('news-stream-container');
-    if (!container) return;
-
-    let items = cachedNews;
-    if (currentNewsFilter === 'STOCKS') {
-        items = items.filter(n => Array.isArray(n.symbols) && n.symbols.length > 0);
-    } else if (currentNewsFilter === 'POS') {
-        items = items.filter(n => String(n.sentiment || '').toUpperCase() === 'POSITIVE');
-    } else if (currentNewsFilter === 'NEG') {
-        items = items.filter(n => String(n.sentiment || '').toUpperCase() === 'NEGATIVE');
-    }
-
-    if (items.length === 0) {
-        container.innerHTML = '<div class="faint" style="padding:24px; text-align:center;">No news items found matching this filter.</div>';
-    } else {
-        container.innerHTML = items.map(renderNewsItem).join('');
-    }
-}
-
 // Live Dashboard State Poller (Every 2 Seconds)
 async function updateDashboard() {
     try {
@@ -1740,25 +1652,6 @@ async function updateDashboard() {
             swingTradesCont.innerHTML = tradesSwing.length ? tradesSwing.map(renderActivityFeed).join('') : '<div class="faint" style="padding:16px;text-align:center;">No swing trade records logged yet.</div>';
         }
 
-        // 9. Populate Live AI News Widgets
-        const newsItems = data.news || [];
-        const newsStats = data.news_stats || { total: newsItems.length, positive: 0, negative: 0, neutral: 0 };
-        setEl('news-count-badge', newsItems.length);
-        setEl('news-total-count', newsStats.total || newsItems.length);
-        setEl('overview-news-count', newsItems.length);
-        setEl('pill-news-pos', '🟢 Positive: ' + (newsStats.positive || 0));
-        setEl('pill-news-neg', '🔴 Adverse Risk: ' + (newsStats.negative || 0));
-        setEl('pill-news-neu', '⚪ Neutral: ' + (newsStats.neutral || 0));
-
-        // Render News on Overview Tab (top 5 headlines)
-        const overviewNewsBox = document.getElementById('overview-news-container');
-        if (overviewNewsBox) {
-            overviewNewsBox.innerHTML = newsItems.length ? newsItems.slice(0, 5).map(renderNewsItem).join('') : '<div class="faint" style="padding:16px; text-align:center;">Scanning breaking financial news feeds...</div>';
-        }
-
-        // Render News on Full Radar Tab
-        renderFilteredNews();
-
         // 8. Strategy Learning Weights
         const weightsBox = document.getElementById('learning-weights-container');
         if (weightsBox && data.learning && data.learning.strategy_weights) {
@@ -1884,7 +1777,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "5.3",
+                "version": "5.4",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -2092,7 +1985,7 @@ def create_app(db, cfg=None, provider=None):
             })
 
         return jsonify({
-            "version": "5.3",
+            "version": "5.4",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
