@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v5.0 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v5.1 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -760,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v5.0</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v5.1</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -1884,7 +1884,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "5.0",
+                "version": "5.1",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -1982,6 +1982,21 @@ def create_app(db, cfg=None, provider=None):
             return jsonify({"error": "Trading account is not initialized."}), 503
 
         positions = db.positions()
+        # Fast Live Price Enrichment: Ensure open stock positions always display up-to-the-second live prices
+        if provider and hasattr(provider, "quote"):
+            for pos in positions:
+                sym = pos.get("symbol", "")
+                if any(k in sym for k in ("-BPS-", "-BCS-", "-CONDOR-")):
+                    continue
+                try:
+                    q = provider.quote(sym)
+                    if q and q.get("price"):
+                        live_px = float(q["price"])
+                        pos["current_price"] = live_px
+                        db.update_current_price(sym, live_px)
+                except Exception:
+                    pass
+
         raw_trades = db.trades(30)
         trades = [_enrich_trade(t) for t in raw_trades]
         metrics = portfolio_metrics(account, positions, short_margin)
@@ -2077,7 +2092,7 @@ def create_app(db, cfg=None, provider=None):
             })
 
         return jsonify({
-            "version": "5.0",
+            "version": "5.1",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],

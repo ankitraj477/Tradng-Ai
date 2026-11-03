@@ -1,4 +1,5 @@
 import time
+import threading
 
 from .config import load_config
 from .db import DB
@@ -991,12 +992,39 @@ class TradingEngine:
         )
 
     # ======================================================
+    # CONTINUOUS FAST POSITION TRACKER (INTRADAY & SWING)
+    # ======================================================
+
+    def start_fast_equity_monitor(self):
+        """Start dedicated 3-second continuous thread for Intraday & Swing price tracking and trailing stops."""
+        if not hasattr(self, "_equity_monitor_thread") or self._equity_monitor_thread is None or not self._equity_monitor_thread.is_alive():
+            self._equity_monitor_stop = threading.Event()
+            self._equity_monitor_thread = threading.Thread(target=self._fast_equity_loop, name="FastEquityMonitor", daemon=True)
+            self._equity_monitor_thread.start()
+
+    def _fast_equity_loop(self):
+        while hasattr(self, "_equity_monitor_stop") and not self._equity_monitor_stop.is_set():
+            try:
+                if self.db.positions():
+                    if not self.cfg["live_data"] or market_open():
+                        now_dt = now_ist() if self.cfg.get("live_data") else None
+                        self.positions.manage(now_dt)
+                        desks_cfg = self.cfg.get("desks", {})
+                        if desks_cfg.get("enabled", False):
+                            if desks_cfg.get("swing", False):
+                                self.swing_desk.position_manager.manage()
+            except Exception:
+                pass
+            time.sleep(3)
+
+    # ======================================================
     # 24/7 ENGINE LOOP
     # ======================================================
 
     def run_forever(self):
 
         next_decision = time.time()
+        self.start_fast_equity_monitor()
         if hasattr(self, "fno_desk") and self.fno_desk and self.cfg.get("desks", {}).get("enabled", False) and self.cfg.get("desks", {}).get("fno", False):
             self.fno_desk.start_fast_monitor()
 
