@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v5.7 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v5.8 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -760,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v5.7</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v5.8</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -1777,7 +1777,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "5.7",
+                "version": "5.8",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -1878,7 +1878,8 @@ def create_app(db, cfg=None, provider=None):
         raw_trades = db.trades(30)
         trades = [_enrich_trade(t) for t in raw_trades]
         metrics = portfolio_metrics(account, positions, short_margin)
-        realized = db.total_realized_pnl()
+        realized = db.realized_pnl_today() if hasattr(db, "realized_pnl_today") else db.total_realized_pnl()
+        realized_all_time = db.total_realized_pnl()
         pnl = metrics["equity"] - account["starting_capital"]
 
         drawdown = 0.0
@@ -1985,7 +1986,7 @@ def create_app(db, cfg=None, provider=None):
             })
 
         return jsonify({
-            "version": "5.7",
+            "version": "5.8",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
@@ -1996,7 +1997,9 @@ def create_app(db, cfg=None, provider=None):
             "reserved_margin": metrics["reserved_margin"],
             "gross_exposure": metrics["gross_exposure"],
             "net_exposure": metrics["net_exposure"],
-            "realized": realized,
+            "realized": round(realized, 2),
+            "realized_today": round(realized, 2),
+            "realized_all_time": round(realized_all_time, 2),
             "unrealized": (metrics["long_unrealized"] + metrics["short_unrealized"]),
             "pnl": pnl,
             "return_pct": (pnl / account["starting_capital"] * 100),
