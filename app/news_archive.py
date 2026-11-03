@@ -112,6 +112,34 @@ class NewsArchive:
                 return True, item.get('title', 'Adverse material news event')
         return False, ''
 
+    def get_positive_material_news(self, symbol: str, max_hours: int = 24):
+        """
+        Catalyst Engine: Checks if a stock symbol has positive material news
+        (earnings beat, expansion, order win, upgrade, contract) within max_hours.
+        Returns (has_catalyst: bool, headline: str).
+        """
+        now = datetime.now(timezone.utc)
+        clean_sym = symbol.replace('.NS', '').upper()
+        recent = self.get_recent(limit=30, symbol=symbol)
+        if not recent and clean_sym != symbol:
+            recent = self.get_recent(limit=30, symbol=clean_sym)
+
+        for item in recent:
+            sentiment = str(item.get('sentiment', '')).upper()
+            materiality = str(item.get('materiality', '')).upper()
+            if sentiment == 'POSITIVE' and materiality in ('POTENTIALLY_MATERIAL', 'HIGH'):
+                pub = item.get('published_at')
+                if pub:
+                    try:
+                        pub_dt = datetime.fromisoformat(pub.replace('Z', '+00:00'))
+                        hours_diff = (now - pub_dt).total_seconds() / 3600.0
+                        if hours_diff > max_hours:
+                            continue
+                    except Exception:
+                        pass
+                return True, item.get('title', 'Positive earnings/growth catalyst')
+        return False, ''
+
     def get_news_summary_today(self):
         """Returns statistics on news collected today for the dashboard."""
         with sqlite3.connect(self.path) as c:

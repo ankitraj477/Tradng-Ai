@@ -77,7 +77,7 @@ class SwingDeskRunner:
         from ..market_hours import market_open
         is_open = market_open()
         universe = get_universe_symbols()
-        candidates = self.scanner.scan_stage2_candidates(universe[:40])
+        candidates = self.scanner.scan_stage2_candidates(universe[:50])
 
         for cand in candidates:
             # Re-check active swing count + pending orders inside loop
@@ -96,11 +96,15 @@ class SwingDeskRunner:
                 continue
 
             # Institutional Risk Gate: Block swing entries on adverse material news (fraud, probe, downgrade)
+            catalyst_note = ""
             if self.news_archive:
                 has_adverse, headline = self.news_archive.has_negative_material_news(sym)
                 if has_adverse:
                     self.db.log("WARN", f"[Swing Desk] Adverse news detected for {sym}: '{headline}'. Trade blocked to preserve capital.")
                     continue
+                has_pos, pos_head = self.news_archive.get_positive_material_news(sym)
+                if has_pos:
+                    catalyst_note = f" + Catalyst: {pos_head[:40]}..."
 
             # Quality Filter: Minervini score must be >= 80
             if float(cand.get("score", 0)) < 80.0:
@@ -132,7 +136,7 @@ class SwingDeskRunner:
                     f"52w High Proximity: ₹{cand.get('high_52w', 0):.2f}. "
                     f"Target: ₹{setup['target']:.2f} (+{((setup['target']-price)/price*100):.1f}%), "
                     f"SL: ₹{setup['stop_loss']:.2f} (-{((price-setup['stop_loss'])/price*100):.1f}%), "
-                    f"R:R = 1:{setup.get('rr_ratio', 2.5):.1f}"
+                    f"R:R = 1:{setup.get('rr_ratio', 2.5):.1f}{catalyst_note}"
                 ),
                 "risk_decision": "APPROVED" if is_open else "QUEUED_RESEARCH"
             })

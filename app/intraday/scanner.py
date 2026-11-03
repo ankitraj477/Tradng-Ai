@@ -33,4 +33,4 @@ class IntradayScanner:
 
         # Sort by absolute momentum
         candidates.sort(key=lambda c: abs(c["change_pct"]), reverse=True)
-        return candidates[:10]
+        return candidates[:25]

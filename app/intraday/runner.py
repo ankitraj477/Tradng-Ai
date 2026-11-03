@@ -71,7 +71,7 @@ class IntradayDeskRunner:
         min_notional = float(self.cfg.get("risk", {}).get("min_trade_notional", 5000.0))
 
         universe = get_universe_symbols()
-        candidates = self.scanner.scan_opening_candidates(universe[:30])
+        candidates = self.scanner.scan_opening_candidates(universe[:50])
         for cand in candidates:
             if len(current_intraday) >= max_intra_positions:
                 break
@@ -85,11 +85,15 @@ class IntradayDeskRunner:
             sig = self.strategy.evaluate(sym, market_regime=current_regime)
             if sig and sig.action in ("BUY", "SHORT"):
                 # Adverse News Gate: Do not buy into corporate probes or fraud news
+                catalyst_info = ""
                 if sig.action == "BUY" and self.news_archive:
                     has_adverse, headline = self.news_archive.has_negative_material_news(sym)
                     if has_adverse:
                         self.db.log("WARN", f"[Intraday Desk] Adverse news detected for {sym}: '{headline}'. BUY blocked to preserve capital.")
                         continue
+                    has_pos, pos_headline = self.news_archive.get_positive_material_news(sym)
+                    if has_pos:
+                        catalyst_info = f" [News Catalyst: {pos_headline[:45]}...]"
 
                 # Automated Directional Gates
                 if sig.action == "SHORT" and not can_short:
@@ -117,8 +121,9 @@ class IntradayDeskRunner:
                     continue
 
                 trade_notional = qty * price
-                # Allow single share purchases for high-value liquid equities (e.g. ₹2,500 - ₹5,000)
-                effective_min_notional = min(min_notional, price)
+                # Allow single share purchases for high-value liquid equities (e.g. ₹2,000 - ₹5,000)
+                # while strictly enforcing min_notional on lower-priced stocks to prevent brokerage fee drag
+                effective_min_notional = min(min_notional, price) if price >= 2000.0 else min_notional
                 if trade_notional < effective_min_notional:
                     self.db.log("INFO", f"[Intraday Desk] SIZING GATE: Skipped {sym} (notional ₹{trade_notional:.2f} < minimum ₹{effective_min_notional:.2f})")
                     continue
@@ -130,7 +135,7 @@ class IntradayDeskRunner:
                         sig.target or (price * 1.02),
                         sig.atr or (price * 0.01)
                     )
-                    self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f})")
+                    self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f}){catalyst_info}")
                     current_intraday.append({"symbol": sym})
                 elif sig.action == "SHORT":
                     self.execution.open_short(

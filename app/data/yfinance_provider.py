@@ -862,16 +862,28 @@ class YFinanceProvider(MarketDataProvider):
             )
 
         curr_price = float(df["Close"].iloc[-1])
-        prev_close = float(df["Close"].iloc[-2]) if len(df) >= 2 else float(df["Open"].iloc[0])
-        change_pct = round(((curr_price - prev_close) / prev_close) * 100, 2) if prev_close > 0 else 0.0
+        last_date = df.index[-1].date()
+        today_bars = df[df.index.date == last_date]
+        prev_day_bars = df[df.index.date < last_date]
+
+        if not prev_day_bars.empty:
+            prev_close = float(prev_day_bars["Close"].iloc[-1])
+        else:
+            prev_close = float(today_bars["Open"].iloc[0]) if not today_bars.empty else float(df["Open"].iloc[0])
+
+        change_pct = round(((curr_price - prev_close) / prev_close) * 100.0, 2) if prev_close > 0 else 0.0
+        day_open = float(today_bars["Open"].iloc[0]) if not today_bars.empty else float(df["Open"].iloc[-1])
+        day_high = float(today_bars["High"].max()) if not today_bars.empty else float(df["High"].iloc[-1])
+        day_low = float(today_bars["Low"].min()) if not today_bars.empty else float(df["Low"].iloc[-1])
+        day_volume = float(today_bars["Volume"].sum()) if not today_bars.empty else float(df["Volume"].iloc[-1])
 
         return {
             "symbol": symbol,
             "price": curr_price,
-            "open": float(df["Open"].iloc[-1]),
-            "high": float(df["High"].iloc[-1]),
-            "low": float(df["Low"].iloc[-1]),
-            "volume": float(df["Volume"].iloc[-1]),
+            "open": day_open,
+            "high": day_high,
+            "low": day_low,
+            "volume": day_volume,
             "change_pct": change_pct,
             "timestamp": (
                 timestamp.to_pydatetime()
