@@ -117,8 +117,10 @@ class IntradayDeskRunner:
                     continue
 
                 trade_notional = qty * price
-                if trade_notional < min_notional:
-                    self.db.log("INFO", f"[Intraday Desk] SIZING GATE: Skipped {sym} (notional ₹{trade_notional:.2f} < minimum ₹{min_notional:.2f})")
+                # Allow single share purchases for high-value liquid equities (e.g. ₹2,500 - ₹5,000)
+                effective_min_notional = min(min_notional, price)
+                if trade_notional < effective_min_notional:
+                    self.db.log("INFO", f"[Intraday Desk] SIZING GATE: Skipped {sym} (notional ₹{trade_notional:.2f} < minimum ₹{effective_min_notional:.2f})")
                     continue
 
                 if sig.action == "BUY":
