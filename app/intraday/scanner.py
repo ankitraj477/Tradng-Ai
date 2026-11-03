@@ -19,14 +19,14 @@ class IntradayScanner:
                 volume = float(quote.get("volume", 0) or 0)
                 change_pct = float(quote.get("change_pct", 0) or 0)
 
-                # Intraday filter: Minimum liquidity and active intraday range (> 0.5% move)
-                if price >= 50 and abs(change_pct) >= 0.4:
+                # Intraday filter: Active liquid equities (price >= 50)
+                if price >= 50:
                     candidates.append({
                         "symbol": symbol,
                         "price": price,
                         "volume": volume,
                         "change_pct": change_pct,
-                        "setup": "ORB_MOMENTUM" if change_pct > 0 else "ORB_SHORT"
+                        "setup": "ORB_MOMENTUM" if change_pct >= 0 else "ORB_SHORT"
                     })
             except Exception:
                 continue

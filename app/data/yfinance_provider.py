@@ -265,11 +265,12 @@ class YFinanceProvider(MarketDataProvider):
         self,
         df,
         require_fresh=True,
+        max_age_seconds=None,
     ):
         return validate_history(
             df,
             max_age_seconds=(
-                self.max_age_seconds
+                max_age_seconds if max_age_seconds is not None else self.max_age_seconds
             ),
             require_fresh=(
                 require_fresh
@@ -360,10 +361,13 @@ class YFinanceProvider(MarketDataProvider):
                     f"live data for {symbol}"
                 )
 
+            is_daily_or_higher = str(interval).lower() in ("1d", "d", "1wk", "wk", "1mo", "mo", "1y")
+            effective_max_age = 345600 if is_daily_or_higher else self.max_age_seconds
             ok, message = (
                 self._validate(
                     df,
                     require_fresh=True,
+                    max_age_seconds=effective_max_age,
                 )
             )
 
@@ -857,13 +861,18 @@ class YFinanceProvider(MarketDataProvider):
                 )
             )
 
+        curr_price = float(df["Close"].iloc[-1])
+        prev_close = float(df["Close"].iloc[-2]) if len(df) >= 2 else float(df["Open"].iloc[0])
+        change_pct = round(((curr_price - prev_close) / prev_close) * 100, 2) if prev_close > 0 else 0.0
+
         return {
             "symbol": symbol,
-            "price": float(
-                df[
-                    "Close"
-                ].iloc[-1]
-            ),
+            "price": curr_price,
+            "open": float(df["Open"].iloc[-1]),
+            "high": float(df["High"].iloc[-1]),
+            "low": float(df["Low"].iloc[-1]),
+            "volume": float(df["Volume"].iloc[-1]),
+            "change_pct": change_pct,
             "timestamp": (
                 timestamp.to_pydatetime()
             ),

@@ -688,6 +688,24 @@ class TradingEngine:
             return
 
         # --------------------------------------------------
+        # UNIFIED MULTI-DESK RUNNERS (INTRADAY & SWING)
+        # Always execute top liquid scans independently of 500-symbol batch download
+        # --------------------------------------------------
+        desks_cfg = self.cfg.get("desks", {})
+        if desks_cfg.get("enabled", False):
+            if desks_cfg.get("intraday", False) and hasattr(self, "intraday_desk") and self.intraday_desk:
+                try:
+                    self.intraday_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"Intraday desk cycle: {exc!r}")
+
+            if desks_cfg.get("swing", False) and hasattr(self, "swing_desk") and self.swing_desk:
+                try:
+                    self.swing_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
+
+        # --------------------------------------------------
         # SESSION TIMING & EOD SQUARE-OFF
         # --------------------------------------------------
 
@@ -911,22 +929,10 @@ class TradingEngine:
 
         self.positions.manage()
 
-        # Trigger decoupled desks if enabled (Gate 0: desks.enabled guard)
+        # F&O fast protection trigger
         desks_cfg = self.cfg.get("desks", {})
-        if desks_cfg.get("enabled", False):
-            if desks_cfg.get("intraday", False):
-                try:
-                    self.intraday_desk.run_cycle()
-                except Exception as exc:
-                    self.db.log("ERROR", f"Intraday desk cycle: {exc!r}")
-
-            if desks_cfg.get("swing", False):
-                try:
-                    self.swing_desk.run_cycle()
-                except Exception as exc:
-                    self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
-
-            if desks_cfg.get("fno", False):
+        if desks_cfg.get("enabled", False) and desks_cfg.get("fno", False):
+            if hasattr(self, "fno_desk") and self.fno_desk:
                 try:
                     self.fno_desk.run_cycle()
                 except Exception as exc:
