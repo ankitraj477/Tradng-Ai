@@ -177,7 +177,8 @@ class IntradayPositionManager:
                         continue
 
                     if stop is not None and price <= stop:
-                        self.execution.close(p["symbol"], price, "Stop loss", "")
+                        exit_reason = "Trailing profit lock" if price > entry else ("Breakeven stop" if abs(price - entry) / entry < 0.001 else "Stop loss")
+                        self.execution.close(p["symbol"], price, exit_reason, "")
                         closed += 1
                         continue
                     if age >= max_minutes:
@@ -239,7 +240,8 @@ class IntradayPositionManager:
                         continue
 
                     if stop is not None and price >= stop:
-                        self.execution.close(p["symbol"], price, "Short stop loss", "")
+                        exit_reason = "Trailing profit lock" if price < entry else ("Breakeven stop" if abs(price - entry) / entry < 0.001 else "Short stop loss")
+                        self.execution.close(p["symbol"], price, exit_reason, "")
                         closed += 1
                         continue
                     if age >= max_minutes:

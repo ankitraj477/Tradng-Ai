@@ -47,7 +47,8 @@ class SwingPositionManager:
                     continue
 
                 if stop is not None and price <= stop:
-                    self.execution.close(symbol, price, "Swing Stop Loss")
+                    exit_reason = "Swing Trailing Profit Lock" if price > entry else "Swing Stop Loss"
+                    self.execution.close(symbol, price, exit_reason)
                     closed += 1
                     continue
 
