@@ -84,3 +84,45 @@ class NewsArchive:
                 "published_at": r[4], "event_type": r[5], "sentiment": r[6],
                 "materiality": r[7], "symbols": json.loads(r[8] or "[]")
             } for r in rows]
+    def has_negative_material_news(self, symbol: str, max_hours: int = 24):
+        """
+        Institutional Risk Filter: Checks if a stock symbol has adverse material news
+        (fraud, regulatory probe, default, downgrade, earnings collapse) within max_hours.
+        Returns (has_risk: bool, reason: str).
+        """
+        now = datetime.now(timezone.utc)
+        clean_sym = symbol.replace('.NS', '').upper()
+        recent = self.get_recent(limit=30, symbol=symbol)
+        if not recent and clean_sym != symbol:
+            recent = self.get_recent(limit=30, symbol=clean_sym)
+
+        for item in recent:
+            sentiment = str(item.get('sentiment', '')).upper()
+            materiality = str(item.get('materiality', '')).upper()
+            if sentiment == 'NEGATIVE' and materiality in ('POTENTIALLY_MATERIAL', 'HIGH'):
+                pub = item.get('published_at')
+                if pub:
+                    try:
+                        pub_dt = datetime.fromisoformat(pub.replace('Z', '+00:00'))
+                        hours_diff = (now - pub_dt).total_seconds() / 3600.0
+                        if hours_diff > max_hours:
+                            continue
+                    except Exception:
+                        pass
+                return True, item.get('title', 'Adverse material news event')
+        return False, ''
+
+    def get_news_summary_today(self):
+        """Returns statistics on news collected today for the dashboard."""
+        with sqlite3.connect(self.path) as c:
+            total = c.execute('SELECT count(*) FROM news_archive').fetchone()[0]
+            pos = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'POSITIVE'").fetchone()[0]
+            neg = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'NEGATIVE'").fetchone()[0]
+            neu = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'NEUTRAL'").fetchone()[0]
+            return {
+                'total': total,
+                'positive': pos,
+                'negative': neg,
+                'neutral': neu
+            }
+

@@ -184,8 +184,8 @@ class TradingEngine:
         from .swing.runner import SwingDeskRunner
         from .fno.runner import FnoDeskRunner
 
-        self.intraday_desk = IntradayDeskRunner(self.db, self.provider, self.cfg)
-        self.swing_desk = SwingDeskRunner(self.db, self.provider, self.cfg)
+        self.intraday_desk = IntradayDeskRunner(self.db, self.provider, self.cfg, news_archive=self.news_archive)
+        self.swing_desk = SwingDeskRunner(self.db, self.provider, self.cfg, news_archive=self.news_archive)
         self.fno_desk = FnoDeskRunner(self.db, self.provider, self.cfg)
 
     # ======================================================

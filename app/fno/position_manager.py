@@ -29,6 +29,7 @@ class FNOPositionManager:
         now_dt = dt or datetime.now(IST)
         today_str = now_dt.strftime("%Y-%m-%d")
         is_expiry_square_off_time = (now_dt.hour > 15) or (now_dt.hour == 15 and now_dt.minute >= 15)
+        is_opening_settlement = (now_dt.hour == 9 and now_dt.minute < 17)
 
         positions = self.db.positions_by_product("FNO")
 
@@ -75,7 +76,7 @@ class FNOPositionManager:
 
                 # 1. Dynamic Support & Resistance Defense Check (Runs first every 2 sec):
                 # Only exit if spot is valid and breaks through S1 Support or R1 Resistance toward the short wing
-                if self.sr_calc and spot > 0:
+                if not is_opening_settlement and self.sr_calc and spot > 0:
                     sr = self.sr_calc.calculate_levels(underlying, spot)
                     s1 = sr.get("support_1", 0.0)
                     r1 = sr.get("resistance_1", 999999.0)
@@ -232,6 +233,9 @@ class FNOPositionManager:
 
                 # 5. Stop Loss Rule (Premium expanded beyond stop loss limit)
                 if current_premium >= stop_loss_premium:
+                    if is_opening_settlement and current_premium < (entry_credit * 2.5):
+                        # Allow opening spread widening to settle during first 120 seconds of session
+                        continue
                     self.execution.close(symbol, current_premium, "Option Stop Loss (Adverse Move)")
                     closed += 1
                     continue

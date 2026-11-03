@@ -15,7 +15,8 @@ from .scanner import IntradayScanner
 
 
 class IntradayDeskRunner:
-    def __init__(self, db, provider, cfg=None):
+    def __init__(self, db, provider, cfg=None, news_archive=None):
+        self.news_archive = news_archive
         self.db = db
         self.provider = provider
         self.cfg = cfg or {}
@@ -83,6 +84,13 @@ class IntradayDeskRunner:
 
             sig = self.strategy.evaluate(sym, market_regime=current_regime)
             if sig and sig.action in ("BUY", "SHORT"):
+                # Adverse News Gate: Do not buy into corporate probes or fraud news
+                if sig.action == "BUY" and self.news_archive:
+                    has_adverse, headline = self.news_archive.has_negative_material_news(sym)
+                    if has_adverse:
+                        self.db.log("WARN", f"[Intraday Desk] Adverse news detected for {sym}: '{headline}'. BUY blocked to preserve capital.")
+                        continue
+
                 # Automated Directional Gates
                 if sig.action == "SHORT" and not can_short:
                     reason = "disabled in config" if allow_shorts_cfg in (False, "false") else f"market regime '{current_regime}' is not bearish"

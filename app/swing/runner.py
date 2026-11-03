@@ -15,7 +15,8 @@ from .position_manager import SwingPositionManager
 
 
 class SwingDeskRunner:
-    def __init__(self, db, provider, cfg=None):
+    def __init__(self, db, provider, cfg=None, news_archive=None):
+        self.news_archive = news_archive
         self.db = db
         self.provider = provider
         self.cfg = cfg or {}
@@ -93,6 +94,13 @@ class SwingDeskRunner:
             already_queued = [o for o in pending_orders if o.get("symbol") == sym]
             if already_queued:
                 continue
+
+            # Institutional Risk Gate: Block swing entries on adverse material news (fraud, probe, downgrade)
+            if self.news_archive:
+                has_adverse, headline = self.news_archive.has_negative_material_news(sym)
+                if has_adverse:
+                    self.db.log("WARN", f"[Swing Desk] Adverse news detected for {sym}: '{headline}'. Trade blocked to preserve capital.")
+                    continue
 
             # Quality Filter: Minervini score must be >= 80
             if float(cand.get("score", 0)) < 80.0:

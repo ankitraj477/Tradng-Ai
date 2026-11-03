@@ -7,6 +7,7 @@ from .accounting import portfolio_metrics
 from .market_hours import market_phase, now_ist, holiday_name, market_open, IST
 from .learning import LearningEngine
 from .runtime import preflight
+from .news_archive import NewsArchive
 
 
 HTML = r"""<!doctype html>
@@ -14,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v4.4 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v4.5 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -759,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v4.4</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v4.5</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -797,6 +798,7 @@ HTML = r"""<!doctype html>
             <button id="tab-fno-btn" class="tab-btn" onclick="switchDeskTab('fno')">🎯 Options Safe Spreads (F&O)</button>
             <button id="tab-intraday-btn" class="tab-btn" onclick="switchDeskTab('intraday')">⚡ Day Trades (MIS)</button>
             <button id="tab-swing-btn" class="tab-btn" onclick="switchDeskTab('swing')">📈 Stock Holdings (CNC)</button>
+            <button id="tab-news-btn" class="tab-btn" onclick="switchDeskTab('news')">📰 AI News Intel (<span id="news-count-badge">0</span>)</button>
             <button id="tab-pro-btn" class="tab-btn" onclick="switchDeskTab('pro')">🔬 Quant & Audit Terminal</button>
         </div>
     </div>
@@ -938,6 +940,28 @@ HTML = r"""<!doctype html>
             <div id="positions-container" class="cards-grid"></div>
         </div>
 
+        <!-- AI LIVE NEWS INTEL RADAR (KID-FRIENDLY & MOBILE RESPONSIVE) -->
+        <div id="section-news-overview">
+            <div class="section-header">
+                <div class="section-title">
+                    <span>📰</span> Live Market & Stock News Radar (<span id="overview-news-count">0</span> Active Headlines)
+                    <span class="pill pill-long" style="font-size:10px; margin-left:6px;">🛡️ AI Risk Guard Active</span>
+                </div>
+                <div class="section-sub">Scans RSS feeds every minute: AI flags positive momentum & automatically blocks bad news stocks</div>
+            </div>
+            <div class="activity-card" style="padding:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <div style="font-size:12px; color:var(--text-muted);">
+                        Real-time headlines from <strong>Economic Times, Moneycontrol, Livemint & Google News</strong>
+                    </div>
+                    <button class="pill pill-cyan" onclick="switchDeskTab('news')" style="cursor:pointer; border:none; font-weight:700;">
+                        Open Full News Radar ➔
+                    </button>
+                </div>
+                <div id="overview-news-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+            </div>
+        </div>
+
         <!-- SECTION 3: COMPLETE TRADE HISTORY WITH DESK FILTERS -->
         <div id="section-history-overview">
             <div class="section-header">
@@ -1007,6 +1031,29 @@ HTML = r"""<!doctype html>
         </div>
     </div>
 
+    <!-- DESK TAB: AI NEWS RADAR -->
+    <div id="sec-news" style="display:none; flex-direction:column; gap:16px;">
+        <div class="section-header">
+            <div class="section-title">📰 Real-Time AI Market & Stock News Radar (<span id="news-total-count">0</span> Headlines Scanned)</div>
+            <div class="section-sub">Automated RSS intelligence: sentiment classification, corporate materiality tagging, and adverse risk blacklisting</div>
+        </div>
+        <div class="activity-card">
+            <div class="news-stats-strip" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border);">
+                <div class="pill pill-long" id="pill-news-pos">🟢 Positive: 0</div>
+                <div class="pill pill-short" id="pill-news-neg">🔴 Adverse Risk: 0</div>
+                <div class="pill pill-cyan" id="pill-news-neu">⚪ Neutral: 0</div>
+                <div class="pill pill-indigo" style="margin-left:auto;">🛡️ AI Adverse News Gate: ACTIVE (Protects Capital)</div>
+            </div>
+            <div class="history-filters" style="margin-bottom:12px;">
+                <button id="filter-news-ALL" class="hist-filter-btn active" onclick="setNewsFilter('ALL')">🌐 All News</button>
+                <button id="filter-news-STOCKS" class="hist-filter-btn" onclick="setNewsFilter('STOCKS')">🏷️ Stock Mentions</button>
+                <button id="filter-news-POS" class="hist-filter-btn" onclick="setNewsFilter('POS')">🟢 Bullish Catalysts</button>
+                <button id="filter-news-NEG" class="hist-filter-btn" onclick="setNewsFilter('NEG')">🔴 Adverse Risk Events</button>
+            </div>
+            <div id="news-stream-container" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+    </div>
+
     <!-- DESK TAB: PRO TERMINAL -->
     <div id="sec-pro" style="display:none; flex-direction:column; gap:16px;">
         <div class="section-header">
@@ -1050,6 +1097,10 @@ HTML = r"""<!doctype html>
         <span class="mob-icon">🎯</span>
         <span>Trades</span>
     </button>
+    <button id="mob-btn-news" class="mob-nav-btn" onclick="switchMobileTab('news')">
+        <span class="mob-icon">📰</span>
+        <span>AI News</span>
+    </button>
     <button id="mob-btn-activity" class="mob-nav-btn" onclick="switchMobileTab('activity')">
         <span class="mob-icon">📜</span>
         <span>History</span>
@@ -1090,7 +1141,7 @@ try {
 
 // Desktop Desk Tab Switcher
 function switchDeskTab(tab) {
-    const sections = ['overview', 'fno', 'intraday', 'swing', 'pro'];
+    const sections = ['overview', 'fno', 'intraday', 'swing', 'pro', 'news'];
     sections.forEach(s => {
         const el = document.getElementById('sec-' + s);
         const btn = document.getElementById('tab-' + s + '-btn');
@@ -1108,14 +1159,21 @@ function switchMobileTab(tab) {
     switchDeskTab('overview');
 
     if (tab === 'overview') {
+        switchDeskTab('overview');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (tab === 'trades') {
+        switchDeskTab('overview');
         const posEl = document.getElementById('positions-container');
         if (posEl) posEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (tab === 'news') {
+        switchDeskTab('news');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (tab === 'activity') {
+        switchDeskTab('overview');
         const actEl = document.getElementById('section-history-overview');
         if (actEl) actEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (tab === 'controls') {
+        switchDeskTab('overview');
         switchMode(document.body.classList.contains('pro-mode') ? 'simple' : 'pro');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -1197,30 +1255,62 @@ function renderGameCard(p) {
         const currentGainPerShare = Math.max(0, entry - curr);
         const progress = Math.min(100, Math.max(0, (currentGainPerShare / maxProfitPerShare) * 100)).toFixed(0);
 
+        const isBankNifty = sym.includes('BANKNIFTY');
+        const indexName = isBankNifty ? 'Bank Nifty' : 'Nifty 50';
+
+        // Extract strikes from legs_info or symbol
+        let strikeText = '';
+        let hedgeText = '';
+        if (p.legs_info) {
+            try {
+                const legs = typeof p.legs_info === 'string' ? JSON.parse(p.legs_info) : p.legs_info;
+                if (Array.isArray(legs) && legs.length >= 2) {
+                    const shortLeg = legs.find(l => (l.action || '').toUpperCase() === 'SELL') || legs[0];
+                    const hedgeLeg = legs.find(l => (l.action || '').toUpperCase() === 'BUY') || legs[1];
+                    strikeText = shortLeg.strike ? String(shortLeg.strike) : '';
+                    hedgeText = hedgeLeg.strike ? String(hedgeLeg.strike) : '';
+                }
+            } catch (e) {}
+        }
+        if (!strikeText) {
+            const m = sym.match(/(\d{4,5})/);
+            if (m) strikeText = m[1];
+        }
+
         if (sym.includes('CONDOR')) {
-            friendlyTitle = '🎯 Bank Nifty Safe Trap (Iron Condor)';
+            friendlyTitle = `🎯 ${indexName} Safe Corridor (Iron Condor)`;
             storyHtml = `
                 <div class="kid-story-box">
-                    <strong>🤖 The AI's Prediction:</strong> Bank Nifty will stay trapped between <strong>54,000</strong> and <strong>55,600</strong>. It is right in the safe center! Every passing hour decays option price, putting money directly into your pocket.
+                    <strong>🤖 The AI's Prediction:</strong> ${indexName} will remain comfortably inside its safe profit zone. Every passing hour decays option premiums, locking in pure cash!
                 </div>`;
             safetyHtml = `
                 <div class="safety-strip">
-                    <span>🛡️ Floor: <strong>54,000</strong></span>
-                    <span>📍 Spot: <strong>54,850</strong></span>
-                    <span>🏰 Roof: <strong>55,600</strong></span>
-                    <span class="text-down">Exit SL: ₹${(entry * 2.0).toFixed(1)}</span>
+                    <span>🛡️ Center Strike: <strong>${strikeText || 'Protected'}</strong></span>
+                    <span>🏰 Guaranteed Risk Cap: <strong>Active</strong></span>
+                    <span class="text-down">Exit SL: ₹${(entry * 2.0).toFixed(1)}/sh</span>
                 </div>`;
-        } else if (sym.includes('BPS')) {
-            friendlyTitle = '🛡️ Nifty Safety Floor (Bull Put Spread)';
+        } else if (sym.includes('BPS') || sym.includes('Bull Put')) {
+            friendlyTitle = `🛡️ ${indexName} Safety Floor (Bull Put Spread)`;
             storyHtml = `
                 <div class="kid-story-box">
-                    <strong>🤖 The AI's Prediction:</strong> Nifty 50 will stay above <strong>22,900</strong>. Right now Nifty is hundreds of points safely above the danger zone! As long as it holds, you keep 100% of the profits.
+                    <strong>🤖 The AI's Prediction:</strong> ${indexName} will stay comfortably above <strong>${strikeText ? Number(strikeText).toLocaleString('en-IN') : 'Safety Strike'}</strong>. Time decay melts premium directly into wallet profit!
                 </div>`;
             safetyHtml = `
                 <div class="safety-strip">
-                    <span>🛡️ Safety Floor: <strong>22,900</strong></span>
-                    <span>📍 Spot: <strong>23,300 (+400 pts safe)</strong></span>
-                    <span class="text-down">Exit SL: ₹${(entry * 2.0).toFixed(1)}</span>
+                    <span>🛡️ Safety Floor: <strong>${strikeText || 'Active'}</strong></span>
+                    ${hedgeText ? `<span>🦺 Insurance Hedge: <strong>${hedgeText}</strong></span>` : ''}
+                    <span class="text-down">Exit SL: ₹${(entry * 2.0).toFixed(1)}/sh</span>
+                </div>`;
+        } else if (sym.includes('BCS') || sym.includes('Bear Call')) {
+            friendlyTitle = `🏰 ${indexName} Ceiling Defense (Bear Call Spread)`;
+            storyHtml = `
+                <div class="kid-story-box">
+                    <strong>🤖 The AI's Prediction:</strong> ${indexName} will stay safely below <strong>${strikeText || 'Ceiling Strike'}</strong>. Premium decay yields daily income!
+                </div>`;
+            safetyHtml = `
+                <div class="safety-strip">
+                    <span>🏰 Ceiling Strike: <strong>${strikeText || 'Active'}</strong></span>
+                    <span class="text-down">Exit SL: ₹${(entry * 2.0).toFixed(1)}/sh</span>
                 </div>`;
         }
 
@@ -1394,6 +1484,82 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+
+// News Filtering & Rendering
+let currentNewsFilter = 'ALL';
+let cachedNews = [];
+
+function setNewsFilter(filter) {
+    currentNewsFilter = filter;
+    ['ALL', 'STOCKS', 'POS', 'NEG'].forEach(k => {
+        const btn = document.getElementById('filter-news-' + k);
+        if (btn) btn.classList.toggle('active', k === filter);
+    });
+    renderFilteredNews();
+}
+
+function renderNewsItem(n) {
+    const sent = String(n.sentiment || 'NEUTRAL').toUpperCase();
+    const title = escapeHtml(n.title || '');
+    const source = escapeHtml(n.source || 'Financial News');
+    const timeStr = escapeHtml(n.time_ago || n.published_ist || '');
+    const url = escapeHtml(n.url || '#');
+    const takeaway = escapeHtml(n.takeaway || '');
+    const symbols = Array.isArray(n.symbols) ? n.symbols : [];
+
+    let sentBadge = '<span class="pill pill-cyan">⚪ MARKET</span>';
+    let cardBorder = 'var(--border)';
+    if (sent === 'POSITIVE') {
+        sentBadge = '<span class="pill pill-long">🟢 BULLISH</span>';
+        cardBorder = 'rgba(16, 185, 129, 0.25)';
+    } else if (sent === 'NEGATIVE') {
+        sentBadge = '<span class="pill pill-short">🔴 RISK EVENT</span>';
+        cardBorder = 'rgba(244, 63, 94, 0.25)';
+    }
+
+    const symHtml = symbols.map(s => `<span class="pill pill-amber" style="font-size:10px; padding:2px 6px;">${escapeHtml(s)}</span>`).join(' ');
+
+    return `
+        <div class="activity-item" style="border:1px solid ${cardBorder}; border-radius:12px; padding:12px; background:var(--bg-card);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                    ${sentBadge}
+                    <span class="faint" style="font-size:11px; font-weight:700;">${source}</span>
+                    <span class="faint" style="font-size:11px;">• ${timeStr}</span>
+                    ${symHtml}
+                </div>
+            </div>
+            <div style="font-size:14px; font-weight:700; line-height:1.4; margin-bottom:6px;">
+                <a href="${url}" target="_blank" rel="noopener noreferrer" style="color:var(--text-main); text-decoration:none; transition:color 0.2s;" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='var(--text-main)'">
+                    ${title}
+                </a>
+            </div>
+            <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
+                <span>🤖 AI Intel:</span> <span>${takeaway}</span>
+            </div>
+        </div>`;
+}
+
+function renderFilteredNews() {
+    const container = document.getElementById('news-stream-container');
+    if (!container) return;
+
+    let items = cachedNews;
+    if (currentNewsFilter === 'STOCKS') {
+        items = items.filter(n => Array.isArray(n.symbols) && n.symbols.length > 0);
+    } else if (currentNewsFilter === 'POS') {
+        items = items.filter(n => String(n.sentiment || '').toUpperCase() === 'POSITIVE');
+    } else if (currentNewsFilter === 'NEG') {
+        items = items.filter(n => String(n.sentiment || '').toUpperCase() === 'NEGATIVE');
+    }
+
+    if (items.length === 0) {
+        container.innerHTML = '<div class="faint" style="padding:24px; text-align:center;">No news items found matching this filter.</div>';
+    } else {
+        container.innerHTML = items.map(renderNewsItem).join('');
+    }
+}
+
 // Live Dashboard State Poller (Every 2 Seconds)
 async function updateDashboard() {
     try {
@@ -1408,6 +1574,7 @@ async function updateDashboard() {
             trades_intraday: data.trades_intraday || [],
             trades_swing: data.trades_swing || []
         };
+        cachedNews = data.news || [];
 
         // 1. Total Balance & Badges
         const pf = Number(data.portfolio || 100000);
@@ -1527,6 +1694,25 @@ async function updateDashboard() {
             swingTradesCont.innerHTML = tradesSwing.length ? tradesSwing.map(renderActivityFeed).join('') : '<div class="faint" style="padding:16px;text-align:center;">No swing trade records logged yet.</div>';
         }
 
+        // 9. Populate Live AI News Widgets
+        const newsItems = data.news || [];
+        const newsStats = data.news_stats || { total: newsItems.length, positive: 0, negative: 0, neutral: 0 };
+        setEl('news-count-badge', newsItems.length);
+        setEl('news-total-count', newsStats.total || newsItems.length);
+        setEl('overview-news-count', newsItems.length);
+        setEl('pill-news-pos', '🟢 Positive: ' + (newsStats.positive || 0));
+        setEl('pill-news-neg', '🔴 Adverse Risk: ' + (newsStats.negative || 0));
+        setEl('pill-news-neu', '⚪ Neutral: ' + (newsStats.neutral || 0));
+
+        // Render News on Overview Tab (top 5 headlines)
+        const overviewNewsBox = document.getElementById('overview-news-container');
+        if (overviewNewsBox) {
+            overviewNewsBox.innerHTML = newsItems.length ? newsItems.slice(0, 5).map(renderNewsItem).join('') : '<div class="faint" style="padding:16px; text-align:center;">Scanning breaking financial news feeds...</div>';
+        }
+
+        // Render News on Full Radar Tab
+        renderFilteredNews();
+
         // 8. Strategy Learning Weights
         const weightsBox = document.getElementById('learning-weights-container');
         if (weightsBox && data.learning && data.learning.strategy_weights) {
@@ -1590,6 +1776,7 @@ def _enrich_trade(t):
 
 
 def create_app(db, cfg=None, provider=None):
+    news_archive = NewsArchive()
     import os
     from flask import request
     cfg = cfg or {}
@@ -1651,7 +1838,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "4.4",
+                "version": "4.5",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -1792,8 +1979,59 @@ def create_app(db, cfg=None, provider=None):
         pending_all = db.pending_orders() if hasattr(db, "pending_orders") else []
         orders_fno = [o for o in pending_all if str(o.get("product_type", "")).upper() == "FNO"]
 
+        # News Intel Archive
+        recent_news_raw = news_archive.get_recent(limit=35) if news_archive else []
+        news_stats = news_archive.get_news_summary_today() if news_archive else {"total": 0, "positive": 0, "negative": 0, "neutral": 0}
+        enriched_news = []
+        now_ts = datetime.now(timezone.utc)
+        for n in recent_news_raw:
+            pub_iso = n.get("published_at", "")
+            time_ago_str = "Recently"
+            ist_pub_str = ""
+            if pub_iso:
+                try:
+                    dt_val = datetime.fromisoformat(pub_iso.replace("Z", "+00:00"))
+                    ist_val = dt_val.astimezone(IST)
+                    ist_pub_str = ist_val.strftime("%I:%M %p IST")
+                    secs = max(0, (now_ts - dt_val).total_seconds())
+                    if secs < 60:
+                        time_ago_str = "Just now"
+                    elif secs < 3600:
+                        time_ago_str = f"{int(secs // 60)}m ago"
+                    elif secs < 86400:
+                        time_ago_str = f"{int(secs // 3600)}h ago"
+                    else:
+                        time_ago_str = f"{int(secs // 86400)}d ago"
+                except Exception:
+                    pass
+
+            sent = str(n.get("sentiment", "NEUTRAL")).upper()
+            mat = str(n.get("materiality", "UNKNOWN")).upper()
+            symbols = n.get("symbols", [])
+
+            if sent == "POSITIVE":
+                takeaway = "🟢 Growth catalyst / Positive earnings momentum"
+            elif sent == "NEGATIVE":
+                takeaway = "🔴 Risk factor flagged: AI Risk Guard blocks bad news stocks"
+            else:
+                takeaway = "⚪ Financial news & market intelligence update"
+
+            enriched_news.append({
+                "item_hash": n.get("item_hash"),
+                "source": n.get("source"),
+                "title": n.get("title"),
+                "url": n.get("url"),
+                "published_at": pub_iso,
+                "published_ist": ist_pub_str,
+                "time_ago": time_ago_str,
+                "sentiment": sent,
+                "materiality": mat,
+                "symbols": symbols,
+                "takeaway": takeaway
+            })
+
         return jsonify({
-            "version": "4.4",
+            "version": "4.5",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
@@ -1832,7 +2070,9 @@ def create_app(db, cfg=None, provider=None):
             "pending_orders": pending_all,
             "orders_fno": orders_fno,
             "updated_at": now_ist().isoformat(),
-            "equity_curve": db.equity()
+            "equity_curve": db.equity(),
+            "news": enriched_news,
+            "news_stats": news_stats
         })
 
     @flask_app.get("/api/orders")
