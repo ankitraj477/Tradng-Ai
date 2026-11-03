@@ -105,6 +105,8 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             risk = last_px - stop_px
             if risk <= 0: risk = last_px * 0.005
             target_px = last_px + (self.target_mult * risk)
+            # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
+            target_px = max(target_px, round(last_px * 1.018, 2))
             return {
                 "symbol": symbol,
                 "action": "BUY",
@@ -126,6 +128,8 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             risk = stop_px - last_px
             if risk <= 0: risk = last_px * 0.005
             target_px = last_px - (self.target_mult * risk)
+            # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
+            target_px = min(target_px, round(last_px * 0.982, 2))
             return {
                 "symbol": symbol,
                 "action": "SHORT",

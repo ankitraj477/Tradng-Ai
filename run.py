@@ -25,7 +25,7 @@ def main():
 
     setup_logging(log_level=args.log_level)
     print("=" * 60)
-    print("   TRADNG-AI PRO v5.8: UNIFIED MULTI-DESK TRADING ENGINE    ")
+    print("   TRADNG-AI PRO v5.9: UNIFIED MULTI-DESK TRADING ENGINE    ")
     print("   [1] Intraday Desk (MIS)           -> ACTIVE        ")
     print("   [2] Stocks / Swing Desk (CNC)     -> ACTIVE        ")
     print("   [3] Futures & Options Desk (F&O)  -> ACTIVE        ")
@@ -47,7 +47,7 @@ def main():
     engine.cfg["desks"]["swing"] = True
     engine.cfg["desks"]["fno"] = True
     engine.cfg.setdefault("execution", {})
-    engine.cfg["execution"]["trailing_stop_atr"] = 2.2
+    engine.cfg["execution"]["trailing_stop_atr"] = 2.8
     engine.reload_config(engine.cfg)
 
     app = create_app(engine.db, engine.cfg, engine.provider)
