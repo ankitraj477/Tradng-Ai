@@ -41,7 +41,11 @@ class SwingPositionManager:
                     target_step = abs(target - entry)
                 days_held = int(p.get("days_held") or 0)
 
-                # 1. Hard Stop Loss Check
+                # 1. Hard Stop Loss Check with Data Sanity Circuit Breaker (reject impossible single-tick crash > 25%)
+                if price <= entry * 0.75:
+                    self.db.log("WARN", f"[Swing Desk] ANOMALY PRICE TICK REJECTED: {symbol} ticked at {price:.2f} (Entry: {entry:.2f}). Rejecting corrupt tick.")
+                    continue
+
                 if stop is not None and price <= stop:
                     self.execution.close(symbol, price, "Swing Stop Loss")
                     closed += 1

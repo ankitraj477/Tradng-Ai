@@ -171,6 +171,11 @@ class IntradayPositionManager:
                     target_step = abs(target - entry)
 
                 if p["side"] == "LONG":
+                    # Sanity circuit breaker: Reject impossible single-tick crashes > 25% (NSE circuit band limit is max 20%)
+                    if price <= entry * 0.75:
+                        self.db.log("WARN", f"[Intraday] ANOMALY PRICE TICK REJECTED: {p['symbol']} ticked at {price:.2f} (Entry: {entry:.2f}). Rejecting corrupt tick.")
+                        continue
+
                     if stop is not None and price <= stop:
                         self.execution.close(p["symbol"], price, "Stop loss", "")
                         closed += 1
@@ -228,6 +233,11 @@ class IntradayPositionManager:
                             self._sync_bracket_stop(p["symbol"], new_stop)
                             stop = new_stop
                 else:
+                    # Sanity circuit breaker: Reject impossible single-tick surges > 25% (NSE circuit band limit is max 20%)
+                    if price >= entry * 1.25:
+                        self.db.log("WARN", f"[Intraday] ANOMALY PRICE TICK REJECTED: {p['symbol']} ticked at {price:.2f} (Entry: {entry:.2f}). Rejecting corrupt tick.")
+                        continue
+
                     if stop is not None and price >= stop:
                         self.execution.close(p["symbol"], price, "Short stop loss", "")
                         closed += 1

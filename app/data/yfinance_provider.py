@@ -1,4 +1,5 @@
 import time
+import threading
 from pathlib import Path
 
 import pandas as pd
@@ -47,6 +48,7 @@ class YFinanceProvider(MarketDataProvider):
                 symbols = []
 
         self._symbols = list(symbols)
+        self._download_lock = threading.RLock()
 
         self.cache = (
             cache or MarketDataCache()
@@ -287,45 +289,46 @@ class YFinanceProvider(MarketDataProvider):
         period,
         interval,
     ):
-        import yfinance as yf
+        with self._download_lock:
+            import yfinance as yf
 
-        last_error = None
+            last_error = None
 
-        for attempt in range(
-            self.retries + 1
-        ):
-            try:
-                df = yf.download(
-                    symbol,
-                    period=period,
-                    interval=interval,
-                    auto_adjust=False,
-                    progress=False,
-                    threads=False,
-                )
+            for attempt in range(
+                self.retries + 1
+            ):
+                try:
+                    df = yf.download(
+                        symbol,
+                        period=period,
+                        interval=interval,
+                        auto_adjust=False,
+                        progress=False,
+                        threads=False,
+                    )
+
+                    if (
+                        df is not None
+                        and not df.empty
+                    ):
+                        return df
+
+                except Exception as exc:
+                    last_error = exc
 
                 if (
-                    df is not None
-                    and not df.empty
+                    attempt
+                    < self.retries
                 ):
-                    return df
+                    time.sleep(
+                        0.5
+                        * (attempt + 1)
+                    )
 
-            except Exception as exc:
-                last_error = exc
+            if last_error is not None:
+                raise last_error
 
-            if (
-                attempt
-                < self.retries
-            ):
-                time.sleep(
-                    0.5
-                    * (attempt + 1)
-                )
-
-        if last_error is not None:
-            raise last_error
-
-        return None
+            return None
 
     # ======================================================
     # SINGLE SYMBOL HISTORY
@@ -482,7 +485,12 @@ class YFinanceProvider(MarketDataProvider):
 
             return None
 
-        return df.copy()
+        # BUG FIX: If df.columns is flat (not MultiIndex), only return if symbol matches metadata.
+        # NEVER blindly return df.copy() for arbitrary symbols to prevent cross-symbol contamination!
+        if hasattr(df, "attrs") and df.attrs.get("symbol") == symbol:
+            return df.copy()
+
+        return None
 
     # ======================================================
     # CHUNK DOWNLOAD
@@ -494,46 +502,47 @@ class YFinanceProvider(MarketDataProvider):
         period,
         interval,
     ):
-        import yfinance as yf
+        with self._download_lock:
+            import yfinance as yf
 
-        last_error = None
+            last_error = None
 
-        for attempt in range(
-            self.retries + 1
-        ):
-            try:
-                df = yf.download(
-                    symbols,
-                    period=period,
-                    interval=interval,
-                    auto_adjust=False,
-                    progress=False,
-                    threads=True,
-                    group_by="ticker",
-                )
+            for attempt in range(
+                self.retries + 1
+            ):
+                try:
+                    df = yf.download(
+                        symbols,
+                        period=period,
+                        interval=interval,
+                        auto_adjust=False,
+                        progress=False,
+                        threads=True,
+                        group_by="ticker",
+                    )
+
+                    if (
+                        df is not None
+                        and not df.empty
+                    ):
+                        return df
+
+                except Exception as exc:
+                    last_error = exc
 
                 if (
-                    df is not None
-                    and not df.empty
+                    attempt
+                    < self.retries
                 ):
-                    return df
+                    time.sleep(
+                        0.5
+                        * (attempt + 1)
+                    )
 
-            except Exception as exc:
-                last_error = exc
+            if last_error is not None:
+                raise last_error
 
-            if (
-                attempt
-                < self.retries
-            ):
-                time.sleep(
-                    0.5
-                    * (attempt + 1)
-                )
-
-        if last_error is not None:
-            raise last_error
-
-        return None
+            return None
 
     @staticmethod
     def _is_stale_failure(
