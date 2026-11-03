@@ -104,7 +104,7 @@ class IntradayPositionManager:
     def manage(self, dt=None):
         closed = 0
         exec_cfg = self.cfg.get("execution", {})
-        mult = float(exec_cfg.get("trailing_stop_atr", 1.5))
+        mult = float(exec_cfg.get("trailing_stop_atr", 2.2))
         max_minutes = float(exec_cfg.get("max_hold_minutes", 390))
         dynamic_target_expansion = exec_cfg.get("dynamic_target_expansion", True)
         breakeven_lock_ratio = float(exec_cfg.get("breakeven_lock_ratio", 0.33))
