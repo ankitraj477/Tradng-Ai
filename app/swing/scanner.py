@@ -47,6 +47,21 @@ class SwingScanner:
             e50 = float(ema_50.iloc[-1])
             e200 = float(ema_200.iloc[-1])
 
+            # 0. Liquidity Turnover Filter: Require at least ₹2 Crore average daily turnover
+            avg_daily_turnover = float((close * volume).rolling(min(20, len(close))).mean().iloc[-1])
+            if avg_daily_turnover < 20000000.0:
+                return None
+
+            # 0. Liquidity Turnover Filter: Require at least ₹2 Crore average daily turnover
+
+            avg_daily_turnover = float((close * volume).rolling(min(20, len(close))).mean().iloc[-1])
+
+            if avg_daily_turnover < 20000000.0:
+
+                return None
+
+
+
             # 1. Minervini Stage 2 Uptrend Template
             # Price > 50 EMA, and 50 EMA > 200 SMA (or trending up)
             if not (last_close > e50 and e50 > e200 * 0.98):

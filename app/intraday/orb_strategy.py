@@ -99,8 +99,15 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         atr = float(tr.tail(14).mean()) if len(tr) >= 14 else float(last_px * 0.005)
 
         # 5. Signal Evaluation
+        bar_high = float(current_bar["High"])
+        bar_low = float(current_bar["Low"])
+        candle_range = max(bar_high - bar_low, 0.01)
+
         # Bullish Breakout
         if last_px > orb["high"] and last_px > current_vwap and daily_bias != "BEARISH":
+            # Reject if breakout candle has a large upper rejection wick (> 45% of bar range)
+            if ((bar_high - last_px) / candle_range) > 0.45:
+                return None
             stop_px = max(orb["mid"], last_px - (self.atr_stop * atr))
             risk = last_px - stop_px
             if risk <= 0: risk = last_px * 0.005
@@ -124,6 +131,9 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
 
         # Bearish Breakdown
         elif last_px < orb["low"] and last_px < current_vwap and daily_bias != "BULLISH":
+            # Reject if breakdown candle has a large lower rejection wick (> 45% of bar range)
+            if ((last_px - bar_low) / candle_range) > 0.45:
+                return None
             stop_px = min(orb["mid"], last_px + (self.atr_stop * atr))
             risk = stop_px - last_px
             if risk <= 0: risk = last_px * 0.005
