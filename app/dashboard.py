@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v4.7 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v4.8 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -760,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v4.7</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v4.8</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -1384,6 +1384,25 @@ function renderGameCard(p) {
         holdBadge = '<span class="pill pill-amber" style="font-size:10px; margin-left:4px;">⚡ Day Trade (Closes 15:10)</span>';
     }
 
+    let priceMeterHtml = '';
+    if (pType === 'SWING' || pType === 'CNC') {
+        const gainPerShare = curr - entry;
+        priceMeterHtml = `
+            <div class="decay-meter-container" style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:10px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; margin-bottom:6px;">
+                    <span>📍 <strong>Live NSE Price:</strong> <span class="text-cyan" style="font-family:var(--font-mono); font-weight:800; font-size:14px;">${formatMoney(curr)}</span></span>
+                    <span class="${gainPerShare >= 0 ? 'text-up' : 'text-down'}" style="font-weight:800; font-family:var(--font-mono);">
+                        ${gainPerShare >= 0 ? '+ ' : ''}${formatMoney(gainPerShare)}/sh (${pnlPct}%)
+                    </span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); flex-wrap:wrap; gap:4px;">
+                    <span>Bought @ ${formatMoney(entry)} × ${qty} sh</span>
+                    <span>Holdings Value: ${formatMoney(curr * qty)}</span>
+                    <span class="${isProfit ? 'text-up' : 'text-down'}" style="font-weight:700;">Position P&L: ${isProfit ? '+ ' : ''}${formatMoney(pnl)}</span>
+                </div>
+            </div>`;
+    }
+
     return `
         <div class="trade-game-card">
             <div class="card-top">
@@ -1392,6 +1411,7 @@ function renderGameCard(p) {
                     <div class="card-meta-line">
                         <span class="pill pill-cyan">${escapeHtml(pType)} · ${qty} QTY</span> ${holdBadge}
                         <span>Entry: ${formatMoney(entry)}</span>
+                        <span>➔ Live: <strong class="text-cyan">${formatMoney(curr)}</strong></span>
                     </div>
                 </div>
                 <div class="card-pnl-box">
@@ -1405,6 +1425,7 @@ function renderGameCard(p) {
             </div>
 
             ${storyHtml}
+            ${priceMeterHtml}
             ${decayHtml}
             ${safetyHtml}
             ${legsHtml}
@@ -1863,7 +1884,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "4.7",
+                "version": "4.8",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -2056,7 +2077,7 @@ def create_app(db, cfg=None, provider=None):
             })
 
         return jsonify({
-            "version": "4.7",
+            "version": "4.8",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
