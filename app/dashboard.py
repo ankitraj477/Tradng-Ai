@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v4.6 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v4.7 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -760,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v4.6</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v4.7</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -932,10 +932,10 @@ HTML = r"""<!doctype html>
         <div>
             <div class="section-header">
                 <div class="section-title">
-                    <span>🎯</span> Active Overnight Positions (<span id="pos-count">0 OPEN</span>)
-                    <span class="pill pill-indigo" style="font-size:10px;">🌙 Held for Thursday Expiry</span>
+                    <span>🎯</span> Active Positions & Portfolio Holdings (<span id="pos-count">0 OPEN</span>)
+                    <span class="pill pill-long" style="font-size:10px;">🛡️ Real-Time Managed</span>
                 </div>
-                <div class="section-sub">Multi-day defined-risk spreads capturing overnight time decay profits</div>
+                <div class="section-sub">Active positions across F&O Options Spreads (Thursday Expiry) and Stock Holdings (CNC Delivery)</div>
             </div>
             <div id="positions-container" class="cards-grid"></div>
         </div>
@@ -1354,9 +1354,34 @@ function renderGameCard(p) {
                 }
             } catch (e) {}
         }
+    } else if (pType === 'SWING' || pType === 'CNC') {
+        friendlyTitle = `📈 ${sym} (Swing Delivery)`;
+        const targetPx = Number(p.target || (entry * 1.15)).toFixed(2);
+        const slPx = Number(p.stop_loss || (entry * 0.95)).toFixed(2);
+        const days = Number(p.days_held || 0);
+        storyHtml = `
+            <div class="kid-story-box">
+                <strong>📈 Multi-Day Equity Holding:</strong> Purchased in cash delivery (CNC). The AI is holding these ${qty} shares across sessions to target <strong>₹${targetPx}</strong> (+15% gain). Protected with automated Stop Loss at <strong>₹${slPx}</strong>.
+            </div>`;
+        safetyHtml = `
+            <div class="safety-strip">
+                <span>🛡️ Safety Stop: <strong>₹${slPx}</strong></span>
+                <span>🎯 Profit Target: <strong>₹${targetPx}</strong></span>
+                <span class="pill pill-long" style="font-size:10px;">Day ${days + 1} of 25</span>
+            </div>`;
     } else {
-        friendlyTitle = `⚡ ${sym} (${pType})`;
-        storyHtml = `<div class="kid-story-box">Holding ${qty} shares of ${sym}. Safety Stop Loss active.</div>`;
+        friendlyTitle = `⚡ ${sym} (Day Trade MIS)`;
+        storyHtml = `
+            <div class="kid-story-box">
+                <strong>⚡ Same-Day Intraday Trade:</strong> Strictly day trade with zero overnight risk. Automatically closes before 15:10 IST today.
+            </div>`;
+    }
+
+    let holdBadge = '<span class="pill pill-indigo" style="font-size:10px; margin-left:4px;">🌙 Thursday Expiry</span>';
+    if (pType === 'SWING' || pType === 'CNC') {
+        holdBadge = '<span class="pill pill-long" style="font-size:10px; margin-left:4px;">📈 Multi-Day Swing (CNC)</span>';
+    } else if (pType === 'INTRADAY' || pType === 'MIS') {
+        holdBadge = '<span class="pill pill-amber" style="font-size:10px; margin-left:4px;">⚡ Day Trade (Closes 15:10)</span>';
     }
 
     return `
@@ -1365,7 +1390,7 @@ function renderGameCard(p) {
                 <div class="card-title-box">
                     <h3>${escapeHtml(friendlyTitle)}</h3>
                     <div class="card-meta-line">
-                        <span class="pill pill-cyan">${escapeHtml(pType)} · ${qty} QTY</span> <span class="pill pill-indigo" style="font-size:10px; margin-left:4px;">🌙 Overnight Hold</span>
+                        <span class="pill pill-cyan">${escapeHtml(pType)} · ${qty} QTY</span> ${holdBadge}
                         <span>Entry: ${formatMoney(entry)}</span>
                     </div>
                 </div>
@@ -1838,7 +1863,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "4.6",
+                "version": "4.7",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -2031,7 +2056,7 @@ def create_app(db, cfg=None, provider=None):
             })
 
         return jsonify({
-            "version": "4.6",
+            "version": "4.7",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
