@@ -388,15 +388,18 @@ class YFinanceProvider(MarketDataProvider):
                 df,
             )
 
-            self.manifest.record(
-                "yfinance",
-                "ohlcv",
-                symbol,
-                df.index.min(),
-                df.index.max(),
-                len(df),
-                adjusted=False,
-            )
+            try:
+                self.manifest.record(
+                    "yfinance",
+                    "ohlcv",
+                    symbol,
+                    df.index.min(),
+                    df.index.max(),
+                    len(df),
+                    adjusted=False,
+                )
+            except Exception:
+                pass
 
             return df
 
@@ -736,15 +739,18 @@ class YFinanceProvider(MarketDataProvider):
                         normalized,
                     )
 
-                    self.manifest.record(
-                        "yfinance",
-                        "ohlcv",
-                        symbol,
-                        normalized.index.min(),
-                        normalized.index.max(),
-                        len(normalized),
-                        adjusted=False,
-                    )
+                    try:
+                        self.manifest.record(
+                            "yfinance",
+                            "ohlcv",
+                            symbol,
+                            normalized.index.min(),
+                            normalized.index.max(),
+                            len(normalized),
+                            adjusted=False,
+                        )
+                    except Exception:
+                        pass
 
                     output[
                         symbol
