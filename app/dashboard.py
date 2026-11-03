@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v5.2 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v5.3 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -760,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v5.2</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v5.3</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -1884,7 +1884,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "5.2",
+                "version": "5.3",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -1994,6 +1994,21 @@ def create_app(db, cfg=None, provider=None):
 
         for position in positions:
             position["holding_minutes"] = _holding_minutes(position.get("opened_at"))
+            qty = float(position.get("qty", 1) or 1)
+            entry = float(position.get("entry_price", 0) or 0)
+            curr = float(position.get("current_price", entry) or entry)
+            side = str(position.get("side", "LONG")).upper()
+            p_type = str(position.get("product_type", "INTRADAY")).upper()
+            if p_type == "FNO":
+                pos_pnl = (entry - curr) * qty
+            elif side in ("SHORT", "SELL"):
+                pos_pnl = (entry - curr) * qty
+            else:
+                pos_pnl = (curr - entry) * qty
+            pos_pnl_pct = ((pos_pnl / (entry * qty)) * 100) if (entry * qty) > 0 else 0.0
+            position["pnl"] = round(pos_pnl, 2)
+            position["pnl_pct"] = round(pos_pnl_pct, 2)
+            position["market_value"] = round(curr * qty, 2)
 
         decisions = db.decisions(10)
         market = db.market()
@@ -2077,7 +2092,7 @@ def create_app(db, cfg=None, provider=None):
             })
 
         return jsonify({
-            "version": "5.2",
+            "version": "5.3",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "portfolio": metrics["equity"],
