@@ -15,7 +15,7 @@ HTML = r"""<!doctype html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>Tradng-Ai v6.3 · Kid-Friendly & Mobile-First Terminal</title>
+    <title>Tradng-Ai v6.4 · Kid-Friendly & Mobile-First Terminal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -760,7 +760,7 @@ HTML = r"""<!doctype html>
         <div class="brand">
             <div class="logo-icon">AI</div>
             <div class="brand-text">
-                <h1>Tradng-Ai <span class="brand-badge">PRO v6.3</span></h1>
+                <h1>Tradng-Ai <span class="brand-badge">PRO v6.4</span></h1>
             </div>
         </div>
         <div class="header-controls">
@@ -814,14 +814,30 @@ HTML = r"""<!doctype html>
                         <span><strong>Automatic & Live:</strong> Updates every 2 seconds without selling! Time decay puts profit directly in your pocket.</span>
                     </div>
                 </div>
-                <div class="hero-badges">
-                    <span id="return-badge" class="pill pill-cyan">0.00%</span>
-                    <span id="pnl-status-pill" class="pill pill-long">PROFITABLE</span>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+                    <div class="hero-badges">
+                        <span id="return-badge" class="pill pill-cyan">0.00%</span>
+                        <span id="pnl-status-pill" class="pill pill-long">PROFITABLE</span>
+                    </div>
+                    <div style="text-align:right; margin-top:2px;">
+                        <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Today's Daily P/L</div>
+                        <div id="val-daily-pnl" style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:var(--emerald);">+₹0.00</div>
+                        <div id="val-daily-pnl-breakdown" style="font-size:10px; color:var(--text-muted);">Banked: +₹0.00 · Live: +₹0.00</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- 4 Visual Money Jars -->
+            <!-- 5 Visual Money Jars -->
             <div class="hero-stats-grid">
+                <div class="stat-item" style="border: 1px solid rgba(16, 185, 129, 0.4); background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(12, 18, 30, 0.8) 100%);">
+                    <div class="stat-header">
+                        <span class="stat-label">📅 Daily P/L (Today)</span>
+                        <span id="daily-pill" class="pill pill-long" style="font-size:9px;">TODAY</span>
+                    </div>
+                    <div id="val-daily-pnl-hero" class="stat-val text-up">+₹0.00</div>
+                    <div id="val-daily-breakdown-hero" class="stat-desc">Banked: +₹0.00 · Live: +₹0.00</div>
+                </div>
+
                 <div class="stat-item">
                     <div class="stat-header">
                         <span class="stat-label">💵 Ready Cash</span>
@@ -1576,6 +1592,35 @@ async function updateDashboard() {
             retBadge.className = 'pill ' + (returnPct >= 0 ? 'pill-long' : 'pill-short');
         }
 
+        // Daily P/L Calculation & Display
+        const realizedToday = Number(data.realized_today || 0);
+        const unrealizedToday = Number(data.unrealized || 0);
+        const dailyPnl = (data.daily_pnl !== undefined) ? Number(data.daily_pnl) : (realizedToday + unrealizedToday);
+        
+        const dailyPnlEl = document.getElementById('val-daily-pnl');
+        if (dailyPnlEl) {
+            dailyPnlEl.textContent = (dailyPnl >= 0 ? '+ ' : '') + formatMoney(dailyPnl);
+            dailyPnlEl.style.color = dailyPnl >= 0 ? 'var(--emerald)' : 'var(--rose)';
+        }
+        const dailyBreakdownEl = document.getElementById('val-daily-pnl-breakdown');
+        if (dailyBreakdownEl) {
+            dailyBreakdownEl.textContent = `Banked: ${realizedToday >= 0 ? '+' : ''}${formatMoney(realizedToday)} · Live: ${unrealizedToday >= 0 ? '+' : ''}${formatMoney(unrealizedToday)}`;
+        }
+        const dailyHeroEl = document.getElementById('val-daily-pnl-hero');
+        if (dailyHeroEl) {
+            dailyHeroEl.textContent = (dailyPnl >= 0 ? '+ ' : '') + formatMoney(dailyPnl);
+            dailyHeroEl.className = 'stat-val ' + (dailyPnl >= 0 ? 'text-up' : 'text-down');
+        }
+        const dailyBreakdownHeroEl = document.getElementById('val-daily-breakdown-hero');
+        if (dailyBreakdownHeroEl) {
+            dailyBreakdownHeroEl.textContent = `Banked: ${realizedToday >= 0 ? '+' : ''}${formatMoney(realizedToday)} · Open: ${unrealizedToday >= 0 ? '+' : ''}${formatMoney(unrealizedToday)}`;
+        }
+        const dailyPillEl = document.getElementById('daily-pill');
+        if (dailyPillEl) {
+            dailyPillEl.className = 'pill ' + (dailyPnl >= 0 ? 'pill-long' : 'pill-short');
+            dailyPillEl.textContent = dailyPnl >= 0 ? 'PROFIT' : 'LOSS';
+        }
+
         // 2. Money Jars
         document.getElementById('val-cash').textContent = formatMoney(data.available_cash || data.cash);
         document.getElementById('val-margin').textContent = formatMoney(data.reserved_margin);
@@ -1824,7 +1869,7 @@ def create_app(db, cfg=None, provider=None):
             is_ready = bool(account and data_ok and auto_trading)
 
             return jsonify({
-                "version": "6.3",
+                "version": "6.4",
                 "status": "ok" if account else "degraded",
                 "ready": is_ready,
                 "paper_only": True,
@@ -2033,7 +2078,7 @@ def create_app(db, cfg=None, provider=None):
             })
 
         return jsonify({
-            "version": "6.3",
+            "version": "6.4",
             "paper_only": True,
             "auto_trading": db.is_auto_trading_enabled(),
             "total_pnl": pnl,
@@ -2050,6 +2095,7 @@ def create_app(db, cfg=None, provider=None):
             "realized_today": round(realized, 2),
             "realized_all_time": round(realized_all_time, 2),
             "unrealized": (metrics["long_unrealized"] + metrics["short_unrealized"]),
+            "daily_pnl": round(realized + (metrics["long_unrealized"] + metrics["short_unrealized"]), 2),
             "pnl": pnl,
             "return_pct": (pnl / account["starting_capital"] * 100),
             "target": account["target_capital"],
