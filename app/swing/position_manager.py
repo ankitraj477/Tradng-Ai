@@ -18,6 +18,18 @@ class SwingPositionManager:
         Returns number of positions closed.
         """
         closed = 0
+
+        # Off-market hours safety gate:
+        # Swing positions must NEVER be evaluated or stopped out when the exchange is closed.
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        if enforce_hours and not market_open():
+            return 0
+
         positions = self.db.positions_by_product("SWING")
 
         for p in positions:

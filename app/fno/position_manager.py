@@ -27,6 +27,18 @@ class FNOPositionManager:
         """
         closed = 0
         now_dt = dt or datetime.now(IST)
+
+        # Off-market hours safety gate:
+        # Options positions must NEVER be evaluated or stopped out when the exchange is closed.
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        if enforce_hours and not market_open(now_dt):
+            return 0
+
         today_str = now_dt.strftime("%Y-%m-%d")
         is_expiry_square_off_time = (now_dt.hour > 15) or (now_dt.hour == 15 and now_dt.minute >= 15)
         is_opening_settlement = (now_dt.hour == 9 and now_dt.minute < 17)
@@ -44,9 +56,14 @@ class FNOPositionManager:
                 stop_loss_premium = float(p.get("stop_loss") or (entry_credit * 2.0))
                 expiry_date = str(p.get("expiry_date") or "")
                 underlying = "BANKNIFTY" if "BANKNIFTY" in symbol else "NIFTY"
-                spot = 23250.0 if underlying == "NIFTY" else 54700.0
+                spot = 0.0
                 if self.chain and hasattr(self.chain, "get_spot_price"):
-                    spot = self.chain.get_spot_price(underlying)
+                    try:
+                        spot = float(self.chain.get_spot_price(underlying) or 0.0)
+                    except Exception:
+                        spot = 0.0
+                if spot <= 0.0:
+                    spot = 24850.0 if underlying == "NIFTY" else 55200.0
 
                 # Parse short strikes from symbol
                 short_put = None

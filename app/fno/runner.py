@@ -115,9 +115,19 @@ class FnoDeskRunner:
             self.db.log("INFO", f"[F&O Desk] Starting cycle at {now.strftime('%H:%M:%S')} IST")
 
         # 1. Manage active option spreads (50% profit-taking, 2x stop loss, Thursday expiry)
-        closed = self.position_manager.manage()
-        if closed > 0:
-            self.db.log("INFO", f"[F&O Desk] Managed and closed {closed} option spreads")
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        is_open = market_open(now) if enforce_hours else True
+
+        closed = 0
+        if is_open:
+            closed = self.position_manager.manage(now)
+            if closed > 0:
+                self.db.log("INFO", f"[F&O Desk] Managed and closed {closed} option spreads")
 
         # 1b. If market is open, fill any pending F&O AMOs
         self._fill_pending_amos()
