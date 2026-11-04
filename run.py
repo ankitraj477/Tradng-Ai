@@ -25,7 +25,7 @@ def main():
 
     setup_logging(log_level=args.log_level)
     print("=" * 60)
-    print("   TRADNG-AI PRO v6.2: UNIFIED MULTI-DESK TRADING ENGINE    ")
+    print("   TRADNG-AI PRO v6.3: UNIFIED MULTI-DESK TRADING ENGINE    ")
     print("   [1] Intraday Desk (MIS)           -> ACTIVE        ")
     print("   [2] Stocks / Swing Desk (CNC)     -> ACTIVE        ")
     print("   [3] Futures & Options Desk (F&O)  -> ACTIVE        ")

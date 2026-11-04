@@ -148,7 +148,7 @@ DIVISLAB.NS,Divi's Laboratories Ltd.,Healthcare,Healthcare,True
 DIXON.NS,Dixon Technologies (India) Ltd.,Consumer Durables,Consumer Durables,True
 LALPATHLAB.NS,Dr. Lal Path Labs Ltd.,Healthcare,Healthcare,True
 DRREDDY.NS,Dr. Reddy's Laboratories Ltd.,Healthcare,Healthcare,True
-DUMMYHEG.NS,Dummy HEG Ltd.,Metals & Mining,Metals & Mining,True
+HEG.NS,HEG Ltd.,Metals & Mining,Metals & Mining,True
 EIDPARRY.NS,E.I.D. Parry (India) Ltd.,Fast Moving Consumer Goods,Fast Moving Consumer Goods,True
 EIHOTEL.NS,EIH Ltd.,Consumer Services,Consumer Services,True
 EICHERMOT.NS,Eicher Motors Ltd.,Automobile and Auto Components,Automobile and Auto Components,True
@@ -221,7 +221,7 @@ HYUNDAI.NS,Hyundai Motor India Ltd.,Automobile and Auto Components,Automobile an
 ICICIBANK.NS,ICICI Bank Ltd.,Financial Services,Financial Services,True
 ICICIGI.NS,ICICI Lombard General Insurance Company Ltd.,Financial Services,Financial Services,True
 ICICIAMC.NS,ICICI Prudential Asset Management Company Ltd.,Financial Services,Financial Services,True
-ICICIPRULI.NS,ICICI Prudential Life Insurance Company Ltd.,Financial Services,Financial Services,True
+ICICIPRULIFE.NS,ICICI Prudential Life Insurance Company Ltd.,Financial Services,Financial Services,True
 IDBI.NS,IDBI Bank Ltd.,Financial Services,Financial Services,True
 IDFCFIRSTB.NS,IDFC First Bank Ltd.,Financial Services,Financial Services,True
 IFCI.NS,IFCI Ltd.,Financial Services,Financial Services,True

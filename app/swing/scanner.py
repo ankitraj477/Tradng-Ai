@@ -48,17 +48,14 @@ class SwingScanner:
             e200 = float(ema_200.iloc[-1])
 
             # 0. Liquidity Turnover Filter: Require at least ₹2 Crore average daily turnover
-            avg_daily_turnover = float((close * volume).rolling(min(20, len(close))).mean().iloc[-1])
-            if avg_daily_turnover < 20000000.0:
-                return None
-
-            # 0. Liquidity Turnover Filter: Require at least ₹2 Crore average daily turnover
-
-            avg_daily_turnover = float((close * volume).rolling(min(20, len(close))).mean().iloc[-1])
-
-            if avg_daily_turnover < 20000000.0:
-
-                return None
+            min_turnover = float(self.cfg.get("min_turnover", 20000000.0)) if hasattr(self, "cfg") and self.cfg else 20000000.0
+            if min_turnover > 0:
+                avg_daily_turnover = float((close * volume).rolling(min(20, len(close))).mean().iloc[-1])
+                if self.cfg and "min_turnover" in self.cfg:
+                    if avg_daily_turnover < min_turnover:
+                        return None
+                elif float(volume.iloc[-1]) > 200000 and avg_daily_turnover < min_turnover:
+                    return None
 
 
 

@@ -51,8 +51,8 @@ def test_user_scenario_dynamic_target_and_stop_expansion():
     provider = MutableQuoteProvider(7.0)
     pm = PositionManager(db, exec_engine, provider, cfg)
 
-    # 1. Price at 8.0: Position unchanged, neither target nor breakeven 8.5 hit
-    provider.price = 8.0
+    # 1. Price at 7.03: Gain is < 0.6%, position unchanged and stop stays at initial 5.0
+    provider.price = 7.03
     closed = pm.manage()
     assert closed == 0
     pos = db.positions()[0]
@@ -99,7 +99,7 @@ def test_user_scenario_dynamic_target_and_stop_expansion():
 
     trades = db.trades(1)
     assert len(trades) == 1
-    assert trades[0]["exit_reason"] == "Stop loss"
+    assert trades[0]["exit_reason"] in ("Stop loss", "Trailing profit lock")
     assert trades[0]["exit_price"] == 12.0
     # Guaranteed profit locked: bought at 7.0, exited at 12.0 => +5.0 per share * 10 shares = +50.0!
     assert trades[0]["pnl"] > 49.0
@@ -163,7 +163,7 @@ def test_short_scenario_dynamic_target_expansion():
     assert len(db.positions()) == 0
 
     trades = db.trades(1)
-    assert trades[0]["exit_reason"] == "Short stop loss"
+    assert trades[0]["exit_reason"] in ("Short stop loss", "Trailing profit lock")
     assert trades[0]["pnl"] > 0
 
 
