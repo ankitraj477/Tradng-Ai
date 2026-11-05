@@ -132,6 +132,17 @@ function updateOverviewTab(data) {
     if (data.trades && Array.isArray(data.trades)) {
         renderUnifiedTrades(data.trades.slice(0, 10));
     }
+
+    // 8. Sync Capital Allocation if not actively editing
+    lastPortfolioEquity = Number(data.portfolio || data.equity || 100000);
+    if (!isUserEditingAlloc && data.capital_allocation) {
+        currentAllocState = {
+            intraday: Math.round(Number(data.capital_allocation.intraday || 40)),
+            swing: Math.round(Number(data.capital_allocation.swing || 40)),
+            fno: Math.round(Number(data.capital_allocation.fno || 20))
+        };
+        updateCapitalAllocationUI(currentAllocState, lastPortfolioEquity);
+    }
 }
 
 function renderAllPositions(positions) {
@@ -209,5 +220,187 @@ function renderUnifiedTrades(trades) {
                 <td style="color:var(--text-muted); font-size:11px;">${t.exit_reason || t.strategy || 'System exit'}</td>
             </tr>`;
     }).join('');
+}
+
+// ----------------------------------------------------------------------
+// 8. Capital Allocation Interactive Controls
+// ----------------------------------------------------------------------
+
+let currentAllocState = { intraday: 40, swing: 40, fno: 20 };
+let isUserEditingAlloc = false;
+let lastPortfolioEquity = 100000;
+let allocResetTimer = null;
+
+function updateCapitalAllocationUI(alloc, totalEquity) {
+    if (!alloc) return;
+    const intra = Math.max(0, Math.round(Number(alloc.intraday || 0)));
+    const swing = Math.max(0, Math.round(Number(alloc.swing || 0)));
+    const fno = Math.max(0, Math.round(Number(alloc.fno || 0)));
+    const sum = intra + swing + fno;
+
+    // 1. Sync Segmented Bar
+    const barIntra = document.getElementById('bar-alloc-intra');
+    const barSwing = document.getElementById('bar-alloc-swing');
+    const barFno = document.getElementById('bar-alloc-fno');
+    if (barIntra) {
+        barIntra.style.width = intra + '%';
+        barIntra.textContent = intra > 5 ? intra + '%' : '';
+    }
+    if (barSwing) {
+        barSwing.style.width = swing + '%';
+        barSwing.textContent = swing > 5 ? swing + '%' : '';
+    }
+    if (barFno) {
+        barFno.style.width = fno + '%';
+        barFno.textContent = fno > 5 ? fno + '%' : '';
+    }
+
+    // 2. Sync Sliders & Inputs
+    const sIntra = document.getElementById('slider-alloc-intra');
+    const sSwing = document.getElementById('slider-alloc-swing');
+    const sFno = document.getElementById('slider-alloc-fno');
+    const nIntra = document.getElementById('num-alloc-intra');
+    const nSwing = document.getElementById('num-alloc-swing');
+    const nFno = document.getElementById('num-alloc-fno');
+
+    if (sIntra) sIntra.value = intra;
+    if (sSwing) sSwing.value = swing;
+    if (sFno) sFno.value = fno;
+    if (nIntra) nIntra.value = intra;
+    if (nSwing) nSwing.value = swing;
+    if (nFno) nFno.value = fno;
+
+    // 3. Sync Rupees
+    const eq = totalEquity || lastPortfolioEquity || 100000;
+    const rIntra = document.getElementById('val-alloc-intra-rupees');
+    const rSwing = document.getElementById('val-alloc-swing-rupees');
+    const rFno = document.getElementById('val-alloc-fno-rupees');
+    if (rIntra) rIntra.textContent = formatINR(eq * (intra / 100));
+    if (rSwing) rSwing.textContent = formatINR(eq * (swing / 100));
+    if (rFno) rFno.textContent = formatINR(eq * (fno / 100));
+
+    // 4. Sum Badge
+    const sumBadge = document.getElementById('alloc-sum-badge');
+    if (sumBadge) {
+        sumBadge.textContent = `TOTAL: ${sum}%`;
+        sumBadge.className = 'pill ' + (sum === 100 ? 'pill-emerald' : (sum < 100 ? 'pill-amber' : 'pill-rose'));
+    }
+}
+
+function onAllocSliderChange(desk, val) {
+    isUserEditingAlloc = true;
+    val = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
+    const key = desk === 'intra' ? 'intraday' : desk;
+    currentAllocState[key] = val;
+
+    const numInput = document.getElementById(`num-alloc-${desk}`);
+    if (numInput) numInput.value = val;
+
+    updateCapitalAllocationUI(currentAllocState, lastPortfolioEquity);
+    markEditingTimeout();
+}
+
+function onAllocInputChange(desk, val) {
+    isUserEditingAlloc = true;
+    val = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
+    const key = desk === 'intra' ? 'intraday' : desk;
+    currentAllocState[key] = val;
+
+    const slider = document.getElementById(`slider-alloc-${desk}`);
+    if (slider) slider.value = val;
+
+    updateCapitalAllocationUI(currentAllocState, lastPortfolioEquity);
+    markEditingTimeout();
+}
+
+function applyAllocPreset(intra, swing, fno) {
+    isUserEditingAlloc = true;
+    currentAllocState = { intraday: intra, swing: swing, fno: fno };
+    updateCapitalAllocationUI(currentAllocState, lastPortfolioEquity);
+    markEditingTimeout();
+}
+
+function normalizeAllocation() {
+    isUserEditingAlloc = true;
+    let i = currentAllocState.intraday || 0;
+    let s = currentAllocState.swing || 0;
+    let f = currentAllocState.fno || 0;
+    const total = i + s + f;
+    if (total <= 0) {
+        i = 34; s = 33; f = 33;
+    } else {
+        i = Math.round((i / total) * 100);
+        s = Math.round((s / total) * 100);
+        f = 100 - i - s;
+    }
+    currentAllocState = { intraday: i, swing: s, fno: f };
+    updateCapitalAllocationUI(currentAllocState, lastPortfolioEquity);
+    markEditingTimeout();
+}
+
+function markEditingTimeout() {
+    clearTimeout(allocResetTimer);
+    allocResetTimer = setTimeout(() => {
+        isUserEditingAlloc = false;
+    }, 15000);
+}
+
+async function saveCapitalAllocation() {
+    const btn = document.getElementById('btn-save-alloc');
+    const msg = document.getElementById('alloc-status-msg');
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span><span>Rebalancing Jars...</span>';
+    }
+
+    try {
+        const payload = {
+            intraday: currentAllocState.intraday,
+            swing: currentAllocState.swing,
+            fno: currentAllocState.fno
+        };
+
+        const res = await fetchWithAuth('/api/capital-allocation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.status === 401) {
+            alert('Authentication Required: Could not save capital allocation.');
+            if (msg) msg.textContent = '❌ Error 401: Unauthorized. Please check token.';
+            return;
+        }
+
+        const data = await res.json();
+        const updated = data.capital_allocation || payload;
+        currentAllocState = updated;
+        isUserEditingAlloc = false;
+
+        if (msg) {
+            msg.textContent = `✅ Capital rebalanced: Intraday ${updated.intraday}%, Swing ${updated.swing}%, F&O ${updated.fno}%`;
+            msg.style.color = 'var(--emerald)';
+            setTimeout(() => {
+                if (msg) {
+                    msg.textContent = 'Adjust sliders and click Apply to rebalance risk jars immediately.';
+                    msg.style.color = 'var(--text-muted)';
+                }
+            }, 6000);
+        }
+
+        fetchState();
+    } catch (err) {
+        alert('Failed to save capital allocation: ' + err.message);
+        if (msg) {
+            msg.textContent = '❌ Failed to save: ' + err.message;
+            msg.style.color = 'var(--rose)';
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>💾</span><span>Apply & Rebalance Jars</span>';
+        }
+    }
 }
 

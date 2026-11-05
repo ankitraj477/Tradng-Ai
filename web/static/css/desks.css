@@ -257,3 +257,185 @@
     margin-bottom: 8px;
 }
 
+/* ==========================================================================
+   Capital Allocation Interactive Controls
+   ========================================================================== */
+.alloc-bar {
+    display: flex;
+    height: 12px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 12px 0 16px 0;
+    border: 1px solid var(--border-subtle);
+}
+
+.alloc-bar-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    transition: width 0.25s ease;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.alloc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+.alloc-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.alloc-card:hover {
+    border-color: var(--border-hover);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.alloc-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.alloc-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.alloc-input {
+    width: 62px;
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-main);
+    padding: 4px 6px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-align: right;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.alloc-input:focus {
+    border-color: var(--cyan);
+}
+
+.alloc-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.08);
+    outline: none;
+    transition: opacity 0.2s;
+}
+
+.alloc-slider-intra {
+    accent-color: var(--amber);
+}
+
+.alloc-slider-swing {
+    accent-color: var(--emerald);
+}
+
+.alloc-slider-fno {
+    accent-color: var(--cyan);
+}
+
+.alloc-footer-rupees {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.alloc-presets {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    align-items: center;
+}
+
+.alloc-preset-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.alloc-preset-btn {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-muted);
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.alloc-preset-btn:hover {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: var(--cyan);
+    color: var(--cyan);
+}
+
+.alloc-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-subtle);
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.btn-save-alloc {
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    color: #070d18;
+    font-weight: 800;
+    font-size: 12px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.btn-save-alloc:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.45);
+}
+
+.btn-save-alloc:active {
+    transform: translateY(0);
+}
+
+.btn-save-alloc:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+

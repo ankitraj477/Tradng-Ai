@@ -110,12 +110,39 @@ function dispatchTabUpdates(data) {
 }
 
 // ----------------------------------------------------------------------
-// 3. Operational Action Controls
+// 3. Operational Action Controls & Authentication
 // ----------------------------------------------------------------------
+
+function getAuthToken() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    if (urlToken) {
+        localStorage.setItem('tradng_dashboard_token', urlToken);
+        document.cookie = `tradng_token=${urlToken}; path=/; SameSite=Strict`;
+        return urlToken;
+    }
+    const stored = localStorage.getItem('tradng_dashboard_token');
+    if (stored) return stored;
+    return 'tradng-pro-2026';
+}
+
+async function fetchWithAuth(url, options = {}) {
+    const token = getAuthToken();
+    const headers = options.headers || {};
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+        headers['X-API-Token'] = token;
+    }
+    return fetch(url, { ...options, headers });
+}
 
 async function toggleAutoTrading() {
     try {
-        const res = await fetch('/api/auto-trading/toggle', { method: 'POST' });
+        const res = await fetchWithAuth('/api/auto-trading/toggle', { method: 'POST' });
+        if (res.status === 401) {
+            alert('Authentication Required: Invalid or missing token.');
+            return;
+        }
         const result = await res.json();
         fetchState();
     } catch (err) {
@@ -144,11 +171,15 @@ async function executeKillSwitch() {
     }
 
     try {
-        const res = await fetch('/api/kill-switch/flatten', {
+        const res = await fetchWithAuth('/api/kill-switch/flatten', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: reason })
         });
+        if (res.status === 401) {
+            alert('Authentication Required: Invalid or missing token.');
+            return;
+        }
         const result = await res.json();
         closeKillSwitchModal();
         alert(`Emergency Flatten Complete: ${result.closed_count || 0} positions closed.`);

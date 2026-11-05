@@ -28,6 +28,9 @@ def is_authorized() -> bool:
         token = request.headers.get("X-API-Token") or request.args.get("token", "")
 
     if not token:
+        token = request.cookies.get("tradng_token", "")
+
+    if not token:
         return False
 
     return hmac.compare_digest(token, token_cfg)

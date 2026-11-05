@@ -81,6 +81,7 @@ def stream_logs():
 
 
 @ops_bp.route("/api/capital-allocation", methods=["GET", "POST"])
+@ops_bp.route("/api/allocation", methods=["GET", "POST"])
 def handle_capital_allocation_alias():
     """Hyphenated route for backward compatibility."""
     db = current_app.config["DB"]

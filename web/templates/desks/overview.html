@@ -76,46 +76,97 @@
             </div>
         </div>
 
-        <!-- Desk Allocation Breakdown -->
+        <!-- Desk Allocation Breakdown & Interactive Control Center -->
         <div class="card">
             <div class="card-header">
-                <div class="card-title">💼 Desk Capital Allocation</div>
+                <div>
+                    <div class="card-title">💼 Desk Capital Allocation</div>
+                    <div class="card-subtitle">Tune capital distribution jars across Intraday, Swing, and F&O desks</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="alloc-sum-badge" class="pill pill-emerald" style="font-family:var(--font-mono); font-size:11px;">TOTAL: 100%</span>
+                </div>
             </div>
-            <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
-                <!-- Intraday Bar -->
-                <div>
-                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:4px;">
-                        <span>⚡ Intraday MIS (34%)</span>
-                        <span id="alloc-intraday-pnl" class="font-mono text-up">+₹0.00</span>
+
+            <!-- Dynamic Segmented Allocation Bar -->
+            <div class="alloc-bar">
+                <div id="bar-alloc-intra" class="alloc-bar-segment" style="width:40%; background:var(--amber); color:#070d18;">40%</div>
+                <div id="bar-alloc-swing" class="alloc-bar-segment" style="width:40%; background:var(--emerald); color:#070d18;">40%</div>
+                <div id="bar-alloc-fno" class="alloc-bar-segment" style="width:20%; background:var(--cyan); color:#070d18;">20%</div>
+            </div>
+
+            <!-- Interactive Sliders Grid -->
+            <div class="alloc-grid">
+                <!-- Intraday MIS Jar -->
+                <div class="alloc-card">
+                    <div class="alloc-card-header">
+                        <span class="alloc-card-title" style="color:var(--amber);">⚡ Intraday MIS</span>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <input id="num-alloc-intra" type="number" class="alloc-input" min="0" max="100" step="1" value="40" oninput="onAllocInputChange('intra', this.value)">
+                            <span style="font-size:12px; font-weight:700; color:var(--text-muted);">%</span>
+                        </div>
                     </div>
-                    <div style="height:6px; background:var(--bg-card); border-radius:3px; overflow:hidden;">
-                        <div style="height:100%; width:34%; background:var(--amber);"></div>
+                    <input id="slider-alloc-intra" type="range" class="alloc-slider alloc-slider-intra" min="0" max="100" step="1" value="40" oninput="onAllocSliderChange('intra', this.value)">
+                    <div class="alloc-footer-rupees">
+                        <span>Max Deployment:</span>
+                        <span id="val-alloc-intra-rupees" class="font-mono text-bold" style="color:var(--amber);">₹40,000</span>
                     </div>
                 </div>
-                <!-- Swing Bar -->
-                <div>
-                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:4px;">
-                        <span>📈 Swing CNC (33%)</span>
-                        <span id="alloc-swing-pnl" class="font-mono text-up">+₹0.00</span>
+
+                <!-- Swing CNC Jar -->
+                <div class="alloc-card">
+                    <div class="alloc-card-header">
+                        <span class="alloc-card-title" style="color:var(--emerald);">📈 Swing CNC</span>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <input id="num-alloc-swing" type="number" class="alloc-input" min="0" max="100" step="1" value="40" oninput="onAllocInputChange('swing', this.value)">
+                            <span style="font-size:12px; font-weight:700; color:var(--text-muted);">%</span>
+                        </div>
                     </div>
-                    <div style="height:6px; background:var(--bg-card); border-radius:3px; overflow:hidden;">
-                        <div style="height:100%; width:33%; background:var(--emerald);"></div>
+                    <input id="slider-alloc-swing" type="range" class="alloc-slider alloc-slider-swing" min="0" max="100" step="1" value="40" oninput="onAllocSliderChange('swing', this.value)">
+                    <div class="alloc-footer-rupees">
+                        <span>Max Deployment:</span>
+                        <span id="val-alloc-swing-rupees" class="font-mono text-bold" style="color:var(--emerald);">₹40,000</span>
                     </div>
                 </div>
-                <!-- F&O Bar -->
-                <div>
-                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:4px;">
-                        <span>🎯 F&O Spreads (33%)</span>
-                        <span id="alloc-fno-pnl" class="font-mono text-up">+₹0.00</span>
+
+                <!-- F&O Spreads Jar -->
+                <div class="alloc-card">
+                    <div class="alloc-card-header">
+                        <span class="alloc-card-title" style="color:var(--cyan);">🎯 F&O Spreads</span>
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            <input id="num-alloc-fno" type="number" class="alloc-input" min="0" max="100" step="1" value="20" oninput="onAllocInputChange('fno', this.value)">
+                            <span style="font-size:12px; font-weight:700; color:var(--text-muted);">%</span>
+                        </div>
                     </div>
-                    <div style="height:6px; background:var(--bg-card); border-radius:3px; overflow:hidden;">
-                        <div style="height:100%; width:33%; background:var(--cyan);"></div>
+                    <input id="slider-alloc-fno" type="range" class="alloc-slider alloc-slider-fno" min="0" max="100" step="1" value="20" oninput="onAllocSliderChange('fno', this.value)">
+                    <div class="alloc-footer-rupees">
+                        <span>Max Deployment:</span>
+                        <span id="val-alloc-fno-rupees" class="font-mono text-bold" style="color:var(--cyan);">₹20,000</span>
                     </div>
                 </div>
             </div>
 
-            <div style="margin-top:20px; padding-top:14px; border-top:1px solid var(--border-subtle); font-size:11px; color:var(--text-muted); line-height:1.5;">
-                Triple-barrier risk isolation prevents any single desk from consuming unassigned capital buffers.
+            <!-- Presets Row -->
+            <div class="alloc-presets">
+                <span class="alloc-preset-label">Presets:</span>
+                <button type="button" class="alloc-preset-btn" onclick="applyAllocPreset(34, 33, 33)">Balanced (34 / 33 / 33)</button>
+                <button type="button" class="alloc-preset-btn" onclick="applyAllocPreset(20, 60, 20)">Swing Heavy (20 / 60 / 20)</button>
+                <button type="button" class="alloc-preset-btn" onclick="applyAllocPreset(50, 25, 25)">Intraday Active (50 / 25 / 25)</button>
+                <button type="button" class="alloc-preset-btn" onclick="applyAllocPreset(20, 30, 50)">F&O Focused (20 / 30 / 50)</button>
+            </div>
+
+            <!-- Action Row -->
+            <div class="alloc-actions">
+                <div id="alloc-status-msg" style="font-size:12px; color:var(--text-muted);">
+                    Adjust sliders and click Apply to rebalance risk jars immediately.
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button type="button" class="alloc-preset-btn" style="padding:6px 14px; font-weight:700;" onclick="normalizeAllocation()">Auto-100%</button>
+                    <button id="btn-save-alloc" type="button" class="btn-save-alloc" onclick="saveCapitalAllocation()">
+                        <span>💾</span>
+                        <span>Apply & Rebalance Jars</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
