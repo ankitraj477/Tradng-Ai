@@ -1,4 +1,5 @@
 import time
+import threading
 
 from .config import load_config
 from .db import DB
@@ -6,6 +7,7 @@ from .market_hours import (
     market_open,
     market_phase,
     holiday_name,
+    now_ist,
 )
 from .data.demo_provider import DemoProvider
 from .data.nifty500_provider import Nifty500Provider
@@ -19,39 +21,49 @@ from .execution import PaperExecution
 from .regime import detect
 from .learning import LearningEngine
 from .news import NewsProvider
+from .event_classifier import EventClassifier
+from .symbol_resolver import SymbolResolver
+from .news_archive import NewsArchive
+from .global_markets import GlobalMarketScanner
 from .market_intelligence import MarketIntelligence
 from .position_manager import PositionManager
 from .selection import CandidateSelector
 from .accounting import portfolio_metrics
 from .runtime import preflight
+from .intraday.timing import IntradayTimingManager
+from .ops.kill_switch import CentralKillSwitch
 
 
 class TradingEngine:
 
-    def __init__(self, live=False):
-        self.cfg = load_config()
+    def __init__(self, live=False, cfg=None, db=None, provider=None):
+        self.cfg = cfg or load_config()
 
         # live=True enables live MARKET DATA only.
         # Execution remains paper-only.
         self.cfg["live_data"] = (
-            live or self.cfg["live_data"]
+            live or self.cfg.get("live_data", False)
         )
 
-        self.db = DB(
-            self.cfg["database_path"]
+        self.db = db or DB(
+            self.cfg.get("database_path", "data/trader.db")
         )
 
         self.db.ensure_account(
-            self.cfg["capital"]["starting"],
-            self.cfg["capital"]["target"],
+            self.cfg.get("capital", {}).get("starting", 100000.0),
+            self.cfg.get("capital", {}).get("target", 5000000.0),
         )
+
+
 
         # --------------------------------------------------
         # DATA PROVIDER
         # --------------------------------------------------
 
-        if self.cfg["live_data"]:
-            market_cfg = self.cfg["market"]
+        if provider is not None:
+            self.provider = provider
+        elif self.cfg.get("live_data"):
+            market_cfg = self.cfg.get("market", {})
 
             self.provider = Nifty500Provider(
                 max_age_seconds=market_cfg.get(
@@ -80,9 +92,13 @@ class TradingEngine:
         # CORE COMPONENTS
         # --------------------------------------------------
 
+        market_cfg = self.cfg.get("market", {})
+        if not isinstance(market_cfg, dict):
+            market_cfg = {}
+
         self.scanner = Scanner(
-            self.cfg["market"]["max_candidates"],
-            self.cfg["use_cpp_scanner"],
+            market_cfg.get("max_candidates", 20),
+            self.cfg.get("use_cpp_scanner", False),
             self.cfg.get(
                 "cpp_scanner_path",
                 "",
@@ -94,14 +110,26 @@ class TradingEngine:
             self.cfg,
         )
 
-        self.news = NewsProvider()
+        self.news_classifier = EventClassifier()
+        self.symbol_resolver = SymbolResolver()
+        self.news_archive = NewsArchive()
+        self.news = NewsProvider(
+            archive=self.news_archive,
+            resolver=self.symbol_resolver,
+            classifier=self.news_classifier,
+        )
+
+        self.global_scanner = GlobalMarketScanner(self.provider)
 
         self.intel = MarketIntelligence(
-            self.news
+            self.news,
+            self.cfg,
+            global_scanner=self.global_scanner,
         )
 
         self.ai = AITrader(
-            self.learning
+            self.learning,
+            self.cfg,
         )
 
         self.pm = PortfolioManager(
@@ -129,16 +157,37 @@ class TradingEngine:
 
         self.selector = CandidateSelector(
             self.learning,
-            self.cfg["risk"].get(
+            (self.cfg.get("risk") or {}).get(
                 "max_sector_exposure_pct",
                 0.40,
             ),
+        )
+
+        self.timing = IntradayTimingManager()
+
+        self.kill_switch = CentralKillSwitch(
+            self.db,
+            self.exec,
+            self.provider,
+            self.cfg,
         )
 
         self.preflight = preflight(
             self.cfg,
             self.provider,
         )
+
+        # BUG-006: Track whether we've done a catch-up close this session
+        self._catch_up_done = False
+
+        # Initialize the 3 decoupled trading desks
+        from .intraday.runner import IntradayDeskRunner
+        from .swing.runner import SwingDeskRunner
+        from .fno.runner import FnoDeskRunner
+
+        self.intraday_desk = IntradayDeskRunner(self.db, self.provider, self.cfg, news_archive=self.news_archive)
+        self.swing_desk = SwingDeskRunner(self.db, self.provider, self.cfg, news_archive=self.news_archive)
+        self.fno_desk = FnoDeskRunner(self.db, self.provider, self.cfg)
 
     # ======================================================
     # UNIVERSE
@@ -199,6 +248,58 @@ class TradingEngine:
             self.universe_reason = repr(
                 exc
             )
+
+    # ======================================================
+    # DYNAMIC CONFIG HOT-RELOAD
+    # ======================================================
+
+    def reload_config(self, new_cfg=None):
+        """
+        Dynamically reload configuration from disk on every cycle or from passed new_cfg.
+        Allows tweaking risk caps, stop loss %, targets, and parameters without restarting.
+        """
+        try:
+            live = self.cfg.get("live_data", False)
+            existing_desks = dict(self.cfg.get("desks", {}))
+            existing_exec = dict(self.cfg.get("execution", {}))
+            if new_cfg is None:
+                new_cfg = load_config()
+                # Preserve active runtime overrides for desks and execution parameters
+                if existing_desks:
+                    new_cfg.setdefault("desks", {}).update(existing_desks)
+                if existing_exec:
+                    new_cfg.setdefault("execution", {}).update(existing_exec)
+            else:
+                new_cfg = dict(new_cfg)
+            new_cfg["live_data"] = live or new_cfg.get("live_data", False)
+            self.cfg = new_cfg
+            if hasattr(self, "ai") and self.ai:
+                self.ai.cfg = self.cfg
+            if hasattr(self, "risk") and self.risk:
+                self.risk.cfg = self.cfg
+            if hasattr(self, "pm") and self.pm:
+                self.pm.cfg = self.cfg
+            if hasattr(self, "exec") and self.exec:
+                self.exec.cfg = self.cfg
+            if hasattr(self, "positions") and self.positions:
+                self.positions.cfg = self.cfg
+            if hasattr(self, "intraday_desk") and self.intraday_desk:
+                self.intraday_desk.cfg = self.cfg
+            if hasattr(self, "swing_desk") and self.swing_desk:
+                self.swing_desk.cfg = self.cfg
+            if hasattr(self, "fno_desk") and self.fno_desk:
+                self.fno_desk.cfg = self.cfg
+                if self.cfg.get("desks", {}).get("enabled", False) and self.cfg.get("desks", {}).get("fno", False):
+                    self.fno_desk.start_fast_monitor()
+            if "capital" in new_cfg:
+                self.db.ensure_account(
+                    float(new_cfg["capital"].get("starting", 100000.0)),
+                    float(new_cfg["capital"].get("target", 5000000.0))
+                )
+
+
+        except Exception as exc:
+            self.db.log("WARN", f"Dynamic config reload failed: {exc!r}")
 
     # ======================================================
     # LIVE DATA DIAGNOSTICS
@@ -358,11 +459,10 @@ class TradingEngine:
 
         try:
 
+            market_cfg = self.cfg.get("market") or {}
             df = self.provider.history(
                 "^NSEI",
-                period=self.cfg[
-                    "market"
-                ].get(
+                period=market_cfg.get(
                     "history_period",
                     "60d",
                 ),
@@ -371,11 +471,10 @@ class TradingEngine:
 
             ok, msg = validate_history(
                 df,
-                self.cfg[
-                    "market"
-                ][
-                    "data_max_age_seconds"
-                ],
+                market_cfg.get(
+                    "data_max_age_seconds",
+                    600,
+                ),
             )
 
             if not ok:
@@ -433,6 +532,7 @@ class TradingEngine:
     # ======================================================
 
     def cycle(self):
+        self.reload_config()
 
         # --------------------------------------------------
         # MARKET CLOSED
@@ -455,27 +555,38 @@ class TradingEngine:
             and not market_open()
         ):
 
+            # BUG-006: Catch-up close — close any positions that survived past EOD
+            if not self._catch_up_done and self.db.positions():
+                closed = self.positions.catch_up_close()
+                if closed > 0:
+                    self.db.log("WARN", f"CATCH-UP CLOSE: Closed {closed} position(s) that survived past market close.")
+                self._catch_up_done = True
+
             phase = market_phase()
             holiday = holiday_name()
 
+            # Pre-market global cues & morning financial news scan
+            global_info = self.global_scanner.scan_markets() if hasattr(self, "global_scanner") else {}
+            global_sentiment = global_info.get("sentiment", "NEUTRAL")
+            global_summary = global_info.get("summary", "")
+
+            # Fetch pre-market breaking news across markets
+            pre_news = self.news.recent(limit=30) if hasattr(self, "news") else []
+
             self.db.set_market(
-                "CLOSED",
-                "N/A",
+                f"PRE-MARKET ({phase})" if phase == "PRE_OPEN" else "CLOSED",
+                global_sentiment,
                 None,
                 True,
             )
 
-            self.db.log(
-                "INFO",
-                "Indian market "
-                f"{phase.lower()}: "
-                "analysis/preparation cycle."
-                + (
-                    f" Holiday={holiday}"
-                    if holiday
-                    else ""
-                ),
+            prep_msg = (
+                f"Indian market {phase.lower()}: analysis/preparation cycle."
+                + (f" Holiday={holiday}." if holiday else "")
+                + (f" {global_summary}." if global_summary else "")
+                + (f" [News]: Scanned {len(pre_news)} headlines." if pre_news else "")
             )
+            self.db.log("INFO", prep_msg)
 
             self.db.log(
                 "INFO",
@@ -489,9 +600,27 @@ class TradingEngine:
                 "market closed",
             )
 
-            self.snapshot()
+            # Trigger off-market swing AMO placement and F&O research (Gate 0: desks.enabled guard)
+            desks_cfg = self.cfg.get("desks", {})
+            if desks_cfg.get("enabled", False):
+                if desks_cfg.get("swing", False):
+                    try:
+                        self.swing_desk.run_cycle()
+                    except Exception as exc:
+                        self.db.log("ERROR", f"Swing desk off-market cycle: {exc!r}")
 
+                if desks_cfg.get("fno", False):
+                    try:
+                        self.fno_desk.run_cycle()
+                    except Exception as exc:
+                        self.db.log("ERROR", f"F&O desk off-market cycle: {exc!r}")
+
+            self.snapshot()
             return
+
+        # Reset catch-up flag when market is open
+        if self.cfg["live_data"] and market_open():
+            self._catch_up_done = False
 
         # --------------------------------------------------
         # REVALIDATE LIVE UNIVERSE
@@ -554,6 +683,62 @@ class TradingEngine:
             return
 
         # --------------------------------------------------
+        # CENTRAL EMERGENCY KILL-SWITCH
+        # --------------------------------------------------
+
+        tripped, kill_reason = self.kill_switch.is_tripped()
+        if tripped:
+            self.db.log(
+                "ERROR",
+                f"CENTRAL KILL-SWITCH ACTIVE: {kill_reason}. Trading halted.",
+            )
+            self.snapshot()
+            return
+
+        # --------------------------------------------------
+        # UNIFIED MULTI-DESK RUNNERS (INTRADAY & SWING)
+        # Always execute top liquid scans independently of 500-symbol batch download
+        # --------------------------------------------------
+        desks_cfg = self.cfg.get("desks", {})
+        if desks_cfg.get("enabled", False):
+            if desks_cfg.get("intraday", False) and hasattr(self, "intraday_desk") and self.intraday_desk:
+                try:
+                    self.intraday_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"Intraday desk cycle: {exc!r}")
+
+            if desks_cfg.get("swing", False) and hasattr(self, "swing_desk") and self.swing_desk:
+                try:
+                    self.swing_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
+
+        # --------------------------------------------------
+        # SESSION TIMING & EOD SQUARE-OFF
+        # --------------------------------------------------
+
+        if self.cfg.get("live_data"):
+            current_ist = now_ist()
+            if self.timing.must_square_off(current_ist):
+                self.positions.manage(current_ist)
+                self.db.log(
+                    "INFO",
+                    f"EOD SQUARE-OFF ACTIVE: Time is {current_ist.strftime('%H:%M:%S')} IST; square-off enforced.",
+                )
+                self.snapshot()
+                return
+
+            if not self.timing.can_enter(current_ist):
+                self.positions.manage(current_ist)
+                phase = self.timing.get_phase(current_ist)
+                self.db.log(
+                    "INFO",
+                    f"SESSION TIMING GATE: Entry blocked during phase {phase} ({current_ist.strftime('%H:%M:%S')} IST).",
+                )
+                self.snapshot()
+                return
+
+        # --------------------------------------------------
         # RISK GATE
         # --------------------------------------------------
 
@@ -562,7 +747,7 @@ class TradingEngine:
         )
 
         # Existing positions are always handled separately.
-        self.positions.manage()
+        self.positions.manage(now_ist() if self.cfg.get("live_data") else None)
 
         if not allowed:
 
@@ -662,12 +847,15 @@ class TradingEngine:
             }:
 
                 qty = self.pm.size(
-                    proposal
+                    proposal,
+                    size_multiplier=ctx.get("size_multiplier", 1.0),
                 )
 
+                # BUG-009: Pass regime context to risk gate
                 decision = self.risk.approve(
                     proposal,
                     qty,
+                    regime_ctx=ctx,
                 )
 
                 if decision == "APPROVE":
@@ -749,11 +937,23 @@ class TradingEngine:
 
         self.positions.manage()
 
+        # F&O fast protection trigger
+        desks_cfg = self.cfg.get("desks", {})
+        if desks_cfg.get("enabled", False) and desks_cfg.get("fno", False):
+            if hasattr(self, "fno_desk") and self.fno_desk:
+                try:
+                    self.fno_desk.run_cycle()
+                except Exception as exc:
+                    self.db.log("ERROR", f"F&O desk cycle: {exc!r}")
+
         # --------------------------------------------------
         # ACCOUNT SNAPSHOT
         # --------------------------------------------------
 
         self.snapshot()
+
+        # BUG-031: Record heartbeat
+        self.db.set_last_cycle()
 
     # ======================================================
     # ACCOUNT SNAPSHOT
@@ -768,24 +968,22 @@ class TradingEngine:
         metrics = portfolio_metrics(
             account,
             positions,
-            self.cfg[
-                "execution"
-            ].get(
+            (self.cfg.get("execution") or {}).get(
                 "short_margin_pct",
                 0.25,
             ),
         )
 
-        peak = max(
-            float(
-                account.get(
-                    "peak_value",
-                    0,
-                )
-                or 0
-            ),
-            metrics["equity"],
-        )
+        current_peak = float(account.get("peak_value", 0) or 0)
+        if current_peak > 0 and metrics["equity"] > 1.5 * current_peak:
+            self.db.log(
+                "WARN",
+                f"Equity valuation spike detected: ₹{metrics['equity']:.2f} vs current peak ₹{current_peak:.2f}. "
+                "Holding peak value unchanged to prevent corrupted risk baseline."
+            )
+            peak = current_peak
+        else:
+            peak = max(current_peak, metrics["equity"])
 
         self.db.update_account(
             account["cash"],
@@ -801,38 +999,68 @@ class TradingEngine:
         )
 
     # ======================================================
+    # CONTINUOUS FAST POSITION TRACKER (INTRADAY & SWING)
+    # ======================================================
+
+    def start_fast_equity_monitor(self):
+        """Start dedicated 3-second continuous thread for Intraday & Swing price tracking and trailing stops."""
+        if not hasattr(self, "_equity_monitor_thread") or self._equity_monitor_thread is None or not self._equity_monitor_thread.is_alive():
+            self._equity_monitor_stop = threading.Event()
+            self._equity_monitor_thread = threading.Thread(target=self._fast_equity_loop, name="FastEquityMonitor", daemon=True)
+            self._equity_monitor_thread.start()
+
+    def _fast_equity_loop(self):
+        while hasattr(self, "_equity_monitor_stop") and not self._equity_monitor_stop.is_set():
+            try:
+                if self.db.positions():
+                    if not self.cfg["live_data"] or market_open():
+                        now_dt = now_ist() if self.cfg.get("live_data") else None
+                        self.positions.manage(now_dt)
+                        desks_cfg = self.cfg.get("desks", {})
+                        if desks_cfg.get("enabled", False):
+                            if desks_cfg.get("swing", False):
+                                self.swing_desk.position_manager.manage()
+            except Exception:
+                pass
+            time.sleep(3)
+
+    # ======================================================
     # 24/7 ENGINE LOOP
     # ======================================================
 
     def run_forever(self):
 
-        decision_interval = max(
-            60,
-            int(
-                self.cfg[
-                    "market"
-                ][
-                    "decision_interval_minutes"
-                ]
-                * 60
-            ),
-        )
-
-        protection_interval = max(
-            10,
-            int(
-                self.cfg[
-                    "market"
-                ].get(
-                    "protection_interval_seconds",
-                    30,
-                )
-            ),
-        )
-
         next_decision = time.time()
+        self.start_fast_equity_monitor()
+        if hasattr(self, "fno_desk") and self.fno_desk and self.cfg.get("desks", {}).get("enabled", False) and self.cfg.get("desks", {}).get("fno", False):
+            self.fno_desk.start_fast_monitor()
 
         while True:
+
+            decision_interval = max(
+                30,
+                int(
+                    self.cfg[
+                        "market"
+                    ].get(
+                        "decision_interval_minutes",
+                        1,
+                    )
+                    * 60
+                ),
+            )
+
+            protection_interval = max(
+                1,
+                int(
+                    self.cfg[
+                        "market"
+                    ].get(
+                        "protection_interval_seconds",
+                        5,
+                    )
+                ),
+            )
 
             now = time.time()
 
@@ -847,7 +1075,8 @@ class TradingEngine:
                     self.cycle()
 
                 except Exception as exc:
-
+                    # BUG-029: Count cycle exceptions
+                    self.db.count_exception("scanner")
                     self.db.log(
                         "ERROR",
                         repr(exc),
@@ -869,7 +1098,13 @@ class TradingEngine:
 
                     if self.db.positions():
                         if not self.cfg["live_data"] or market_open():
-                            self.positions.manage()
+                            self.positions.manage(now_ist() if self.cfg.get("live_data") else None)
+                            desks_cfg = self.cfg.get("desks", {})
+                            if desks_cfg.get("enabled", False):
+                                if desks_cfg.get("swing", False):
+                                    self.swing_desk.position_manager.manage()
+                                if desks_cfg.get("fno", False):
+                                    self.fno_desk.position_manager.manage()
 
                 except Exception as exc:
 
@@ -894,7 +1129,12 @@ class TradingEngine:
 
 
 if __name__ == "__main__":
+    import sys
+    from .ops.instance_lock import SingleInstanceLock
+    lock = SingleInstanceLock()
+    if not lock.acquire():
+        print("[WARNING] Another Tradng-Ai engine is already running. Exiting duplicate instance.")
+        sys.exit(0)
 
     engine = TradingEngine()
-
     engine.run_forever()

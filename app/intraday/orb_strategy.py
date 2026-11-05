@@ -28,15 +28,40 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         self.min_rvol = float(min_rvol)
         self.atr_stop = float(atr_stop_mult)
         self.target_mult = float(target_mult)
+        self.desk = "INTRADAY"
         self.timing = IntradayTimingManager()
+
+    def evaluate_market_fitness(self, context: dict) -> float:
+        """ORB excels in morning volatility (09:30 - 11:30) and high RVOL breakout regimes."""
+        regime = str(context.get("regime", "")).lower()
+        rvol = float(context.get("rvol", 1.2))
+        fitness = 0.70
+        if "breakout" in regime or "momentum" in regime or "trending" in regime:
+            fitness += 0.20
+        elif "consolidation" in regime or "range" in regime:
+            fitness -= 0.25
+        if rvol >= 1.5:
+            fitness += 0.15
+        return max(0.05, min(1.0, fitness))
+
+    def propose(self, target: str, context: dict = None) -> dict | None:
+        context = context or {}
+        intraday_df = context.get("intraday_df")
+        daily_df = context.get("daily_df")
+        return self.decide(target, intraday_df, daily_df=daily_df)
 
     def calculate_opening_range(self, intraday_df, current_date):
         """Extracts high, low, and mid of the 09:15 - 09:30 opening range for the date."""
-        session_bars = intraday_df[intraday_df.index.date == current_date]
+        df = intraday_df
+        if df.index.tz is not None:
+            df = df.tz_convert("Asia/Kolkata")
+        
+        cur_date = current_date if hasattr(current_date, "strftime") else pd.to_datetime(current_date).date()
+        session_bars = df[df.index.date == cur_date]
         if session_bars.empty:
             return None
 
-        # Filter bars in 09:15 <= t < 09:30
+        # Filter bars in 09:15 <= t < 09:30 IST
         orb_bars = session_bars.between_time("09:15", "09:29")
         if orb_bars.empty:
             return None
@@ -94,12 +119,21 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         atr = float(tr.tail(14).mean()) if len(tr) >= 14 else float(last_px * 0.005)
 
         # 5. Signal Evaluation
+        bar_high = float(current_bar["High"])
+        bar_low = float(current_bar["Low"])
+        candle_range = max(bar_high - bar_low, 0.01)
+
         # Bullish Breakout
         if last_px > orb["high"] and last_px > current_vwap and daily_bias != "BEARISH":
+            # Reject if breakout candle has a large upper rejection wick (> 45% of bar range)
+            if ((bar_high - last_px) / candle_range) > 0.45:
+                return None
             stop_px = max(orb["mid"], last_px - (self.atr_stop * atr))
             risk = last_px - stop_px
             if risk <= 0: risk = last_px * 0.005
             target_px = last_px + (self.target_mult * risk)
+            # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
+            target_px = max(target_px, round(last_px * 1.018, 2))
             return {
                 "symbol": symbol,
                 "action": "BUY",
@@ -117,10 +151,15 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
 
         # Bearish Breakdown
         elif last_px < orb["low"] and last_px < current_vwap and daily_bias != "BULLISH":
+            # Reject if breakdown candle has a large lower rejection wick (> 45% of bar range)
+            if ((last_px - bar_low) / candle_range) > 0.45:
+                return None
             stop_px = min(orb["mid"], last_px + (self.atr_stop * atr))
             risk = stop_px - last_px
             if risk <= 0: risk = last_px * 0.005
             target_px = last_px - (self.target_mult * risk)
+            # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
+            target_px = min(target_px, round(last_px * 0.982, 2))
             return {
                 "symbol": symbol,
                 "action": "SHORT",
@@ -137,3 +176,38 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             }
 
         return None
+
+
+    generate_signal = decide
+
+
+ORBStrategy = OpeningRangeBreakoutStrategy
+
+
+class ORBDeskStrategy:
+    """Wrapper that adapts OpeningRangeBreakoutStrategy to live/paper desk evaluation."""
+    def __init__(self, provider, cfg=None):
+        self.provider = provider
+        self.cfg = cfg or {}
+        self.strategy = OpeningRangeBreakoutStrategy()
+
+    def evaluate(self, symbol, market_regime=None):
+        try:
+            intraday_df = self.provider.history(symbol, period="5d", interval="5m")
+            daily_df = self.provider.history(symbol, period="60d", interval="1d")
+            sig = self.strategy.decide(symbol, intraday_df, daily_df)
+            if sig:
+                if market_regime:
+                    regime_lower = str(market_regime).lower()
+                    # Automated macro filter: suppress short breakdown if market is not confirmed bearish
+                    if sig["action"] == "SHORT" and not any(k in regime_lower for k in ("strong bearish", "bearish trend", "downtrend")):
+                        return None
+                    # Suppress long breakout in an active market crash
+                    if sig["action"] == "BUY" and "strong bearish" in regime_lower:
+                        return None
+                from types import SimpleNamespace
+                return SimpleNamespace(**sig)
+        except Exception:
+            pass
+        return None
+

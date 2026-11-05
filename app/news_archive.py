@@ -44,13 +44,25 @@ class NewsArchive:
         sym_str = json.dumps(list(symbols or []))
         raw_str = json.dumps(raw_dict or {})
 
+        # BUG-041: Normalize publisher time (RFC-822 or ISO) to UTC ISO format
+        norm_published = now_ts
+        if published_at:
+            try:
+                from email.utils import parsedate_to_datetime
+                norm_published = parsedate_to_datetime(published_at).astimezone(timezone.utc).isoformat()
+            except Exception:
+                try:
+                    norm_published = datetime.fromisoformat(str(published_at).replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
+                except Exception:
+                    norm_published = str(published_at)
+
         with sqlite3.connect(self.path) as c:
             c.execute("""INSERT INTO news_archive(
                 item_hash, source, title, url, published_at, fetched_at,
                 symbols, event_type, sentiment, materiality, raw_json
             ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(item_hash) DO NOTHING""", (
-                h, source, title, url, published_at or now_ts, now_ts,
+                h, source, title, url, norm_published, now_ts,
                 sym_str, event_type, sentiment, materiality, raw_str
             ))
         return h
@@ -72,3 +84,73 @@ class NewsArchive:
                 "published_at": r[4], "event_type": r[5], "sentiment": r[6],
                 "materiality": r[7], "symbols": json.loads(r[8] or "[]")
             } for r in rows]
+    def has_negative_material_news(self, symbol: str, max_hours: int = 24):
+        """
+        Institutional Risk Filter: Checks if a stock symbol has adverse material news
+        (fraud, regulatory probe, default, downgrade, earnings collapse) within max_hours.
+        Returns (has_risk: bool, reason: str).
+        """
+        now = datetime.now(timezone.utc)
+        clean_sym = symbol.replace('.NS', '').upper()
+        recent = self.get_recent(limit=30, symbol=symbol)
+        if not recent and clean_sym != symbol:
+            recent = self.get_recent(limit=30, symbol=clean_sym)
+
+        for item in recent:
+            sentiment = str(item.get('sentiment', '')).upper()
+            materiality = str(item.get('materiality', '')).upper()
+            if sentiment == 'NEGATIVE' and materiality in ('POTENTIALLY_MATERIAL', 'HIGH'):
+                pub = item.get('published_at')
+                if pub:
+                    try:
+                        pub_dt = datetime.fromisoformat(pub.replace('Z', '+00:00'))
+                        hours_diff = (now - pub_dt).total_seconds() / 3600.0
+                        if hours_diff > max_hours:
+                            continue
+                    except Exception:
+                        pass
+                return True, item.get('title', 'Adverse material news event')
+        return False, ''
+
+    def get_positive_material_news(self, symbol: str, max_hours: int = 24):
+        """
+        Catalyst Engine: Checks if a stock symbol has positive material news
+        (earnings beat, expansion, order win, upgrade, contract) within max_hours.
+        Returns (has_catalyst: bool, headline: str).
+        """
+        now = datetime.now(timezone.utc)
+        clean_sym = symbol.replace('.NS', '').upper()
+        recent = self.get_recent(limit=30, symbol=symbol)
+        if not recent and clean_sym != symbol:
+            recent = self.get_recent(limit=30, symbol=clean_sym)
+
+        for item in recent:
+            sentiment = str(item.get('sentiment', '')).upper()
+            materiality = str(item.get('materiality', '')).upper()
+            if sentiment == 'POSITIVE' and materiality in ('POTENTIALLY_MATERIAL', 'HIGH'):
+                pub = item.get('published_at')
+                if pub:
+                    try:
+                        pub_dt = datetime.fromisoformat(pub.replace('Z', '+00:00'))
+                        hours_diff = (now - pub_dt).total_seconds() / 3600.0
+                        if hours_diff > max_hours:
+                            continue
+                    except Exception:
+                        pass
+                return True, item.get('title', 'Positive earnings/growth catalyst')
+        return False, ''
+
+    def get_news_summary_today(self):
+        """Returns statistics on news collected today for the dashboard."""
+        with sqlite3.connect(self.path) as c:
+            total = c.execute('SELECT count(*) FROM news_archive').fetchone()[0]
+            pos = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'POSITIVE'").fetchone()[0]
+            neg = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'NEGATIVE'").fetchone()[0]
+            neu = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'NEUTRAL'").fetchone()[0]
+            return {
+                'total': total,
+                'positive': pos,
+                'negative': neg,
+                'neutral': neu
+            }
+

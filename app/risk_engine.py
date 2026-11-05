@@ -39,9 +39,10 @@ class MinimumMoveGate:
 
     def check(self, price, target, stop_loss, action="BUY", segment="INTRADAY"):
         expected_move = abs(float(target) - float(price))
-        # Approximate round-trip fee for 1 share
-        entry_fee = self.cost_model.calculate(price, action, segment)
-        exit_fee = self.cost_model.calculate(target, "SELL" if action == "BUY" else "BUY", segment)
+        act = "BUY" if action.upper() in ("BUY", "COVER") else "SELL"
+        exit_act = "SELL" if act == "BUY" else "BUY"
+        entry_fee = self.cost_model.calculate(price, act, segment)
+        exit_fee = self.cost_model.calculate(target, exit_act, segment)
         round_trip_cost = entry_fee + exit_fee
 
         required_move = self.k * round_trip_cost
@@ -64,10 +65,10 @@ class PortfolioHeatLimiter:
 
         # 1. Existing Heat
         current_heat = sum(
-            float(p["qty"]) * max(abs(float(p.get("current_price", p["entry_price"])) - float(p.get("stop_loss", p["entry_price"]))), 0.01)
+            float(p["qty"]) * max(abs(float(p.get("current_price") or p["entry_price"]) - float(p.get("stop_loss") or p["entry_price"])), 0.01)
             for p in open_positions
         )
-        new_risk = float(new_qty) * max(abs(float(new_proposal["price"]) - float(new_proposal["stop_loss"])), 0.01)
+        new_risk = float(new_qty) * max(abs(float(new_proposal["price"]) - float(new_proposal.get("stop_loss") or new_proposal["price"])), 0.01)
         total_heat = current_heat + new_risk
         allowed_heat = equity * self.max_heat
 

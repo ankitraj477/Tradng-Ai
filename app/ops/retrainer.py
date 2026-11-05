@@ -30,8 +30,17 @@ class OfflineRetrainer:
 
         used_features = [c for c in cols if c in valid.columns]
         X = valid[used_features].values
-        # Target label: 1 if forward return exceeds round-trip transaction hurdle, else 0
-        y = (valid[self.target_horizon].values > self.cost_hurdle).astype(int)
+        # BUG-018: Side-adjusted outcome: 1 if return (in trade direction) exceeds transaction hurdle, else 0
+        raw_ret = valid[self.target_horizon].values
+        if "action" in valid.columns:
+            is_short = valid["action"].astype(str).str.upper().isin(["SHORT", "SELL"]).values
+            side_ret = np.where(is_short, -raw_ret, raw_ret)
+        elif "side" in valid.columns:
+            is_short = valid["side"].astype(str).str.upper().isin(["SHORT", "SELL"]).values
+            side_ret = np.where(is_short, -raw_ret, raw_ret)
+        else:
+            side_ret = raw_ret
+        y = (side_ret > self.cost_hurdle).astype(int)
         return X, y, used_features
 
     def retrain(self, log_df, feature_cols=None, l2_reg=1.0):

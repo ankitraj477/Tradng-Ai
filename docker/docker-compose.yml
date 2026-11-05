@@ -3,8 +3,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    # BUG-011/BUG-034: Bind to localhost only; use a reverse proxy for external access
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     volumes:
       - ../data:/app/data
     restart: unless-stopped

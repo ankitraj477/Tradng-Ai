@@ -4,6 +4,7 @@ from pathlib import Path
 import importlib.util
 import os
 import shutil
+import sys
 
 
 REQUIRED = (
@@ -58,7 +59,8 @@ def _cpp_scanner_available(cfg):
     return False, "requested but compiled scanner was not found"
 
 
-def preflight(cfg, provider=None):
+def preflight(cfg=None, provider=None):
+    cfg = cfg or {}
     checks = []
 
     deps = dependency_status()
@@ -143,13 +145,18 @@ def preflight(cfg, provider=None):
 
     # Hard architecture guarantee:
     # this application contains no broker execution.
+    forbidden_brokers = ("kiteconnect", "smartapi", "breeze_connect", "fyers_api", "alice_blue")
+    loaded_brokers = [b for b in forbidden_brokers if b in sys.modules]
+    paper_enforced = len(loaded_brokers) == 0
     checks.append(
         {
             "name": "broker_execution",
-            "ok": True,
+            "ok": paper_enforced,
             "details": (
                 "disabled by architecture; "
                 "paper trading only"
+                if paper_enforced
+                else f"VIOLATION: live broker SDK loaded: {loaded_brokers}"
             ),
         }
     )

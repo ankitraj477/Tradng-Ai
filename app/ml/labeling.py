@@ -7,7 +7,8 @@ def get_atr(df, span=14):
     l = df["Low"]
     c = df["Close"]
     tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
-    return tr.rolling(span).mean().bfill()
+    # BUG-017: Avoid bfill() which leaks future ATR into historical bars; use causal expanding/rolling
+    return tr.rolling(span, min_periods=1).mean()
 
 
 def apply_triple_barrier(df, events, pt_mult=2.0, sl_mult=1.0, max_hold_bars=10):
@@ -84,7 +85,7 @@ def apply_triple_barrier(df, events, pt_mult=2.0, sl_mult=1.0, max_hold_bars=10)
                     label = 1
                     break
 
-        ret = ((exit_px / entry_px) - 1.0) if side == "LONG" else ((entry_px / exit_px) - 1.0)
+        ret = ((exit_px - entry_px) / entry_px) if side == "LONG" else ((entry_px - exit_px) / entry_px)
         # If time expired, label is 1 only if return is positive
         if barrier_hit == "time":
             label = 1 if ret > 0 else 0

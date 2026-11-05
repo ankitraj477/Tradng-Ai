@@ -25,11 +25,15 @@ int main(int argc, char** argv) {
         std::stringstream ss(line);
         Row r; std::string s;
         std::getline(ss,r.symbol,',');
-        std::getline(ss,s,','); r.price=std::stod(s);
-        std::getline(ss,s,','); r.rsi=std::stod(s);
-        std::getline(ss,s,','); r.relvol=std::stod(s);
-        std::getline(ss,s,','); r.ret5=std::stod(s);
-        std::getline(ss,s,','); r.ret20=std::stod(s);
+        try {
+            std::getline(ss,s,','); r.price = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.rsi = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.relvol = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.ret5 = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,','); r.ret20 = s.empty() ? 0.0 : std::stod(s);
+        } catch (...) {
+            continue;
+        }
         r.score=0;
         if(r.rsi>55) r.score+=20;
         if(r.relvol>1.2) r.score+=25;
@@ -40,6 +44,6 @@ int main(int argc, char** argv) {
     }
     std::sort(rows.begin(),rows.end(),[](const Row&a,const Row&b){return a.score>b.score;});
     std::cout<<"symbol,price,rsi,relvol,ret5,ret20,score\n";
-    for(size_t i=0;i<std::min<size_t>(rows.size(),50);++i)
+    for(size_t i=0;i<rows.size();++i)
         std::cout<<rows[i].symbol<<","<<rows[i].price<<","<<rows[i].rsi<<","<<rows[i].relvol<<","<<rows[i].ret5<<","<<rows[i].ret20<<","<<rows[i].score<<"\n";
 }

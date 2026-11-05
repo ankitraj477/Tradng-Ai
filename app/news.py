@@ -22,7 +22,15 @@ class NewsProvider:
     """Free RSS news layer with conservative company-name/symbol matching and event classification."""
     FEEDS = {
         "Google News Finance":
-        "https://news.google.com/rss/search?q=Indian%20stock%20market&hl=en-IN&gl=IN&ceid=IN:en"
+        "https://news.google.com/rss/search?q=Indian%20stock%20market&hl=en-IN&gl=IN&ceid=IN:en",
+        "Economic Times Markets":
+        "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
+        "Moneycontrol Top News":
+        "https://www.moneycontrol.com/rss/MCtopnews.xml",
+        "Livemint Markets":
+        "https://www.livemint.com/rss/markets",
+        "Global Markets Overview":
+        "https://news.google.com/rss/search?q=global+markets+OR+wall+street+OR+asia+markets&hl=en-IN&gl=IN&ceid=IN:en",
     }
 
     POSITIVE = ("growth","profit","upgrade","approval","wins","surge","order win",
@@ -43,7 +51,18 @@ class NewsProvider:
         items=[]
         for source,url in self.FEEDS.items():
             try:
-                req=urllib.request.Request(url, headers={"User-Agent":"Tradng-Ai/1.0"})
+                # Use curl UA for Cloudflare-protected RSS feeds like Moneycontrol to avoid 403 Forbidden
+                ua = "curl/7.81.0" if "moneycontrol" in url.lower() else (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                )
+                req=urllib.request.Request(
+                    url,
+                    headers={
+                        "User-Agent": ua,
+                        "Accept": "*/*"
+                    }
+                )
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     feed=feedparser.parse(resp.read())
                 for e in feed.entries[:limit]:
@@ -59,9 +78,19 @@ class NewsProvider:
                         ev_type = clf["event_type"]
                         mat = clf["materiality"].lower()
                         sent = clf["sentiment"].lower()
+                    # BUG-041: Normalize published timestamp
+                    raw_pub = e.get("published", "")
+                    norm_pub = raw_pub
+                    if raw_pub:
+                        try:
+                            from email.utils import parsedate_to_datetime
+                            norm_pub = parsedate_to_datetime(raw_pub).astimezone(timezone.utc).isoformat()
+                        except Exception:
+                            pass
+
                     item = NewsItem(
                         title=title, url=e.get("link",""), source=source,
-                        published=e.get("published",""),
+                        published=norm_pub,
                         materiality=mat,
                         sentiment=sent,
                         symbols=tuple(matches),
@@ -69,8 +98,18 @@ class NewsProvider:
                     )
                     items.append(item)
                     if self.archive:
-                        self.archive.archive_item(source, title, e.get("link",""), e.get("published",""), matches, ev_type, sent, mat)
-            except Exception:
+                        self.archive.archive_item(source, title, e.get("link",""), norm_pub, matches, ev_type, sent, mat)
+            except Exception as feed_err:
+                # BUG-029: Log failures cleanly without flooding logs every minute
+                import logging
+                logger = logging.getLogger("tradng_ai.news")
+                if not hasattr(self, "_warned_feeds"):
+                    self._warned_feeds = set()
+                if source not in self._warned_feeds:
+                    logger.warning(f"News feed fetch failed for {source} ({url}): {feed_err}")
+                    self._warned_feeds.add(source)
+                else:
+                    logger.debug(f"News feed fetch failed for {source} ({url}): {feed_err}")
                 continue
         return items[:limit]
 

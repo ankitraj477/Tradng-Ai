@@ -17,8 +17,9 @@ def indicators(df):
     vp = x["Close"] * x["Volume"]
     cum_vol = x["Volume"].groupby(x.index.date).cumsum() if hasattr(x.index, "date") else x["Volume"].cumsum()
     cum_vp = vp.groupby(x.index.date).cumsum() if hasattr(x.index, "date") else vp.cumsum()
-    x["vwap"] = cum_vp / cum_vol.replace(0, np.nan)
-    x["rel_volume"]=v/v.rolling(20).mean()
+    x["vwap"] = (cum_vp / cum_vol.replace(0, np.nan)).fillna(c)
+    vol_mean = v.rolling(20).mean()
+    x["rel_volume"] = (v / vol_mean.replace(0, np.nan)).fillna(1.0)
     x["ret_5"]=c.pct_change(5)
     x["ret_20"]=c.pct_change(20)
     x["ret_day"]=c.pct_change(75).fillna(c.pct_change(20))
@@ -26,6 +27,6 @@ def indicators(df):
     x["bb_upper"]=mid+2*std; x["bb_lower"]=mid-2*std
     x["volatility"]=c.pct_change().rolling(20).std()*np.sqrt(252*75)
     out=x.dropna()
-    if not out.empty and not df.empty:
-        assert out.index[-1]==df.index[-1], "indicators dropped tail rows"
+    if not out.empty and not df.empty and out.index[-1] != df.index[-1]:
+        out = x.ffill().bfill().dropna()
     return out

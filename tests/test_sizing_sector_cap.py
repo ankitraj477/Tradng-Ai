@@ -5,6 +5,7 @@ from app.risk import RiskManager
 
 def test_sizing_capped_by_sector_headroom():
     cfg = load_config()
+    cfg.setdefault("risk", {})["min_trade_notional"] = 0.0
     db = DB(":memory:")
     # ₹1000 equity, 40% sector limit = ₹400
     db.ensure_account(1000.0, 100000.0)

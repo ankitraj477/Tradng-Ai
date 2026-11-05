@@ -6,7 +6,12 @@ import pandas as pd
 class CandidateLog:
     """Stores every scanned candidate with technical features and forward returns."""
     def __init__(self, db_path="data/candidates.db"):
-        self.path = Path(db_path)
+        p = Path(db_path)
+        if not p.is_absolute():
+            project_root = Path(__file__).resolve().parent.parent
+            self.path = project_root / p
+        else:
+            self.path = p
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 

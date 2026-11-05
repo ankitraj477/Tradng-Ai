@@ -1,0 +1,209 @@
+{
+  "meta": {
+    "version": "1.0.0",
+    "status_date": "2026-10-23",
+    "description": "Four-sleeve systematic strategy configuration for Tradng-Ai (paper only)"
+  },
+  "contracts": {
+    "NIFTY": {
+      "lot_schedule": [
+        { "effective_from": "2010-01-01", "lot": 50 },
+        { "effective_from": "2021-07-01", "lot": 50 },
+        { "effective_from": "2024-04-26", "lot": 25 },
+        { "effective_from": "2024-11-20", "lot": 75 },
+        { "effective_from": "2026-01-01", "lot": 65 }
+      ],
+      "expiry_weekday": "TUE",
+      "weekly_enabled": true
+    },
+    "BANKNIFTY": {
+      "lot_schedule": [
+        { "effective_from": "2010-01-01", "lot": 25 },
+        { "effective_from": "2023-07-01", "lot": 15 },
+        { "effective_from": "2024-11-20", "lot": 30 }
+      ],
+      "expiry_weekday": "TUE",
+      "weekly_enabled": false
+    }
+  },
+  "costs": {
+    "stt": {
+      "delivery": 0.001,
+      "intraday": 0.00025,
+      "option_sell": [
+        { "effective_from": "2010-01-01", "rate": 0.0010 },
+        { "effective_from": "2026-04-01", "rate": 0.0015 }
+      ],
+      "future_sell": [
+        { "effective_from": "2010-01-01", "rate": 0.0002 },
+        { "effective_from": "2026-04-01", "rate": 0.0005 }
+      ]
+    },
+    "brokerage": 0.0,
+    "exchange_txn": 0.0000297,
+    "sebi_fee": 0.000001,
+    "stamp_duty_delivery": 0.00015,
+    "stamp_duty_intraday": 0.00003,
+    "stamp_duty_options": 0.00003,
+    "gst_rate": 0.18,
+    "dp_charges": 15.93,
+    "base_slippage_bps": 5.0,
+    "slippage_impact_factor": 0.1,
+    "max_adtv_order_pct": 0.02
+  },
+  "calendar": {
+    "supported_years": [
+      2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017,
+      2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025,
+      2026, 2027
+    ],
+    "holidays": {
+      "2024-01-22": "Special Holiday",
+      "2024-01-26": "Republic Day",
+      "2024-03-08": "Mahashivratri",
+      "2024-03-25": "Holi",
+      "2024-03-29": "Good Friday",
+      "2024-04-11": "Id-Ul-Fitr",
+      "2024-04-17": "Ram Navami",
+      "2024-05-01": "Maharashtra Day",
+      "2024-05-20": "General Elections",
+      "2024-06-17": "Bakri Id",
+      "2024-07-17": "Muharram",
+      "2024-08-15": "Independence Day",
+      "2024-10-02": "Mahatma Gandhi Jayanti",
+      "2024-11-01": "Diwali Laxmi Pujan",
+      "2024-11-15": "Gurunanak Jayanti",
+      "2024-12-25": "Christmas",
+      "2025-01-26": "Republic Day",
+      "2025-02-26": "Mahashivratri",
+      "2025-03-14": "Holi",
+      "2025-03-31": "Id-Ul-Fitr",
+      "2025-04-10": "Mahavir Jayanti",
+      "2025-04-14": "Dr. Ambedkar Jayanti",
+      "2025-04-18": "Good Friday",
+      "2025-05-01": "Maharashtra Day",
+      "2025-06-07": "Bakri Id",
+      "2025-08-15": "Independence Day",
+      "2025-08-27": "Ganesh Chaturthi",
+      "2025-10-02": "Mahatma Gandhi Jayanti",
+      "2025-10-21": "Diwali",
+      "2025-10-22": "Diwali Balipratipada",
+      "2025-11-05": "Prakash Gurpurb",
+      "2025-12-25": "Christmas",
+      "2026-01-26": "Republic Day",
+      "2026-03-03": "Holi",
+      "2026-03-20": "Id-Ul-Fitr",
+      "2026-03-26": "Ram Navami",
+      "2026-04-03": "Good Friday",
+      "2026-04-14": "Dr. Ambedkar Jayanti",
+      "2026-05-01": "Maharashtra Day",
+      "2026-05-27": "Bakri Id",
+      "2026-08-15": "Independence Day",
+      "2026-10-02": "Mahatma Gandhi Jayanti",
+      "2026-10-20": "Dussehra",
+      "2026-11-09": "Diwali",
+      "2026-11-24": "Gurunanak Jayanti",
+      "2026-12-25": "Christmas",
+      "2027-01-26": "Republic Day",
+      "2027-03-22": "Holi",
+      "2027-03-26": "Good Friday",
+      "2027-04-14": "Dr. Ambedkar Jayanti",
+      "2027-05-01": "Maharashtra Day",
+      "2027-08-15": "Independence Day",
+      "2027-10-02": "Mahatma Gandhi Jayanti",
+      "2027-10-29": "Diwali",
+      "2027-12-25": "Christmas"
+    },
+    "events": [
+      { "date": "2026-02-01", "name": "Union Budget 2026", "type": "BUDGET" },
+      { "date": "2026-02-06", "name": "RBI MPC Policy", "type": "MPC" },
+      { "date": "2026-04-08", "name": "RBI MPC Policy", "type": "MPC" },
+      { "date": "2026-06-05", "name": "RBI MPC Policy", "type": "MPC" },
+      { "date": "2026-08-07", "name": "RBI MPC Policy", "type": "MPC" },
+      { "date": "2026-10-09", "name": "RBI MPC Policy", "type": "MPC" },
+      { "date": "2026-12-04", "name": "RBI MPC Policy", "type": "MPC" }
+    ]
+  },
+  "sleeves": {
+    "A": {
+      "name": "Cross-Sectional Momentum",
+      "enabled": true,
+      "risk_budget_pct": 0.40,
+      "min_adtv_cr": 10.0,
+      "min_price": 50.0,
+      "min_history_days": 260,
+      "top_n": 20,
+      "keep_rank": 30,
+      "max_single_weight": 0.08,
+      "bear_exposure": 0.5,
+      "rebalance_freq": "MONTHLY_START",
+      "min_delta_w": 0.01,
+      "atr_trail_mult": 2.5,
+      "atr_period": 20,
+      "mom_lookback": 252,
+      "mom_skip_recent": 21,
+      "vol_lookback": 126
+    },
+    "B": {
+      "name": "Index Trend Following",
+      "enabled": true,
+      "risk_budget_pct": 0.20,
+      "instrument": "NIFTYBEES.NS",
+      "entry_high_lookback": 55,
+      "exit_low_lookback": 20,
+      "sigma_target": 0.10,
+      "vol_lookback": 20
+    },
+    "C": {
+      "name": "Short-Term Mean Reversion in Uptrends",
+      "enabled": true,
+      "risk_budget_pct": 0.15,
+      "rsi_period": 2,
+      "entry_rsi_threshold": 10.0,
+      "exit_rsi_threshold": 60.0,
+      "sma_trend_period": 200,
+      "sma_fast_period": 5,
+      "atr_period": 14,
+      "atr_stop_multiplier": 2.0,
+      "risk_per_trade_pct": 0.005,
+      "max_notional_trade_pct": 0.08,
+      "max_positions": 10,
+      "max_hold_days": 5,
+      "event_window_days": 3
+    },
+    "D": {
+      "name": "Defined-Risk Premium Selling",
+      "enabled": false,
+      "risk_budget_pct": 0.25,
+      "min_dte": 30,
+      "max_dte": 45,
+      "max_open_condors": 2,
+      "min_iv_rank": 50.0,
+      "target_delta": 0.12,
+      "delta_min": 0.10,
+      "delta_max": 0.16,
+      "wing_width": 100,
+      "max_loss_pct_equity": 0.01,
+      "min_credit_ratio": 0.15,
+      "option_notional_equity": 1000000.0,
+      "take_profit_ratio": 0.50,
+      "stop_loss_multiple": 2.0,
+      "stop_delta": 0.30,
+      "exit_dte": 3
+    }
+  },
+  "portfolio_risk": {
+    "gross_exposure_cap": 1.00,
+    "max_portfolio_heat_pct": 0.06,
+    "max_sector_exposure_pct": 0.25,
+    "daily_loss_limit_pct": 0.02,
+    "drawdown_ladder": {
+      "tier1_pct": 0.05,
+      "tier1_size_multiplier": 0.5,
+      "tier2_pct": 0.10,
+      "tier2_halt_new_entries": true
+    },
+    "sleeve_drift_lookback_trades": 30,
+    "sleeve_drift_percentile": 0.05
+  }
+}

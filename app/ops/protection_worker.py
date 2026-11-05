@@ -27,7 +27,10 @@ class IsolatedProtectionWorker:
             self.last_heartbeat = datetime.now(timezone.utc)
             return True
         except Exception as e:
+            # BUG-042: Bound errors collection to prevent memory leak
             self.errors.append(str(e))
+            if len(self.errors) > 500:
+                self.errors = self.errors[-500:]
             return False
 
     def _loop(self):

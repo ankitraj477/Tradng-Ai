@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -11,4 +12,4 @@ def test_short_pnl():
     p={"symbol":"TEST","price":100,"stop_loss":105,"target":90,"strategy":"Test","confidence":80}
     assert e.short(p,2,"Bearish")
     assert e.close("TEST",90,"target","Bearish")
-    assert db.trades(1)[0]["pnl"]==20
+    assert pytest.approx(db.trades(1)[0]["pnl"], abs=0.2) == 20

@@ -41,6 +41,30 @@ class SymbolResolver:
             "l&t": "LT.NS"
         }
 
+        from pathlib import Path
+        import csv
+
+        # Ingest universe ISINs and verified company names from data/ind_nifty500list.csv
+        csv_path = Path(__file__).resolve().parent.parent / "data" / "ind_nifty500list.csv"
+        if csv_path.exists():
+            try:
+                with open(csv_path, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        sym = f"{row['Symbol'].strip()}.NS"
+                        isin = row.get("ISIN Code", "").strip().upper()
+                        company = row.get("Company Name", "").strip().lower()
+                        if isin:
+                            self.isins[isin] = sym
+                        if company and len(company) >= 6:
+                            self.aliases[company] = sym
+                            # Remove corporate suffixes like Ltd., Limited
+                            clean_co = re.sub(r"\b(ltd\.?|limited)\b", "", company).strip()
+                            if len(clean_co) >= 6:
+                                self.aliases[clean_co] = sym
+            except Exception:
+                pass
+
         self.isins.update(default_isins)
         if isin_map: self.isins.update(isin_map)
 

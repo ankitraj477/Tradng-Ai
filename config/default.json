@@ -1,7 +1,7 @@
 {
   "capital": {
-    "starting": 1000.0,
-    "target": 100000.0
+    "starting": 100000.0,
+    "target": 5000000.0
   },
 
   "risk": {
@@ -12,31 +12,42 @@
     "min_risk_reward": 1.5,
     "max_drawdown_pct": 0.15,
     "kill_switch": false,
-    "daily_loss_limit_pct": 0.05
+    "daily_loss_limit_pct": 0.05,
+    "max_portfolio_heat_pct": 0.06,
+    "min_trade_notional": 5000.0
   },
 
   "execution": {
+    "enforce_market_hours": true,
     "slippage_bps": 8,
     "brokerage": 0.0,
     "sebi_turnover_fee_pct": 0.0001,
     "exchange_txn_fee_pct": 0.00297,
     "gst_pct": 0.18,
     "stamp_duty_non_delivery_pct": 0.003,
+    "stamp_duty_delivery_pct": 0.015,
     "stt_delivery_pct": 0.10,
     "stt_intraday_sell_pct": 0.025,
+    "dp_charges": 15.93,
+    "base_slippage_bps": 5.0,
     "short_margin_pct": 0.25,
     "trailing_stop_atr": 1.5,
-    "max_hold_minutes": 390
+    "max_hold_minutes": 390,
+    "stop_loss_pct": 0.02,
+    "target_pct": 0.04,
+    "dynamic_target_expansion": true,
+    "breakeven_lock_ratio": 0.33,
+    "trailing_buffer_ratio": 0.3333333333
   },
 
 "market": {
-  "decision_interval_minutes": 5,
+  "decision_interval_minutes": 1,
   "data_max_age_seconds": 900,
   "live_data_max_age_seconds": 420,
   "min_fresh_data_coverage_pct": 0.70,
   "max_candidates": 50,
   "max_open_positions": 5,
-  "protection_interval_seconds": 30,
+  "protection_interval_seconds": 2,
   "history_period": "60d"
 },
 
@@ -57,5 +68,33 @@
 
   "use_cpp_scanner": false,
 
-  "cpp_scanner_path": "cpp/scanner.exe"
-}
+  "cpp_scanner_path": "cpp/scanner.exe",
+
+  "swing": {
+    "target_pct": 0.10,
+    "stop_loss_pct": 0.04,
+    "max_hold_days": 20,
+    "trail_after_target": true
+  },
+
+  "fno": {
+    "profit_target_ratio": 0.40,
+    "stop_loss_multiple": 2.0,
+    "breakeven_decay_pct": 0.25,
+    "max_loss_per_spread": 4000.0
+  },
+
+  "dashboard": {
+    "token": "tradng-pro-2026",
+    "fail_closed": true
+  },
+
+  "allow_shorts": "auto",
+
+  "desks": {
+    "enabled": true,
+    "intraday": true,
+    "swing": true,
+    "fno": true
+  }
+}

@@ -122,7 +122,7 @@ class RsiMeanReversionStrategy(BaseStrategy):
     RSI-2 Mean Reversion Strategy (Larry Connors style).
     Buys severe short-term oversold dips within long-term uptrends (Close > 200 EMA).
     """
-    def __init__(self, rsi_period=2, oversold=10.0, overbought=90.0, trend_span=100, atr_stop_mult=2.0):
+    def __init__(self, rsi_period=2, oversold=10.0, overbought=90.0, trend_span=200, atr_stop_mult=2.0):
         super().__init__("RsiMeanReversion", {
             "rsi_period": rsi_period, "oversold": oversold,
             "overbought": overbought, "trend_span": trend_span, "atr_stop_mult": atr_stop_mult
@@ -144,8 +144,11 @@ class RsiMeanReversionStrategy(BaseStrategy):
         gain = delta.clip(lower=0).rolling(self.rsi_period).mean()
         loss = (-delta.clip(upper=0)).rolling(self.rsi_period).mean()
         rs = gain / loss.replace(0, np.nan)
-        rsi_series = 100 - (100 / (1 + rs))
-        rsi_val = float(rsi_series.iloc[-1])
+        rsi_series = 100.0 - (100.0 / (1.0 + rs))
+        zero_loss = (loss == 0)
+        rsi_series.loc[zero_loss & (gain > 0)] = 100.0
+        rsi_series.loc[zero_loss & (gain == 0)] = 50.0
+        rsi_val = float(rsi_series.iloc[-1]) if not np.isnan(rsi_series.iloc[-1]) else 50.0
 
         trend_ema = float(c.ewm(span=self.trend_span, adjust=False).mean().iloc[-1])
         last_px = float(c.iloc[-1])

@@ -1,5 +1,6 @@
-from datetime import time
+from datetime import datetime, time, timezone
 from ..costs import CostModel
+from ..exchange_rules import round_to_tick, validate_order_microstructure
 from .timing import IntradayTimingManager
 
 
@@ -120,3 +121,126 @@ class IntradayExecutionEngine:
         }
         self.closed_trades.append(trade)
         return trade
+
+
+from datetime import datetime, timezone
+
+
+class IntradayExecution:
+    """
+    Live / Paper Execution Engine dedicated to Intraday MIS trades.
+    Uses exact NSE intraday cost deductions and tags all positions product_type='INTRADAY'.
+    """
+    def __init__(self, db, cfg=None):
+        self.db = db
+        self.cfg = cfg or {}
+        self.costs = CostModel()
+
+    def open_long(self, symbol, qty, price, stop_loss, target, atr=0.0):
+        if qty <= 0 or any(p.get("symbol") == symbol for p in self.db.positions()):
+            return False
+        price = round_to_tick(float(price))
+        stop_loss = round_to_tick(float(stop_loss)) if stop_loss is not None else 0.0
+        target = round_to_tick(float(target)) if target is not None else 0.0
+
+        val_check = validate_order_microstructure(symbol, "BUY", price, stop_loss=stop_loss, target=target)
+        if not val_check["ok"]:
+            self.db.log("WARN", f"[Intraday] BUY REJECTED by exchange rules: {val_check['reason']}")
+            return False
+
+        val = qty * price
+        cost = self.costs.calculate(val, action="BUY", segment="INTRADAY")
+        total_req = val + cost
+        target_step = abs(target - price) if target else 0.0
+
+        with self.db.conn() as c:
+            row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            if not row:
+                now_str = datetime.now(timezone.utc).isoformat()
+                c.execute("INSERT OR IGNORE INTO account VALUES(1, 100000.0, 100000.0, 200000.0, 100000.0, ?)", (now_str,))
+                row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            acc = dict(row) if row else {"cash": 0.0, "initial_capital": 0.0}
+            short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
+            open_pos = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved = sum(float(x['entry_price']) * float(x['qty']) * short_margin_pct for x in open_pos if x['side'] == 'SHORT')
+            avail = max(0.0, float(acc.get('cash', 0.0)) - reserved)
+            if total_req > avail:
+                return False
+            c.execute(
+                """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
+                                         strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
+                                         product_type, days_held)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(sleeve, symbol) DO UPDATE SET
+                   qty=qty+excluded.qty, current_price=excluded.current_price""",
+                (
+                    symbol, "LONG", int(qty), float(price), float(price), float(stop_loss), float(target),
+                    "Intraday ORB", 80, datetime.now(timezone.utc).isoformat(), "Unknown",
+                    float(atr), cost, target_step, "INTRADAY", 0
+                )
+            )
+            c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
+                      (total_req, datetime.now(timezone.utc).isoformat()))
+        self.db.log("INFO", f"[Intraday] BUY {symbol} x{qty} @ {price:.2f} (SL: {stop_loss:.2f}, TP: {target:.2f})")
+        return True
+
+    def open_short(self, symbol, qty, price, stop_loss, target, atr=0.0):
+        if qty <= 0 or any(p.get("symbol") == symbol for p in self.db.positions()):
+            return False
+        price = round_to_tick(float(price))
+        stop_loss = round_to_tick(float(stop_loss)) if stop_loss is not None else 0.0
+        target = round_to_tick(float(target)) if target is not None else 0.0
+
+        val_check = validate_order_microstructure(symbol, "SELL", price, stop_loss=stop_loss, target=target)
+        if not val_check["ok"]:
+            self.db.log("WARN", f"[Intraday] SHORT REJECTED by exchange rules: {val_check['reason']}")
+            return False
+
+        val = qty * price
+        cost = self.costs.calculate(val, action="SELL", segment="INTRADAY")
+        short_margin_pct = float(self.cfg.get("execution", {}).get("short_margin_pct", 0.25))
+        margin_req = val * short_margin_pct + cost
+        target_step = abs(price - target) if target else 0.0
+
+        with self.db.conn() as c:
+            row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            if not row:
+                now_str = datetime.now(timezone.utc).isoformat()
+                c.execute("INSERT OR IGNORE INTO account VALUES(1, 100000.0, 100000.0, 200000.0, 100000.0, ?)", (now_str,))
+                row = c.execute("SELECT * FROM account WHERE id=1").fetchone()
+            acc = dict(row) if row else {"cash": 0.0, "initial_capital": 0.0}
+            positions = [dict(r) for r in c.execute("SELECT * FROM positions").fetchall()]
+            reserved_margin = sum(float(x["entry_price"]) * float(x["qty"]) * short_margin_pct
+                                  for x in positions if x["side"] == "SHORT")
+            available_cash = max(0.0, float(acc.get("cash", 0.0)) - reserved_margin)
+            if margin_req > available_cash:
+                return False
+            c.execute(
+                """INSERT INTO positions(symbol, side, qty, entry_price, current_price, stop_loss, target,
+                                         strategy, confidence, opened_at, sector, atr, entry_cost, target_step,
+                                         product_type, days_held)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(sleeve, symbol) DO UPDATE SET
+                   qty=qty+excluded.qty, current_price=excluded.current_price""",
+                (
+                    symbol, "SHORT", int(qty), float(price), float(price), float(stop_loss), float(target),
+                    "Intraday ORB Short", 80, datetime.now(timezone.utc).isoformat(), "Unknown",
+                    float(atr), cost, target_step, "INTRADAY", 0
+                )
+            )
+            # Only transaction costs leave cash; margin is tracked via position reserved_margin
+            c.execute("UPDATE account SET cash=cash-?, updated_at=? WHERE id=1",
+                      (cost, datetime.now(timezone.utc).isoformat()))
+        self.db.log("INFO", f"[Intraday] SHORT {symbol} x{qty} @ {price:.2f} (SL: {stop_loss:.2f}, TP: {target:.2f}, margin: {val * short_margin_pct:.2f})")
+        return True
+
+    def close(self, symbol, exit_price, reason, category="", force: bool = False):
+        from ..execution import PaperExecution
+        exit_price = round_to_tick(float(exit_price))
+        exec_engine = PaperExecution(self.db, self.cfg)
+        return exec_engine.close(symbol, exit_price, reason, category, force=force)
+
+    def mark(self, quotes):
+        from ..execution import PaperExecution
+        exec_engine = PaperExecution(self.db, self.cfg)
+        return exec_engine.mark(quotes)

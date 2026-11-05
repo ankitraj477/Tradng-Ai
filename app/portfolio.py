@@ -39,7 +39,7 @@ class PortfolioManager:
             ),
         )
 
-    def size(self, proposal):
+    def size(self, proposal, size_multiplier=1.0):
         (
             account,
             positions,
@@ -55,9 +55,12 @@ class PortfolioManager:
         if max_positions is not None and len(positions) >= int(max_positions):
             return 0
 
+        # BUG-009: Scale position risk by regime size multiplier (e.g. 0.5 in High Volatility)
+        mult = float(size_multiplier if size_multiplier is not None else 1.0)
         risk_cash = (
             equity
             * self.cfg["risk"]["max_position_risk_pct"]
+            * max(0.0, mult)
         )
 
         per_share = max(
@@ -124,7 +127,7 @@ class PortfolioManager:
         else:
             qty_by_sector = qty_by_risk
 
-        return max(
+        final_qty = max(
             0,
             min(
                 qty_by_risk,
@@ -133,3 +136,8 @@ class PortfolioManager:
                 qty_by_sector,
             ),
         )
+        min_notional = float(self.cfg.get("risk", {}).get("min_trade_notional", 0.0))
+        if final_qty > 0 and min_notional > 0 and (final_qty * proposal["price"]) < min_notional:
+            return 0
+
+        return final_qty

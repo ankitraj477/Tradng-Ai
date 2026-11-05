@@ -26,7 +26,8 @@ def buy_and_hold_baseline(df, starting_capital=100000.0, cost_model=None):
     dd = (peak - curve) / peak
     max_dd = float(dd.max() * 100.0) if len(dd) else 0.0
 
-    days = max(1, (df.index[-1] - df.index[0]).days if hasattr(df.index[-1], 'days') else len(df))
+    delta = df.index[-1] - df.index[0]
+    days = max(1, delta.days if hasattr(delta, 'days') else len(df))
     years = max(days / 365.25, 1/252)
     cagr = ((final_capital / starting_capital) ** (1.0 / years) - 1.0) * 100.0 if final_capital > 0 else -100.0
 
@@ -41,6 +42,7 @@ def buy_and_hold_baseline(df, starting_capital=100000.0, cost_model=None):
 
 def equal_weight_baseline(datasets, starting_capital=100000.0, cost_model=None):
     """Computes equal-weight benchmark across an active constituent universe."""
+    cm = cost_model or CostModel()
     valid = {s: df for s, df in datasets.items() if df is not None and not df.empty and "Close" in df.columns}
     if not valid:
         return {"return_pct": 0.0, "cagr": 0.0, "max_drawdown_pct": 0.0, "final_capital": starting_capital}
@@ -51,7 +53,10 @@ def equal_weight_baseline(datasets, starting_capital=100000.0, cost_model=None):
 
     peak = curve.cummax()
     dd = (peak - curve) / peak
-    final_cap = float(curve.iloc[-1]) if len(curve) else starting_capital
+    raw_final_cap = float(curve.iloc[-1]) if len(curve) else starting_capital
+    entry_fee = cm.calculate(starting_capital, "BUY", "DELIVERY")
+    exit_fee = cm.calculate(raw_final_cap, "SELL", "DELIVERY")
+    final_cap = max(0.0, raw_final_cap - entry_fee - exit_fee)
     ret_pct = ((final_cap / starting_capital) - 1.0) * 100.0
 
     years = max(len(daily_rets) / 252.0, 1/252)

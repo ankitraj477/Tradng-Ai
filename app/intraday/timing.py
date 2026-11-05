@@ -6,6 +6,8 @@ IST = ZoneInfo("Asia/Kolkata")
 
 SESSION_START = time(9, 15)
 OPENING_RANGE_END = time(9, 30)
+LUNCH_LULL_START = time(11, 45)
+LUNCH_LULL_END = time(13, 15)
 ENTRY_CUTOFF = time(14, 45)
 SQUARE_OFF_START = time(15, 10)
 SESSION_END = time(15, 30)
@@ -47,9 +49,21 @@ class IntradayTimingManager:
             return "SQUARE_OFF"
         return "CLOSED"
 
-    def can_enter(self, dt=None):
-        """No entries in first 15 min (9:15-9:30) or after 14:45 IST."""
-        return self.get_phase(dt) == "ACTIVE_TRADING"
+    def is_midday_lull(self, dt=None):
+        """Institutional volume lull in Indian markets between 11:45 and 13:15 IST."""
+        dt = self._normalize_dt(dt)
+        return LUNCH_LULL_START <= dt.time() < LUNCH_LULL_END
+
+    def can_enter(self, dt=None, allow_midday=False):
+        """No entries in first 15 min (9:15-9:30), after 14:45 IST, or during 11:45-13:15 lunchtime lull."""
+        phase = self.get_phase(dt)
+        if phase != "ACTIVE_TRADING":
+            return False
+        if not allow_midday and self.is_midday_lull(dt):
+            return False
+        return True
+
+    can_enter_trades = can_enter
 
     def must_square_off(self, dt=None):
         """Compulsory square-off starting at 15:10 IST."""

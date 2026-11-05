@@ -41,18 +41,32 @@ def verify_no_lookahead(feature_func, df, target_idx):
     Lookahead shift test.
     Verifies that feature value at target_idx is strictly identical
     regardless of what future data is appended or mutated after target_idx.
-    """
-    # 1. Feature computed on slice up to target_idx
-    slice_past = df.iloc[:target_idx + 1].copy()
-    val_past = feature_func(slice_past)
 
-    # 2. Mutate future rows completely (e.g. 10x prices)
+    BUG-014: Evaluates full frame when feature_func returns a Series/DataFrame
+    so mutations at target_idx + 1: cannot leak into target_idx without detection.
+    Also supports slice-based calculators that return a scalar for target_idx.
+    """
     mutated = df.copy()
     future_len = len(mutated) - (target_idx + 1)
     if future_len > 0:
         mutated.iloc[target_idx + 1:, mutated.columns.get_loc("Close")] *= 10.0
         mutated.iloc[target_idx + 1:, mutated.columns.get_loc("High")] *= 10.0
+        mutated.iloc[target_idx + 1:, mutated.columns.get_loc("Low")] *= 10.0
+        mutated.iloc[target_idx + 1:, mutated.columns.get_loc("Volume")] *= 10.0
 
+    try:
+        val_orig = feature_func(df.copy())
+        if isinstance(val_orig, (pd.Series, pd.DataFrame, np.ndarray, list)):
+            val_mut = feature_func(mutated)
+            orig_item = val_orig.iloc[target_idx] if hasattr(val_orig, "iloc") else val_orig[target_idx]
+            mut_item = val_mut.iloc[target_idx] if hasattr(val_mut, "iloc") else val_mut[target_idx]
+            return bool(np.isclose(float(orig_item), float(mut_item), atol=1e-8))
+    except Exception:
+        pass
+
+    # Slice-based evaluation: feature evaluated on history up to target_idx
+    slice_past = df.iloc[:target_idx + 1].copy()
+    val_past = feature_func(slice_past)
     val_mutated = feature_func(mutated.iloc[:target_idx + 1])
     return bool(np.isclose(float(val_past), float(val_mutated), atol=1e-8))
 

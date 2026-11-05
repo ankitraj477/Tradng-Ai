@@ -7,15 +7,25 @@ class PurgedWalkForwardCV:
     Purged and Embargoed Walk-Forward Cross Validation.
     Prevents information leakage from overlapping trade holding horizons.
     Strictly chronological: no random splits.
+    Dynamically scales the purge window based on the maximum holding period to ensure
+    training labels do not bleed into out-of-sample evaluation sets.
     """
-    def __init__(self, n_splits=4, purge_bars=5, embargo_bars=2):
+    def __init__(self, n_splits=4, purge_bars=5, embargo_bars=2, max_holding_bars=None):
         self.n_splits = int(n_splits)
-        self.purge_bars = int(purge_bars)
         self.embargo_bars = int(embargo_bars)
+        self.max_holding_bars = int(max_holding_bars) if max_holding_bars is not None else None
+        
+        # Dynamically scale purge window if max_holding_bars is configured
+        if self.max_holding_bars and self.max_holding_bars > 0:
+            self.purge_bars = max(int(purge_bars), self.max_holding_bars + self.embargo_bars)
+        else:
+            self.purge_bars = int(purge_bars)
 
-    def split(self, n_samples):
+    def split(self, n_samples, event_horizons=None):
         """
         Yields (train_indices, test_indices) splits.
+        If event_horizons is provided (iterable of trade durations per event),
+        dynamically adjusts the purge window to the maximum active horizon at the boundary.
         """
         if n_samples < 20:
             yield np.arange(int(n_samples * 0.7)), np.arange(int(n_samples * 0.7), n_samples)
@@ -26,7 +36,16 @@ class PurgedWalkForwardCV:
 
         for i in range(self.n_splits):
             train_end = min_train_size + i * test_size
-            test_start = train_end + self.purge_bars
+            
+            # Dynamic purge window calculation
+            purge = self.purge_bars
+            if event_horizons is not None and len(event_horizons) >= train_end:
+                recent_horizons = event_horizons[:train_end]
+                if len(recent_horizons) > 0:
+                    max_recent = int(np.max(recent_horizons[-min(len(recent_horizons), 20):]))
+                    purge = max(purge, max_recent + self.embargo_bars)
+
+            test_start = train_end + purge
             test_end = min(n_samples, test_start + test_size)
 
             if test_start >= n_samples or test_start >= test_end:

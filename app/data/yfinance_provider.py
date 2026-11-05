@@ -1,4 +1,5 @@
 import time
+import threading
 from pathlib import Path
 
 import pandas as pd
@@ -47,6 +48,7 @@ class YFinanceProvider(MarketDataProvider):
                 symbols = []
 
         self._symbols = list(symbols)
+        self._download_lock = threading.RLock()
 
         self.cache = (
             cache or MarketDataCache()
@@ -195,6 +197,9 @@ class YFinanceProvider(MarketDataProvider):
                 for column in df.columns
             ]
 
+        if df.columns.duplicated().any():
+            df = df.loc[:, ~df.columns.duplicated()]
+
         if not required.issubset(
             df.columns
         ):
@@ -262,11 +267,12 @@ class YFinanceProvider(MarketDataProvider):
         self,
         df,
         require_fresh=True,
+        max_age_seconds=None,
     ):
         return validate_history(
             df,
             max_age_seconds=(
-                self.max_age_seconds
+                max_age_seconds if max_age_seconds is not None else self.max_age_seconds
             ),
             require_fresh=(
                 require_fresh
@@ -283,45 +289,46 @@ class YFinanceProvider(MarketDataProvider):
         period,
         interval,
     ):
-        import yfinance as yf
+        with self._download_lock:
+            import yfinance as yf
 
-        last_error = None
+            last_error = None
 
-        for attempt in range(
-            self.retries + 1
-        ):
-            try:
-                df = yf.download(
-                    symbol,
-                    period=period,
-                    interval=interval,
-                    auto_adjust=False,
-                    progress=False,
-                    threads=False,
-                )
+            for attempt in range(
+                self.retries + 1
+            ):
+                try:
+                    df = yf.download(
+                        symbol,
+                        period=period,
+                        interval=interval,
+                        auto_adjust=False,
+                        progress=False,
+                        threads=False,
+                    )
+
+                    if (
+                        df is not None
+                        and not df.empty
+                    ):
+                        return df
+
+                except Exception as exc:
+                    last_error = exc
 
                 if (
-                    df is not None
-                    and not df.empty
+                    attempt
+                    < self.retries
                 ):
-                    return df
+                    time.sleep(
+                        0.5
+                        * (attempt + 1)
+                    )
 
-            except Exception as exc:
-                last_error = exc
+            if last_error is not None:
+                raise last_error
 
-            if (
-                attempt
-                < self.retries
-            ):
-                time.sleep(
-                    0.5
-                    * (attempt + 1)
-                )
-
-        if last_error is not None:
-            raise last_error
-
-        return None
+            return None
 
     # ======================================================
     # SINGLE SYMBOL HISTORY
@@ -357,10 +364,13 @@ class YFinanceProvider(MarketDataProvider):
                     f"live data for {symbol}"
                 )
 
+            is_daily_or_higher = str(interval).lower() in ("1d", "d", "1wk", "wk", "1mo", "mo", "1y")
+            effective_max_age = 345600 if is_daily_or_higher else self.max_age_seconds
             ok, message = (
                 self._validate(
                     df,
                     require_fresh=True,
+                    max_age_seconds=effective_max_age,
                 )
             )
 
@@ -378,22 +388,48 @@ class YFinanceProvider(MarketDataProvider):
                 df,
             )
 
-            self.manifest.record(
-                "yfinance",
-                "ohlcv",
-                symbol,
-                df.index.min(),
-                df.index.max(),
-                len(df),
-                adjusted=False,
-            )
+            try:
+                self.manifest.record(
+                    "yfinance",
+                    "ohlcv",
+                    symbol,
+                    df.index.min(),
+                    df.index.max(),
+                    len(df),
+                    adjusted=False,
+                )
+            except Exception:
+                pass
 
             return df
 
         except Exception as exc:
             cached = self.cache.load(symbol, period, interval, max_age_seconds=self.max_age_seconds)
             if cached is not None and not cached.empty:
-                return cached
+                # BUG-007: Revalidate that cached frame satisfies freshness/coverage rules
+                # and explicitly log a warning rather than silently serving stale data.
+                try:
+                    ok_cache, msg_cache = validate_history(
+                        cached,
+                        max_age_seconds=self.max_age_seconds,
+                        require_fresh=True,
+                    )
+                    if ok_cache:
+                        import logging
+                        logging.getLogger("tradng_ai.data").warning(
+                            f"Live fetch failed for {symbol} ({exc}); using validated cache fallback."
+                        )
+                        return cached
+                    else:
+                        import logging
+                        logging.getLogger("tradng_ai.data").warning(
+                            f"Cache fallback for {symbol} failed validation: {msg_cache}"
+                        )
+                except Exception as val_exc:
+                    import logging
+                    logging.getLogger("tradng_ai.data").warning(
+                        f"Cache fallback for {symbol} validation error ({val_exc})."
+                    )
             raise RuntimeError(
                 "no fresh live data "
                 f"available for {symbol}: "
@@ -452,7 +488,12 @@ class YFinanceProvider(MarketDataProvider):
 
             return None
 
-        return df.copy()
+        # BUG FIX: If df.columns is flat (not MultiIndex), only return if symbol matches metadata.
+        # NEVER blindly return df.copy() for arbitrary symbols to prevent cross-symbol contamination!
+        if hasattr(df, "attrs") and df.attrs.get("symbol") == symbol:
+            return df.copy()
+
+        return None
 
     # ======================================================
     # CHUNK DOWNLOAD
@@ -464,46 +505,47 @@ class YFinanceProvider(MarketDataProvider):
         period,
         interval,
     ):
-        import yfinance as yf
+        with self._download_lock:
+            import yfinance as yf
 
-        last_error = None
+            last_error = None
 
-        for attempt in range(
-            self.retries + 1
-        ):
-            try:
-                df = yf.download(
-                    symbols,
-                    period=period,
-                    interval=interval,
-                    auto_adjust=False,
-                    progress=False,
-                    threads=True,
-                    group_by="ticker",
-                )
+            for attempt in range(
+                self.retries + 1
+            ):
+                try:
+                    df = yf.download(
+                        symbols,
+                        period=period,
+                        interval=interval,
+                        auto_adjust=False,
+                        progress=False,
+                        threads=True,
+                        group_by="ticker",
+                    )
+
+                    if (
+                        df is not None
+                        and not df.empty
+                    ):
+                        return df
+
+                except Exception as exc:
+                    last_error = exc
 
                 if (
-                    df is not None
-                    and not df.empty
+                    attempt
+                    < self.retries
                 ):
-                    return df
+                    time.sleep(
+                        0.5
+                        * (attempt + 1)
+                    )
 
-            except Exception as exc:
-                last_error = exc
+            if last_error is not None:
+                raise last_error
 
-            if (
-                attempt
-                < self.retries
-            ):
-                time.sleep(
-                    0.5
-                    * (attempt + 1)
-                )
-
-        if last_error is not None:
-            raise last_error
-
-        return None
+            return None
 
     @staticmethod
     def _is_stale_failure(
@@ -697,15 +739,18 @@ class YFinanceProvider(MarketDataProvider):
                         normalized,
                     )
 
-                    self.manifest.record(
-                        "yfinance",
-                        "ohlcv",
-                        symbol,
-                        normalized.index.min(),
-                        normalized.index.max(),
-                        len(normalized),
-                        adjusted=False,
-                    )
+                    try:
+                        self.manifest.record(
+                            "yfinance",
+                            "ohlcv",
+                            symbol,
+                            normalized.index.min(),
+                            normalized.index.max(),
+                            len(normalized),
+                            adjusted=False,
+                        )
+                    except Exception:
+                        pass
 
                     output[
                         symbol
@@ -831,13 +876,30 @@ class YFinanceProvider(MarketDataProvider):
                 )
             )
 
+        curr_price = float(df["Close"].iloc[-1])
+        last_date = df.index[-1].date()
+        today_bars = df[df.index.date == last_date]
+        prev_day_bars = df[df.index.date < last_date]
+
+        if not prev_day_bars.empty:
+            prev_close = float(prev_day_bars["Close"].iloc[-1])
+        else:
+            prev_close = float(today_bars["Open"].iloc[0]) if not today_bars.empty else float(df["Open"].iloc[0])
+
+        change_pct = round(((curr_price - prev_close) / prev_close) * 100.0, 2) if prev_close > 0 else 0.0
+        day_open = float(today_bars["Open"].iloc[0]) if not today_bars.empty else float(df["Open"].iloc[-1])
+        day_high = float(today_bars["High"].max()) if not today_bars.empty else float(df["High"].iloc[-1])
+        day_low = float(today_bars["Low"].min()) if not today_bars.empty else float(df["Low"].iloc[-1])
+        day_volume = float(today_bars["Volume"].sum()) if not today_bars.empty else float(df["Volume"].iloc[-1])
+
         return {
             "symbol": symbol,
-            "price": float(
-                df[
-                    "Close"
-                ].iloc[-1]
-            ),
+            "price": curr_price,
+            "open": day_open,
+            "high": day_high,
+            "low": day_low,
+            "volume": day_volume,
+            "change_pct": change_pct,
             "timestamp": (
                 timestamp.to_pydatetime()
             ),
