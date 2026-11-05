@@ -4,21 +4,52 @@ Statistically achieves 75%+ win rate using 15-20 Delta OTM strikes,
 PCR sentiment confirmation, and strict 50% profit-taking rules.
 """
 import json
+from typing import Dict, Any, Optional
+from ..strategy_interface import BaseDeskStrategy
 from .index_chain import IndexChainManager, LOT_SIZES
 from .sr_levels import IndexSRCalculator
 
 
-class IronCondorStrategy:
+class IronCondorStrategy(BaseDeskStrategy):
     def __init__(self, chain_manager=None, cfg=None):
+        super().__init__(
+            name="Iron Condor & Credit Spreads",
+            desk="FNO",
+            supported_regimes=["Consolidation", "Range Bound", "Low Volatility", "Neutral"]
+        )
         self.chain = chain_manager or IndexChainManager()
         self.cfg = cfg or {}
         self.sr_calc = IndexSRCalculator(provider=getattr(self.chain, "provider", None))
 
-    def propose(self, index_name: str = "NIFTY", market_regime: str = None) -> dict | None:
+    def evaluate_market_fitness(self, context: Dict[str, Any]) -> float:
+        """
+        Credit spreads excel in range-bound, low-to-moderate ADX regimes.
+        Fitness drops when ADX > 25 or when extreme directional breakout occurs.
+        """
+        regime = str(context.get("regime", "")).lower()
+        adx = float(context.get("adx", 18.0))
+
+        fitness = 0.70
+
+        if "range" in regime or "consolidation" in regime or "neutral" in regime:
+            fitness += 0.25
+        elif "trending" in regime or "breakout" in regime:
+            fitness -= 0.35
+
+        if adx < 20.0:
+            fitness += 0.15
+        elif adx >= 28.0:
+            fitness -= 0.30
+
+        return max(0.05, min(1.0, fitness))
+
+    def propose(self, index_name: str = "NIFTY", market_regime: str = None, context: Optional[Dict[str, Any]] = None) -> dict | None:
         """
         Generate a high-probability defined-risk option selling proposal
         anchored outside dynamic Support & Resistance levels.
         """
+        if context and not market_regime:
+            market_regime = context.get("regime")
         # 1. Market Regime Gate: If strong trending breakout or high volatility, stand down
         if market_regime:
             regime_clean = str(market_regime).lower()

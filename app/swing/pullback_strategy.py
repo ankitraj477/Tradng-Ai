@@ -3,11 +3,28 @@ Swing Pullback Strategy.
 Generates structured swing trade proposals with 2:1 to 3:1 Risk-to-Reward,
 designed for 3-day to 20-day holding periods.
 """
+from typing import Dict, Any, Optional
+from ..strategy_interface import BaseDeskStrategy
 
-class SwingPullbackStrategy:
+
+class SwingPullbackStrategy(BaseDeskStrategy):
     def __init__(self, provider=None, cfg=None):
+        super().__init__(
+            name="Swing 20 EMA Pullback",
+            desk="SWING",
+            supported_regimes=["Bullish Trending", "Expansion", "Pullback"]
+        )
         self.provider = provider
         self.cfg = cfg or {}
+
+    def evaluate_market_fitness(self, context: Dict[str, Any]) -> float:
+        regime = str(context.get("regime", "")).lower()
+        fitness = 0.65
+        if "bull" in regime or "trend" in regime or "pullback" in regime:
+            fitness += 0.25
+        elif "bear" in regime or "panic" in regime:
+            fitness -= 0.35
+        return max(0.05, min(1.0, fitness))
 
     def evaluate_setup(self, symbol: str) -> dict | None:
         if not self.provider:

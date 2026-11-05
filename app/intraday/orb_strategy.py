@@ -28,7 +28,27 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         self.min_rvol = float(min_rvol)
         self.atr_stop = float(atr_stop_mult)
         self.target_mult = float(target_mult)
+        self.desk = "INTRADAY"
         self.timing = IntradayTimingManager()
+
+    def evaluate_market_fitness(self, context: dict) -> float:
+        """ORB excels in morning volatility (09:30 - 11:30) and high RVOL breakout regimes."""
+        regime = str(context.get("regime", "")).lower()
+        rvol = float(context.get("rvol", 1.2))
+        fitness = 0.70
+        if "breakout" in regime or "momentum" in regime or "trending" in regime:
+            fitness += 0.20
+        elif "consolidation" in regime or "range" in regime:
+            fitness -= 0.25
+        if rvol >= 1.5:
+            fitness += 0.15
+        return max(0.05, min(1.0, fitness))
+
+    def propose(self, target: str, context: dict = None) -> dict | None:
+        context = context or {}
+        intraday_df = context.get("intraday_df")
+        daily_df = context.get("daily_df")
+        return self.decide(target, intraday_df, daily_df=daily_df)
 
     def calculate_opening_range(self, intraday_df, current_date):
         """Extracts high, low, and mid of the 09:15 - 09:30 opening range for the date."""
