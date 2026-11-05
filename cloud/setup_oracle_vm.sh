@@ -10,14 +10,14 @@ if [ -f /etc/debian_version ]; then
     # Ubuntu / Debian
     sudo apt-get update -y
     sudo apt-get install -y python3 python3-pip python3-venv git curl ufw
-    CURRENT_USER="ubuntu"
+    CURRENT_USER="${1:-${SUDO_USER:-ubuntu}}"
 elif [ -f /etc/oracle-release ] || [ -f /etc/redhat-release ]; then
     # Oracle Linux / RHEL
     sudo dnf update -y
     sudo dnf install -y python3.12 python3.12-pip git curl firewalld || sudo yum install -y python3 git curl
-    CURRENT_USER="opc"
+    CURRENT_USER="${1:-${SUDO_USER:-opc}}"
 else
-    CURRENT_USER="$USER"
+    CURRENT_USER="${1:-${SUDO_USER:-$USER}}"
 fi
 
 APP_DIR="/home/$CURRENT_USER/Tradng-Ai"

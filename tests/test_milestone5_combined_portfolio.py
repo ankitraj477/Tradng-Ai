@@ -179,7 +179,7 @@ def test_m5_cross_sleeve_ownership_in_combined_engine():
 # 5. Combined Portfolio Backtest & Report Acceptance Gate
 # ----------------------------------------------------------------------
 
-def test_m5_combined_backtest_and_report_generation():
+def test_m5_combined_backtest_and_report_generation(tmp_path):
     """
     Milestone 5 Full Acceptance Gate Test:
     - Runs multi-sleeve backtest combining Sleeves A, B, and C.
@@ -260,7 +260,7 @@ def test_m5_combined_backtest_and_report_generation():
     # Report Generation
     report_file = generate_combined_portfolio_report(
         metrics=results,
-        output_path="reports/combined_portfolio_report.md"
+        output_path=str(tmp_path / "combined_portfolio_report.md")
     )
 
     report_path = Path(report_file)

@@ -30,6 +30,7 @@ Goal: a validated, risk-budgeted multi-sleeve system. **No return target is prom
 | STT options | 0.15% of premium on the sell side (from 2026-04-01; was 0.1%) | `costs.stt.option_sell` |
 | STT futures | 0.05% sell side (from 2026-04-01; was 0.02%) | `costs.stt.future_sell` |
 | Other charges | brokerage, exchange transaction, SEBI, GST, stamp, DP: **load from broker/exchange schedules; `TODO_VERIFY`** | `costs.*` |
+
 Context (SEBI FY26 studies): 87.7% of individual F&O traders lost money; only 0.5% of five-year traders were profitable every year; option sellers were the only group with positive median return but with fat-tail losses. Nifty200 Momentum 30 funds showed ~30% max drawdown. Treat consistency claims accordingly.
 
 ## 3. Data requirements
@@ -42,6 +43,7 @@ Context (SEBI FY26 studies): 87.7% of individual F&O traders lost money; only 0.
 | Option chain snapshots | NIFTY, per day (EOD minimum): expiry, strike, type, bid, ask, last, IV, OI, volume, underlying | D |
 | Event calendar | RBI MPC dates, Union Budget, index rebalance; config file | C, D |
 | Holiday calendar | Official, multi-year; engine refuses to run if the year is not covered | all |
+
 Storage: Parquet or DuckDB under `data/research/`. Validation tests: no gaps beyond holidays, no non-positive prices, monotonic dates, adjusted-close continuity across splits.
 
 ## 4. Shared engine contract

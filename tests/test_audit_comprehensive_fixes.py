@@ -12,6 +12,7 @@ Unit tests specifically targeting all bugs fixed during the codebase audit:
 10. TradingEngine reload_config propagation
 """
 
+import copy
 import pytest
 from app.db import DB
 from app.config import load_config
@@ -38,7 +39,9 @@ def test_db():
 
 @pytest.fixture
 def cfg():
-    return load_config()
+    c = load_config()
+    c["execution"]["enforce_market_hours"] = False
+    return c
 
 
 def test_intraday_open_short_accounting(test_db, cfg):
@@ -271,7 +274,7 @@ def test_engine_reload_config_propagation(cfg):
     BUG-010: reload_config must propagate new cfg to all desks.
     """
     engine = TradingEngine(cfg=cfg)
-    new_cfg = dict(cfg)
+    new_cfg = copy.deepcopy(cfg)
     new_cfg["execution"]["short_margin_pct"] = 0.35
     engine.reload_config(new_cfg)
 

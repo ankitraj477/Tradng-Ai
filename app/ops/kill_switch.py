@@ -123,17 +123,19 @@ class CentralKillSwitch:
 
             ptype = str(p.get("product_type", "INTRADAY")).upper()
             try:
+                closed_ok = False
                 if ptype == "FNO":
                     from ..fno.execution import FNOExecution
                     fno_exec = FNOExecution(self.db, self.cfg)
-                    fno_exec.close(sym, price, f"EMERGENCY FLATTEN: {reason}")
+                    closed_ok = bool(fno_exec.close(sym, price, f"EMERGENCY FLATTEN: {reason}", force=True))
                 elif ptype == "SWING":
                     from ..swing.execution import SwingExecution
                     swing_exec = SwingExecution(self.db, self.cfg)
-                    swing_exec.close(sym, price, f"EMERGENCY FLATTEN: {reason}")
+                    closed_ok = bool(swing_exec.close(sym, price, f"EMERGENCY FLATTEN: {reason}", force=True))
                 elif self.execution:
-                    self.execution.close(sym, price, f"EMERGENCY FLATTEN: {reason}", "")
-                closed_count += 1
+                    closed_ok = bool(self.execution.close(sym, price, f"EMERGENCY FLATTEN: {reason}", "", force=True))
+                if closed_ok:
+                    closed_count += 1
             except Exception as exc:
                 self.db.log("ERROR", f"Failed emergency close for {sym}: {exc!r}")
 

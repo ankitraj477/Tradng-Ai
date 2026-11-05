@@ -162,7 +162,10 @@ def decide(
             ))
             held_sleeve_c.remove(sym)
 
-    # 2. Evaluate Candidate Entries if free slots exist
+    # 2. Evaluate Candidate Entries if free slots exist and no macro event active
+    if active_events:
+        return proposals
+
     open_slots = max_positions - len(held_sleeve_c)
     if open_slots <= 0:
         return proposals

@@ -115,7 +115,7 @@ def generate():
                 "file_path": rel_path,
                 "category": cat,
                 "size_bytes": size,
-                "review_status": "reviewed",
+                "review_status": "reviewed" if is_mod else "inventory",
                 "modified": is_mod,
                 "findings": [modified_files[rel_path]] if is_mod else [],
                 "tests_associated": test_mapping.get(rel_path, "tests/test_audit_comprehensive_fixes.py" if cat == "core" else "tests/"),

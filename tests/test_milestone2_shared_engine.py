@@ -67,7 +67,8 @@ def test_m2_cost_model_stt_and_ledger_reconciliation():
         segment="OPTIONS",
         asof="2025-06-15"
     )
-    assert opt_cost_2026 > opt_cost_pre
+    # Verify option sell STT shift: difference must be exactly 1.30 INR
+    assert abs((opt_cost_2026 - opt_cost_pre) - 1.30) < 1e-4
 
     # 3. Ledger cost reconciliation
     ledger = Ledger(starting_capital=100000.0)

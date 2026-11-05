@@ -265,7 +265,7 @@ def decide(
     for sym in ranked_symbols:
         if len(selected_symbols) >= top_n:
             break
-        if sym not in selected_symbols:
+        if sym not in selected_symbols and sym not in stopped_out_symbols:
             selected_symbols.append(sym)
 
     # 5. Compute Capped Weights summing to E

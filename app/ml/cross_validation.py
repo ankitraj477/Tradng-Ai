@@ -40,10 +40,11 @@ class PurgedWalkForwardCV:
             # Dynamic purge window calculation
             purge = self.purge_bars
             if event_horizons is not None and len(event_horizons) >= train_end:
-                recent_horizons = event_horizons[:train_end]
-                if len(recent_horizons) > 0:
-                    max_recent = int(np.max(recent_horizons[-min(len(recent_horizons), 20):]))
-                    purge = max(purge, max_recent + self.embargo_bars)
+                train_horizons = event_horizons[:train_end]
+                if len(train_horizons) > 0:
+                    overhangs = [(idx + int(h)) - train_end for idx, h in enumerate(train_horizons)]
+                    max_overhang = max([0] + overhangs)
+                    purge = max(purge, max_overhang + self.embargo_bars)
 
             test_start = train_end + purge
             test_end = min(n_samples, test_start + test_size)

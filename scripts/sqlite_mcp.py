@@ -22,7 +22,10 @@ def get_db_path():
 def get_conn():
     db_path = get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path), timeout=30.0)
+    if not db_path.exists():
+        conn = sqlite3.connect(str(db_path), timeout=30.0)
+        conn.close()
+    conn = sqlite3.connect(f"file:{db_path.resolve().as_posix()}?mode=ro", uri=True, timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -68,8 +71,8 @@ def handle_call_tool(name, arguments):
             query = arguments.get("query", "").strip()
             # Safety gate: read-only
             first_word = query.split()[0].upper() if query else ""
-            if first_word not in ("SELECT", "PRAGMA", "EXPLAIN"):
-                return {"isError": True, "content": [{"type": "text", "text": "Only read-only queries (SELECT, PRAGMA) are allowed."}]}
+            if first_word not in ("SELECT", "EXPLAIN") and not (first_word == "PRAGMA" and "=" not in query):
+                return {"isError": True, "content": [{"type": "text", "text": "Only read-only queries (SELECT, EXPLAIN, inspection PRAGMA) are allowed."}]}
             
             cur = conn.cursor()
             cur.execute(query)

@@ -110,6 +110,13 @@ class PortfolioRiskManager:
         self.update_equity_peaks(current_equity)
         sleeve = proposal.sleeve.upper()
 
+        # If selling, no new risk added - exits are always permitted even during halts or disabled sleeves
+        if proposal.side.upper() in ("SELL", "SHORT"):
+            existing = ledger.get_position(proposal.sleeve, proposal.symbol)
+            if not existing or existing.qty < (proposal.qty or 0):
+                return False, "Cannot sell more than held quantity", 0
+            return True, "Approved sell", proposal.qty
+
         # 1. Sleeve drift check
         if sleeve in self.disabled_sleeves:
             return False, f"Sleeve {sleeve} is disabled by drift switch", 0
@@ -140,13 +147,6 @@ class PortfolioRiskManager:
         for (pos_sleeve, pos_sym) in ledger.positions.keys():
             if pos_sym == proposal.symbol and pos_sleeve != proposal.sleeve:
                 return False, f"Symbol {proposal.symbol} already held by sleeve {pos_sleeve} (ownership violation)", 0
-
-        # If selling, no new risk added
-        if proposal.side.upper() in ("SELL", "SHORT"):
-            existing = ledger.get_position(proposal.sleeve, proposal.symbol)
-            if not existing or existing.qty < (proposal.qty or 0):
-                return False, "Cannot sell more than held quantity", 0
-            return True, "Approved sell", proposal.qty
 
         # Sizing with multiplier
         qty = max(1, int((proposal.qty or 1) * size_mult))

@@ -34,7 +34,10 @@ def test_market_intelligence_with_global_scanner():
     """Verify MarketIntelligence incorporates both global market cues and financial news."""
     provider = DemoProvider()
     global_scanner = GlobalMarketScanner(provider)
-    news_provider = NewsProvider()
+    class StubNewsProvider:
+        def recent(self, *args, **kwargs):
+            return []
+    news_provider = StubNewsProvider()
     intel = MarketIntelligence(news_provider, global_scanner=global_scanner)
 
     nifty_row = {"Close": 25000.0, "ema20": 24900.0, "rsi": 55.0, "ret_5": 0.003, "volatility": 0.01}

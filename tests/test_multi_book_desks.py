@@ -205,8 +205,9 @@ def test_fno_iron_condor_and_50pct_profit_rule():
     assert trade["pnl"] > 0
 
 
-def test_market_closed_amo_orders_flow():
+def test_market_closed_amo_orders_flow(monkeypatch):
     """Verify that when market is closed, orders are queued as AMO instead of immediate fills."""
+    monkeypatch.setattr("app.market_hours.market_open", lambda: False)
     db = DB(":memory:")
     db.init()
     db.ensure_account(100000.0, 150000.0)
@@ -224,29 +225,26 @@ def test_market_closed_amo_orders_flow():
         "product_type": "SWING"
     }
 
-    # If currently not market open (night time / weekend):
-    from app.market_hours import market_open
-    if not market_open():
-        assert swing_exec.buy(p, 2)
-        # Positions must be 0 (no immediate fill at night!)
-        assert len(db.positions()) == 0
-        # Orders must have 1 pending AMO
-        pending = db.pending_orders()
-        assert len(pending) == 1
-        assert pending[0]["symbol"] == "TCS.NS"
-        assert pending[0]["order_type"] == "AMO"
-        assert pending[0]["status"] == "PENDING"
+    assert swing_exec.buy(p, 2)
+    # Positions must be 0 (no immediate fill at night!)
+    assert len(db.positions()) == 0
+    # Orders must have 1 pending AMO
+    pending = db.pending_orders()
+    assert len(pending) == 1
+    assert pending[0]["symbol"] == "TCS.NS"
+    assert pending[0]["order_type"] == "AMO"
+    assert pending[0]["status"] == "PENDING"
 
-        # F&O desk should also queue AMO off-market
-        fno_exec = FNOExecution(db, cfg)
-        chain = IndexChainManager(MockProvider(22000.0))
-        strat = IronCondorStrategy(chain)
-        fno_prop = strat.propose("NIFTY")
-        assert fno_prop is not None
-        assert fno_exec.open_spread(fno_prop, lots=1)
-        assert len(db.positions_by_product("FNO")) == 0
-        fno_pending = [o for o in db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
-        assert len(fno_pending) == 1
-        assert fno_pending[0]["order_type"] == "AMO"
-        assert fno_pending[0]["status"] == "PENDING"
+    # F&O desk should also queue AMO off-market
+    fno_exec = FNOExecution(db, cfg)
+    chain = IndexChainManager(MockProvider(22000.0))
+    strat = IronCondorStrategy(chain)
+    fno_prop = strat.propose("NIFTY")
+    assert fno_prop is not None
+    assert fno_exec.open_spread(fno_prop, lots=1)
+    assert len(db.positions_by_product("FNO")) == 0
+    fno_pending = [o for o in db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
+    assert len(fno_pending) == 1
+    assert fno_pending[0]["order_type"] == "AMO"
+    assert fno_pending[0]["status"] == "PENDING"
 

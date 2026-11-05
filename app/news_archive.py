@@ -140,13 +140,16 @@ class NewsArchive:
                 return True, item.get('title', 'Positive earnings/growth catalyst')
         return False, ''
 
-    def get_news_summary_today(self):
+    def get_news_summary_today(self, dt=None):
         """Returns statistics on news collected today for the dashboard."""
+        from .market_hours import now_ist_date
+        today_str = str(dt) if dt else now_ist_date()
         with sqlite3.connect(self.path) as c:
-            total = c.execute('SELECT count(*) FROM news_archive').fetchone()[0]
-            pos = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'POSITIVE'").fetchone()[0]
-            neg = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'NEGATIVE'").fetchone()[0]
-            neu = c.execute("SELECT count(*) FROM news_archive WHERE UPPER(sentiment) = 'NEUTRAL'").fetchone()[0]
+            q_base = "FROM news_archive WHERE date(datetime(COALESCE(published_at, fetched_at), '+330 minutes')) = ?"
+            total = c.execute(f"SELECT count(*) {q_base}", (today_str,)).fetchone()[0]
+            pos = c.execute(f"SELECT count(*) {q_base} AND UPPER(sentiment) = 'POSITIVE'", (today_str,)).fetchone()[0]
+            neg = c.execute(f"SELECT count(*) {q_base} AND UPPER(sentiment) = 'NEGATIVE'", (today_str,)).fetchone()[0]
+            neu = c.execute(f"SELECT count(*) {q_base} AND UPPER(sentiment) = 'NEUTRAL'", (today_str,)).fetchone()[0]
             return {
                 'total': total,
                 'positive': pos,

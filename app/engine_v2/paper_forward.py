@@ -169,6 +169,9 @@ class PaperForwardRunner:
                     cost_model=self.cost_model,
                     asof_date=dt_str
                 )
+                pos_before = self.ledger.positions.get((fill.sleeve, fill.symbol)) if fill.side in ("SELL", "SHORT") else None
+                entry_pr_captured = pos_before.entry_price if pos_before else fill.price
+
                 self.ledger.execute_fill(fill)
                 executed_fills.append(fill)
 
@@ -180,9 +183,7 @@ class PaperForwardRunner:
 
                 # Record trade outcome for drift tracking
                 if fill.side in ("SELL", "SHORT"):
-                    pos = self.ledger.positions.get((fill.sleeve, fill.symbol))
-                    entry_pr = pos.entry_price if pos else fill.price
-                    ret_trade = (fill.price - entry_pr) / entry_pr if entry_pr > 0 else 0.0
+                    ret_trade = (fill.price - entry_pr_captured) / entry_pr_captured if entry_pr_captured > 0 else 0.0
                     self.risk_manager.record_closed_trade(fill.sleeve, ret_trade)
 
             except Exception:

@@ -279,7 +279,7 @@ def test_m3_sleeve_a_backtest_and_report_generation(tmp_path):
         metrics=results,
         baseline_metrics=baseline_metrics,
         robustness_results=robustness,
-        output_path="reports/sleeve_a_report.md"
+        output_path=str(tmp_path / "sleeve_a_report.md")
     )
 
     report_path = Path(report_file)

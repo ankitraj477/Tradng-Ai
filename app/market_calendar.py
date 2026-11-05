@@ -26,6 +26,11 @@ class MarketCalendar:
                 f"Market calendar does not cover year {year}. "
                 f"Supported years: {sorted(self.supported_years)}"
             )
+        prefix = f"{year}-"
+        if not any(k.startswith(prefix) for k in self.holidays.keys()):
+            raise ValueError(
+                f"Market calendar has no holiday records for supported year {year}."
+            )
 
     def is_trading_day(self, dt: Union[date, datetime, str]) -> bool:
         """Check if date is a valid trading day (weekday and non-holiday)."""

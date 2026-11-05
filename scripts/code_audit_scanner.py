@@ -88,6 +88,7 @@ def scan_repository():
                     }
                     findings.append(finding)
                     file_entry["findings"].append(finding)
+                    files_catalog.append(file_entry)
                     continue
                     
                 # 2. Line by line pattern scans

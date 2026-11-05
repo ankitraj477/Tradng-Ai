@@ -51,6 +51,10 @@ def now_ist():
     return datetime.now(IST)
 
 
+def now_ist_date():
+    return now_ist().strftime("%Y-%m-%d")
+
+
 def is_year_covered(year: int) -> bool:
     """Checks whether the market holidays table contains any entries for the requested year."""
     return any(k.startswith(str(year)) for k in HOLIDAYS)

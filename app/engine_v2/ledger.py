@@ -89,7 +89,6 @@ class Ledger:
         side = fill.side.upper()
         gross_value = fill.qty * fill.price
         costs = float(fill.costs)
-        self.total_costs_paid += costs
 
         trade_record = {
             "sleeve": fill.sleeve,
@@ -158,6 +157,7 @@ class Ledger:
                 existing.qty -= fill.qty
                 existing.entry_cost -= retired_entry_cost
 
+        self.total_costs_paid += costs
         self.trade_history.append(trade_record)
         return trade_record
 

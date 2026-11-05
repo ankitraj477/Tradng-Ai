@@ -144,35 +144,47 @@ class CostModel:
         sebi = val * self.sebi_pct / 100.0
         gst = (brokerage + exchange + sebi) * self.gst_pct
 
-        target_date = str(asof)[:10] if asof else "2026-10-23"
+        if asof:
+            target_date = str(asof)[:10]
+        else:
+            try:
+                from .market_hours import now_ist_date
+                target_date = now_ist_date()
+            except Exception:
+                from datetime import datetime
+                target_date = datetime.now().strftime("%Y-%m-%d")
 
         if seg in ("DELIVERY", "CNC"):
             stamp = val * self.stamp_delivery_pct / 100.0 if act == "BUY" else 0.0
             # 0.1% STT on both buy and sell
-            stt = val * self.stt_delivery_pct / 100.0
+            stt = val * (self.strategy_cfg.get_stt_rate(seg, target_date, act) if self.strategy_cfg else self.stt_delivery_pct / 100.0)
             dp = self.dp_charges if act == "SELL" else 0.0
         elif seg in ("INTRADAY", "MIS"):
             stamp = val * self.stamp_intraday_pct / 100.0 if act == "BUY" else 0.0
             # 0.025% STT on sell side only
-            stt = val * self.stt_intraday_sell_pct / 100.0 if act == "SELL" else 0.0
+            stt = val * (self.strategy_cfg.get_stt_rate(seg, target_date, act) if self.strategy_cfg else (self.stt_intraday_sell_pct / 100.0 if act == "SELL" else 0.0))
             dp = 0.0
         elif seg in ("OPTIONS", "OPTION"):
             stamp = val * self.stamp_options_pct / 100.0 if act == "BUY" else 0.0
-            # Option sell STT: 0.1% before 2026-04-01; 0.15% from 2026-04-01
-            if act == "SELL":
-                stt_rate = 0.0015 if target_date >= "2026-04-01" else 0.0010
-                stt = val * stt_rate
+            if self.strategy_cfg:
+                stt = val * self.strategy_cfg.get_stt_rate(seg, target_date, act)
             else:
-                stt = 0.0
+                if act == "SELL":
+                    stt_rate = 0.0015 if target_date >= "2026-04-01" else 0.0010
+                    stt = val * stt_rate
+                else:
+                    stt = 0.0
             dp = 0.0
         elif seg in ("FUTURES", "FUTURE"):
             stamp = val * self.stamp_intraday_pct / 100.0 if act == "BUY" else 0.0
-            # Future sell STT: 0.02% before 2026-04-01; 0.05% from 2026-04-01
-            if act == "SELL":
-                stt_rate = 0.0005 if target_date >= "2026-04-01" else 0.0002
-                stt = val * stt_rate
+            if self.strategy_cfg:
+                stt = val * self.strategy_cfg.get_stt_rate(seg, target_date, act)
             else:
-                stt = 0.0
+                if act == "SELL":
+                    stt_rate = 0.0005 if target_date >= "2026-04-01" else 0.0002
+                    stt = val * stt_rate
+                else:
+                    stt = 0.0
             dp = 0.0
         else:
             stamp = 0.0

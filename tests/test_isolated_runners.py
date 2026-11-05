@@ -55,16 +55,22 @@ def test_standalone_launchers_structure():
     assert callable(run_fno.run_fno_standalone)
 
 
-def test_unified_trading_engine_runs_all_desks_together(isolated_env):
+def test_unified_trading_engine_runs_all_desks_together(isolated_env, monkeypatch):
     db, provider, cfg = isolated_env
+    cfg["desks"] = {"enabled": True, "intraday": True, "swing": True, "fno": True}
     from app.engine import TradingEngine
     engine = TradingEngine(cfg=cfg, db=db, provider=provider)
     assert hasattr(engine, "intraday_desk")
     assert hasattr(engine, "swing_desk")
     assert hasattr(engine, "fno_desk")
 
+    called = {"intraday": False, "swing": False, "fno": False}
+    monkeypatch.setattr(engine.intraday_desk, "run_cycle", lambda *args, **kwargs: called.update(intraday=True))
+    monkeypatch.setattr(engine.swing_desk, "run_cycle", lambda *args, **kwargs: called.update(swing=True))
+    monkeypatch.setattr(engine.fno_desk, "run_cycle", lambda *args, **kwargs: called.update(fno=True))
+
     # Run unified cycle - triggers all 3 desks together in a single call
     engine.cycle()
-    assert engine.intraday_desk is not None
-    assert engine.swing_desk is not None
-    assert engine.fno_desk is not None
+    assert called["intraday"] is True
+    assert called["swing"] is True
+    assert called["fno"] is True

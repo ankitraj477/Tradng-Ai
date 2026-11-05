@@ -39,17 +39,28 @@ def evaluate_parameter_grid(strategy_class, param_grid, datasets, starting_cash=
                 row = df.loc[ts]
                 prices[s] = float(row["Close"])
                 if s in pending and s not in positions and len(positions) < bt.max_positions:
-                    pside, patr, pstop, ptarg = pending.pop(s)
+                    pside, patr, pstop, ptarg, psig_px = pending.pop(s)
                     p = bt._open(s, row, pside, bt._mark(positions, prices), patr)
                     if p:
                         fill_px = p["entry"]
-                        if patr and patr > 0:
+                        if pstop is not None and psig_px > 0:
+                            stop_dist = abs(psig_px - pstop)
+                            p["stop"] = round(fill_px - stop_dist, 2) if pside == "LONG" else round(fill_px + stop_dist, 2)
+                        elif patr and patr > 0:
                             stop_dist = max(patr * 1.5, fill_px * 0.005)
                             p["stop"] = round(fill_px - stop_dist, 2) if pside == "LONG" else round(fill_px + stop_dist, 2)
+                        else:
+                            p["stop"] = round(fill_px * 0.98, 2) if pside == "LONG" else round(fill_px * 1.02, 2)
+
+                        if ptarg is not None and psig_px > 0:
+                            targ_dist = abs(ptarg - psig_px)
+                            p["target"] = round(fill_px + targ_dist, 2) if pside == "LONG" else round(fill_px - targ_dist, 2)
+                        elif patr and patr > 0:
+                            stop_dist = max(patr * 1.5, fill_px * 0.005)
                             p["target"] = round(fill_px + stop_dist * 2.0, 2) if pside == "LONG" else round(fill_px - stop_dist * 2.0, 2)
                         else:
-                            if pstop: p["stop"] = pstop
-                            if ptarg: p["target"] = ptarg
+                            p["target"] = round(fill_px * 1.04, 2) if pside == "LONG" else round(fill_px * 0.96, 2)
+
                         p["mark"] = prices[s]
                         positions[s] = p
 
@@ -77,7 +88,8 @@ def evaluate_parameter_grid(strategy_class, param_grid, datasets, starting_cash=
                 if i + 1 >= len(df): continue
                 sig = strat.decide(s, df.iloc[:i+1])
                 if sig:
-                    pending[s] = (sig["side"], float(sig["atr"]), sig.get("stop_loss"), sig.get("target"))
+                    cur_px = float(df.iloc[i]["Close"])
+                    pending[s] = (sig["side"], float(sig["atr"]), sig.get("stop_loss"), sig.get("target"), cur_px)
 
             if prices: bt.equity.append(bt._mark(positions, prices))
 

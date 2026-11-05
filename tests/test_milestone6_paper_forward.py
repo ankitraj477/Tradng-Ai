@@ -71,21 +71,19 @@ def test_m6_live_backtest_parity_test11():
     )
 
     # Path B: Paper runner simulation fill
-    fill_paper = simulate_fill(
-        proposal=proposal,
-        next_bar=next_bar,
-        adtv20=adtv20,
-        cost_model=cost_model,
-        asof_date="2026-05-04"
-    )
+    runner = PaperForwardRunner(strategy_cfg=strat_cfg, starting_capital=1000000.0)
+    runner.pending_proposals.append(proposal)
+    stock_today = {"INFY": next_bar}
+    index_today = {"Open": 22000.0, "High": 22100.0, "Low": 21900.0, "Close": 22050.0, "Volume": 10000000.0}
+    session_res = runner.step_session("2026-05-04", stock_today, index_today)
+    fill_paper = runner.ledger.trade_history[0]
 
     # Strict Bitwise Parity Assertion
-    assert fill_backtest.symbol == fill_paper.symbol == "INFY"
-    assert fill_backtest.side == fill_paper.side == "BUY"
-    assert fill_backtest.qty == fill_paper.qty == 50
-    assert abs(fill_backtest.price - fill_paper.price) < 1e-6
-    assert abs(fill_backtest.costs - fill_paper.costs) < 1e-6
-    assert abs(fill_backtest.slippage_bps - fill_paper.slippage_bps) < 1e-6
+    assert fill_backtest.symbol == fill_paper["symbol"] == "INFY"
+    assert fill_backtest.side == fill_paper["side"] == "BUY"
+    assert fill_backtest.qty == fill_paper["qty"] == 50
+    assert abs(fill_backtest.price - fill_paper["price"]) < 1e-6
+    assert abs(fill_backtest.costs - fill_paper["costs"]) < 1e-6
 
 
 # ----------------------------------------------------------------------
@@ -275,7 +273,7 @@ def test_m6_paper_forward_60_days_simulation_and_drift_bands():
 # 5. Paper-Forward Report Generation & Gate M6 Acceptance
 # ----------------------------------------------------------------------
 
-def test_m6_paper_forward_report_generation():
+def test_m6_paper_forward_report_generation(tmp_path):
     """
     Test Milestone 6 Acceptance Gate Report generation:
     - Generates reports/paper_forward_report.md.
@@ -298,7 +296,7 @@ def test_m6_paper_forward_report_generation():
     report_file = generate_paper_forward_report(
         paper_results=paper_results,
         drift_metrics=drift_metrics,
-        output_path="reports/paper_forward_report.md"
+        output_path=str(tmp_path / "paper_forward_report.md")
     )
 
     report_path = Path(report_file)

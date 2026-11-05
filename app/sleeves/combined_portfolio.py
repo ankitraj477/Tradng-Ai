@@ -501,6 +501,9 @@ def run_combined_backtest(
                         cost_model=cost_model,
                         asof_date=next_date_str
                     )
+                    pos_before = ledger.positions.get((fill.sleeve, fill.symbol)) if fill.side in ("SELL", "SHORT") else None
+                    entry_pr_captured = pos_before.entry_price if pos_before else fill.price
+
                     ledger.execute_fill(fill)
 
                     if prop.sleeve == "C":
@@ -511,9 +514,7 @@ def run_combined_backtest(
 
                     # Record closed trade in risk manager
                     if fill.side in ("SELL", "SHORT"):
-                        pos = ledger.positions.get((fill.sleeve, fill.symbol))
-                        entry_pr = pos.entry_price if pos else fill.price
-                        ret_trade = (fill.price - entry_pr) / entry_pr if entry_pr > 0 else 0.0
+                        ret_trade = (fill.price - entry_pr_captured) / entry_pr_captured if entry_pr_captured > 0 else 0.0
                         risk_manager.record_closed_trade(fill.sleeve, ret_trade)
 
                 except Exception:

@@ -99,47 +99,46 @@ def decide(
         return proposals
 
     # 2. Entry Rule: close > highest close of previous 55 days
-    if today_close > highest_55:
-        if cur_qty == 0:
-            target_value = equity * target_weight
-            target_qty = int(target_value / today_close)
-            if target_qty > 0:
-                proposals.append(Proposal(
-                    sleeve="B",
-                    symbol=resolved_symbol,
-                    side="BUY",
-                    target_weight=target_weight,
-                    qty=target_qty,
-                    stop=lowest_20,
-                    reason=f"Trend Breakout: Close {today_close:.2f} > 55d High {highest_55:.2f} (vol={sigma20*100:.1f}%, w={target_weight:.3f})",
-                    asof=asof_date
-                ))
-        elif is_rebalance_date and abs(target_weight - cur_w) >= min_delta_w:
-            # Weekly sizing rebalance
-            target_value = equity * target_weight
-            target_qty = int(target_value / today_close)
-            delta_qty = target_qty - cur_qty
-            if delta_qty > 0:
-                proposals.append(Proposal(
-                    sleeve="B",
-                    symbol=resolved_symbol,
-                    side="BUY",
-                    target_weight=target_weight,
-                    qty=delta_qty,
-                    stop=lowest_20,
-                    reason=f"Trend Sizing Rebalance w={target_weight:.3f}",
-                    asof=asof_date
-                ))
-            elif delta_qty < 0:
-                proposals.append(Proposal(
-                    sleeve="B",
-                    symbol=resolved_symbol,
-                    side="SELL",
-                    target_weight=target_weight,
-                    qty=abs(delta_qty),
-                    stop=lowest_20,
-                    reason=f"Trend Sizing Trim w={target_weight:.3f}",
-                    asof=asof_date
-                ))
+    if cur_qty == 0 and today_close > highest_55:
+        target_value = equity * target_weight
+        target_qty = int(target_value / today_close)
+        if target_qty > 0:
+            proposals.append(Proposal(
+                sleeve="B",
+                symbol=resolved_symbol,
+                side="BUY",
+                target_weight=target_weight,
+                qty=target_qty,
+                stop=lowest_20,
+                reason=f"Trend Breakout: Close {today_close:.2f} > 55d High {highest_55:.2f} (vol={sigma20*100:.1f}%, w={target_weight:.3f})",
+                asof=asof_date
+            ))
+    elif cur_qty > 0 and is_rebalance_date and abs(target_weight - cur_w) >= min_delta_w:
+        # Weekly sizing rebalance
+        target_value = equity * target_weight
+        target_qty = int(target_value / today_close)
+        delta_qty = target_qty - cur_qty
+        if delta_qty > 0:
+            proposals.append(Proposal(
+                sleeve="B",
+                symbol=resolved_symbol,
+                side="BUY",
+                target_weight=target_weight,
+                qty=delta_qty,
+                stop=lowest_20,
+                reason=f"Trend Sizing Rebalance w={target_weight:.3f}",
+                asof=asof_date
+            ))
+        elif delta_qty < 0:
+            proposals.append(Proposal(
+                sleeve="B",
+                symbol=resolved_symbol,
+                side="SELL",
+                target_weight=target_weight,
+                qty=abs(delta_qty),
+                stop=lowest_20,
+                reason=f"Trend Sizing Trim w={target_weight:.3f}",
+                asof=asof_date
+            ))
 
     return proposals

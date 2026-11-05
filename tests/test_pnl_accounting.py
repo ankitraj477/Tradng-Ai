@@ -5,6 +5,7 @@ from app.execution import PaperExecution
 
 def test_closed_trades_pnl_matches_cash_delta():
     cfg = load_config()
+    cfg["execution"]["enforce_market_hours"] = False
     db = DB(":memory:")
     starting_cash = 10000.0
     db.ensure_account(starting_cash, 100000.0)

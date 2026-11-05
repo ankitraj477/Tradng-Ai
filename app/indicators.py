@@ -28,5 +28,5 @@ def indicators(df):
     x["volatility"]=c.pct_change().rolling(20).std()*np.sqrt(252*75)
     out=x.dropna()
     if not out.empty and not df.empty and out.index[-1] != df.index[-1]:
-        out = x.ffill().bfill().dropna()
+        out = x.ffill().dropna()
     return out

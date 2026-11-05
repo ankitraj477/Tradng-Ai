@@ -26,7 +26,10 @@ int main(int argc, char** argv) {
         Row r; std::string s;
         std::getline(ss,r.symbol,',');
         try {
-            std::getline(ss,s,','); r.price = s.empty() ? 0.0 : std::stod(s);
+            std::getline(ss,s,',');
+            if (s.empty()) continue;
+            r.price = std::stod(s);
+            if (r.price <= 0.0) continue;
             std::getline(ss,s,','); r.rsi = s.empty() ? 0.0 : std::stod(s);
             std::getline(ss,s,','); r.relvol = s.empty() ? 0.0 : std::stod(s);
             std::getline(ss,s,','); r.ret5 = s.empty() ? 0.0 : std::stod(s);
