@@ -1,0 +1,142 @@
+<!-- TAB 4: F&O DERIVATIVES DESK -->
+<div id="tab-fno" class="desk-section" style="display:none;">
+    <!-- F&O Section Header -->
+    <div class="section-header">
+        <div>
+            <div class="section-title">
+                <span>🎯</span> Futures & Options Desk (Defined-Risk Option Spreads)
+                <span class="pill pill-cyan">Capped Risk · No Naked Selling</span>
+            </div>
+            <div class="section-sub">Systematic Bull Put Spreads, Bear Put Spreads, and Iron Condors monetizing theta time decay</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <span class="pill pill-emerald">50% Profit-Taking Rule</span>
+            <span class="pill pill-indigo">Delta Breach Guard &lt; 0.30</span>
+        </div>
+    </div>
+
+    <!-- F&O KPI Grid -->
+    <div class="hero-stats-grid">
+        <div class="stat-item" style="border-left: 3px solid var(--cyan);">
+            <div class="stat-header">
+                <span class="stat-label">🎯 F&O Desk P/L</span>
+                <span id="fno-pnl-pill" class="pill pill-emerald" style="font-size:9px;">SPREADS</span>
+            </div>
+            <div id="val-fno-pnl" class="stat-val text-up">+₹0.00</div>
+            <div class="stat-desc">Includes 0.15% options STT on premium</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--amber);">
+            <div class="stat-header">
+                <span class="stat-label">🔒 F&O Margin Reserved</span>
+                <span class="pill pill-amber" style="font-size:9px;">SPAN + EXPOSURE</span>
+            </div>
+            <div id="val-fno-margin" class="stat-val">₹0.00</div>
+            <div class="stat-desc">Exact exchange requirement per spread</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--emerald);">
+            <div class="stat-header">
+                <span class="stat-label">⏳ Theta Decay Velocity</span>
+                <span class="pill pill-emerald" style="font-size:9px;">DAILY INCOME</span>
+            </div>
+            <div id="val-fno-theta" class="stat-val text-up">+₹0.00 / day</div>
+            <div class="stat-desc">Net positive theta collected as time passes</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--indigo);">
+            <div class="stat-header">
+                <span class="stat-label">📊 NIFTY Put-Call Ratio</span>
+                <span id="val-fno-pcr-pill" class="pill pill-cyan" style="font-size:9px;">SENTIMENT</span>
+            </div>
+            <div id="val-fno-pcr" class="stat-val">1.00</div>
+            <div id="val-fno-pcr-desc" class="stat-desc">Neutral Index Sentiment</div>
+        </div>
+    </div>
+
+    <!-- Option Greeks & Risk Meters Bar -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">🧮 Portfolio Option Greeks & Protection Thresholds</div>
+                <div class="card-subtitle">Continuous multi-leg Black-Scholes risk metrics</div>
+            </div>
+        </div>
+        <div class="greeks-meter-grid">
+            <div class="greek-meter">
+                <div class="greek-label">Net Delta (Δ)</div>
+                <div id="greek-delta" class="greek-value text-cyan">0.00</div>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Threshold: &lt; 0.30</div>
+            </div>
+            <div class="greek-meter">
+                <div class="greek-label">Net Theta (Θ)</div>
+                <div id="greek-theta" class="greek-value text-up">+0.00</div>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Time Decay (Daily)</div>
+            </div>
+            <div class="greek-meter">
+                <div class="greek-label">Net Gamma (Γ)</div>
+                <div id="greek-gamma" class="greek-value">0.0000</div>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Curvature Risk</div>
+            </div>
+            <div class="greek-meter">
+                <div class="greek-label">Days to Expiry (DTE)</div>
+                <div id="greek-dte" class="greek-value font-mono">-- Days</div>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Thursday Square-off</div>
+            </div>
+            <div class="greek-meter">
+                <div class="greek-label">Max Spread Risk Cap</div>
+                <div class="greek-value text-emerald font-mono">100% Capped</div>
+                <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Defined Max Loss</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active F&O Spreads Cards -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">🎯 Active Option Spreads (Bull Put, Bear Put & Iron Condors)</div>
+                <div class="card-subtitle">Target: 50% profit collection or automatic expiry settlement</div>
+            </div>
+            <span id="fno-open-count-badge" class="pill pill-cyan">0 Spreads</span>
+        </div>
+        <div id="fno-cards-container" class="cards-grid">
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <div class="empty-state-icon">🎯</div>
+                <div>No active F&O spreads currently open. Spreads are initiated during favorable volatility regimes.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- F&O Trade History -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">📜 F&O Derivatives Spreads Journal</div>
+                <div class="card-subtitle">Realized options gains with exact margin release and statutory STT accounting</div>
+            </div>
+            <span id="fno-history-count-badge" class="pill pill-cyan">0 Trades</span>
+        </div>
+        <div class="table-responsive">
+            <table class="fin-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Spread Contract</th>
+                        <th>Strategy</th>
+                        <th>Lots</th>
+                        <th>Entry Premium</th>
+                        <th>Exit Premium</th>
+                        <th>Net P&L (₹)</th>
+                        <th>Return (%)</th>
+                        <th>Exit Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="fno-trades-tbody">
+                    <tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No F&O spread trades closed yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+

@@ -133,7 +133,15 @@ class CentralKillSwitch:
                     swing_exec = SwingExecution(self.db, self.cfg)
                     closed_ok = bool(swing_exec.close(sym, price, f"EMERGENCY FLATTEN: {reason}", force=True))
                 elif self.execution:
-                    closed_ok = bool(self.execution.close(sym, price, f"EMERGENCY FLATTEN: {reason}", "", force=True))
+                    try:
+                        res = self.execution.close(sym, price, f"EMERGENCY FLATTEN: {reason}", "", force=True)
+                    except TypeError:
+                        try:
+                            res = self.execution.close(sym, price, f"EMERGENCY FLATTEN: {reason}", "")
+                        except TypeError:
+                            res = self.execution.close(sym, price, f"EMERGENCY FLATTEN: {reason}")
+                    if res is not False:
+                        closed_ok = True
                 if closed_ok:
                     closed_count += 1
             except Exception as exc:

@@ -1,0 +1,169 @@
+<!-- TAB 1: EXECUTIVE OVERVIEW -->
+<div id="tab-overview" class="desk-section">
+    <!-- Hero Equity Banner -->
+    <div class="hero-card">
+        <div class="hero-top">
+            <div>
+                <div class="hero-equity-label">💰 Total Portfolio Net Equity</div>
+                <div id="val-portfolio" class="hero-equity-val">₹0.00</div>
+                <div style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px; margin-top:4px;">
+                    <span id="return-badge" class="pill pill-cyan">0.00%</span>
+                    <span>All Desks Unified · Real-Time Mark-to-Market</span>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Today's Net P/L</div>
+                <div id="val-daily-pnl" style="font-size:26px; font-weight:900; font-family:var(--font-mono); color:var(--emerald);">+₹0.00</div>
+                <div id="val-daily-pnl-breakdown" style="font-size:11px; color:var(--text-muted); margin-top:2px;">Banked: +₹0.00 · Live: +₹0.00</div>
+            </div>
+        </div>
+
+        <!-- 4 Capital Allocation Jars -->
+        <div class="hero-stats-grid">
+            <div class="stat-item" style="border-left: 3px solid var(--emerald);">
+                <div class="stat-header">
+                    <span class="stat-label">📅 Daily P/L (Today)</span>
+                    <span id="daily-pill" class="pill pill-emerald" style="font-size:9px;">TODAY</span>
+                </div>
+                <div id="val-daily-pnl-hero" class="stat-val text-up">+₹0.00</div>
+                <div id="val-daily-breakdown-hero" class="stat-desc">Banked vs Live Marked</div>
+            </div>
+
+            <div class="stat-item" style="border-left: 3px solid var(--cyan);">
+                <div class="stat-header">
+                    <span class="stat-label">💵 Ready Cash</span>
+                    <span class="pill pill-cyan" style="font-size:9px;">AVAILABLE</span>
+                </div>
+                <div id="val-cash" class="stat-val">₹0.00</div>
+                <div class="stat-desc">Unallocated liquid buffer for new trades.</div>
+            </div>
+
+            <div class="stat-item" style="border-left: 3px solid var(--amber);">
+                <div class="stat-header">
+                    <span class="stat-label">🔒 Allocated Margin</span>
+                    <span class="pill pill-amber" style="font-size:9px;">COMMITTED</span>
+                </div>
+                <div id="val-margin" class="stat-val">₹0.00</div>
+                <div class="stat-desc">Exchange margin holding active positions.</div>
+            </div>
+
+            <div class="stat-item" style="border-left: 3px solid var(--indigo);">
+                <div class="stat-header">
+                    <span class="stat-label">📊 Open Positions</span>
+                    <span class="pill pill-indigo" style="font-size:9px;">ACTIVE</span>
+                </div>
+                <div id="val-open-count" class="stat-val">0</div>
+                <div class="stat-desc">Total across Intraday, Swing, and F&O.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equity Curve & Desk Performance Grid -->
+    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px;">
+        <!-- Equity Chart Container -->
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">📈 Continuous Equity Performance Curve</div>
+                    <div class="card-subtitle">Real-time cumulative equity vs starting capital</div>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <span class="pill pill-cyan" id="chart-points-pill">Live Stream</span>
+                </div>
+            </div>
+            <div style="position:relative; height:240px; width:100%;">
+                <canvas id="equityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Desk Allocation Breakdown -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">💼 Desk Capital Allocation</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                <!-- Intraday Bar -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:4px;">
+                        <span>⚡ Intraday MIS (34%)</span>
+                        <span id="alloc-intraday-pnl" class="font-mono text-up">+₹0.00</span>
+                    </div>
+                    <div style="height:6px; background:var(--bg-card); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; width:34%; background:var(--amber);"></div>
+                    </div>
+                </div>
+                <!-- Swing Bar -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:4px;">
+                        <span>📈 Swing CNC (33%)</span>
+                        <span id="alloc-swing-pnl" class="font-mono text-up">+₹0.00</span>
+                    </div>
+                    <div style="height:6px; background:var(--bg-card); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; width:33%; background:var(--emerald);"></div>
+                    </div>
+                </div>
+                <!-- F&O Bar -->
+                <div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; margin-bottom:4px;">
+                        <span>🎯 F&O Spreads (33%)</span>
+                        <span id="alloc-fno-pnl" class="font-mono text-up">+₹0.00</span>
+                    </div>
+                    <div style="height:6px; background:var(--bg-card); border-radius:3px; overflow:hidden;">
+                        <div style="height:100%; width:33%; background:var(--cyan);"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:20px; padding-top:14px; border-top:1px solid var(--border-subtle); font-size:11px; color:var(--text-muted); line-height:1.5;">
+                Triple-barrier risk isolation prevents any single desk from consuming unassigned capital buffers.
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Trades Across All Desks -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">🔥 All Live Open Positions</div>
+                <div class="card-subtitle">Real-time mark-to-market prices updated every 2 seconds</div>
+            </div>
+            <span id="all-positions-count-badge" class="pill pill-cyan">0 Open</span>
+        </div>
+        <div id="all-cards-container" class="cards-grid">
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <div class="empty-state-icon">🛡️</div>
+                <div>No open positions currently active. Capital is safely preserved in liquid cash.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Trade Activity Feed -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">📜 Unified Execution Log</div>
+                <div class="card-subtitle">Most recent algorithmic decisions, entries, and exits</div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="fin-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Desk</th>
+                        <th>Symbol</th>
+                        <th>Action</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>P&L</th>
+                        <th>Reason / Strategy</th>
+                    </tr>
+                </thead>
+                <tbody id="overview-trades-tbody">
+                    <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Loading execution log...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+

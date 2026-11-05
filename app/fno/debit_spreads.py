@@ -75,9 +75,9 @@ class DirectionalDebitSpreadStrategy(BaseDeskStrategy):
 
         wing_width = 150 if index_name == "NIFTY" else 300
 
-        # Determine directional bias
-        is_bullish = ("bull" in regime) or structure == "BULLISH_BREAKOUT" or pcr > 1.25
-        is_bearish = ("bear" in regime) or structure == "BEARISH_BREAKDOWN" or pcr < 0.75
+        # Determine directional bias with explicit regime precedence
+        is_bullish = ("bull" in regime) or (structure == "BULLISH_BREAKOUT" and "bear" not in regime) or (pcr > 1.25 and "bear" not in regime)
+        is_bearish = ("bear" in regime) or (structure == "BEARISH_BREAKDOWN" and "bull" not in regime) or (pcr < 0.75 and "bull" not in regime)
 
         if is_bullish and not is_bearish:
             # Bull Call Spread: Buy ATM Call, Sell OTM Call

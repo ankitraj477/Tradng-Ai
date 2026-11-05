@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <title>Tradng-Ai PRO · Institutional Multi-Desk Algorithmic Terminal</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/desks.css') }}">
+    
+    <!-- Chart.js for High-Performance Canvas Visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+    <!-- Header Component -->
+    {% include "components/header.html" %}
+
+    <!-- Multi-Desk Navigation Tabs -->
+    <div class="tabs-wrapper">
+        <nav class="desk-tabs">
+            <button id="tab-btn-overview" class="tab-btn active" onclick="switchDeskTab('overview')">
+                <span>🏠</span> Executive Overview
+            </button>
+            <button id="tab-btn-intraday" class="tab-btn" onclick="switchDeskTab('intraday')">
+                <span>⚡</span> Intraday MIS Desk
+            </button>
+            <button id="tab-btn-swing" class="tab-btn" onclick="switchDeskTab('swing')">
+                <span>📈</span> Swing CNC Desk
+            </button>
+            <button id="tab-btn-fno" class="tab-btn" onclick="switchDeskTab('fno')">
+                <span>🎯</span> F&O Spreads Desk
+            </button>
+            <button id="tab-btn-risk" class="tab-btn" onclick="switchDeskTab('risk')">
+                <span>🛡️</span> Risk & Quant Audit
+            </button>
+        </nav>
+    </div>
+
+    <!-- Main Workspace Content -->
+    <main>
+        {% include "desks/overview.html" %}
+        {% include "desks/intraday.html" %}
+        {% include "desks/swing.html" %}
+        {% include "desks/fno.html" %}
+        {% include "desks/risk.html" %}
+    </main>
+
+    <!-- Emergency Kill-Switch Confirmation Modal -->
+    {% include "components/modal_kill_switch.html" %}
+
+    <!-- Modular JavaScript Engine -->
+    <script src="{{ url_for('static', filename='js/modules/overview.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modules/intraday.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modules/swing.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modules/fno.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modules/risk.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+</body>
+</html>
+

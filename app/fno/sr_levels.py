@@ -64,8 +64,9 @@ class IndexSRCalculator:
                 pass
 
         # 2. Anchor session baseline if provider does not have index history
-        if not high or not low or not close or high <= low:
-            if index_name.upper() in self._anchored_bars:
+        reanchor = bool(spot_price and close and abs(spot_price - close) / close > 0.03)
+        if not high or not low or not close or high <= low or reanchor:
+            if index_name.upper() in self._anchored_bars and not reanchor:
                 high, low, close = self._anchored_bars[index_name.upper()]
             else:
                 base_spot = spot_price

@@ -1,0 +1,33 @@
+<header>
+    <div class="header-inner">
+        <div class="brand">
+            <div class="logo-icon">AI</div>
+            <div class="brand-text">
+                <h1>Tradng-Ai <span class="brand-badge">PRO v7.1</span></h1>
+            </div>
+        </div>
+        <div class="header-controls">
+            <!-- Market Phase Indicator -->
+            <div id="pulse-box" class="pulse-indicator">
+                <span id="pulse-dot" class="pulse-dot closed"></span>
+                <span id="market-phase-badge">CHECKING...</span>
+            </div>
+
+            <!-- Auto-Trading Switch -->
+            <button id="auto-trade-btn" class="auto-trade-btn active" onclick="toggleAutoTrading()" title="Click to Pause / Resume Auto-Trading">
+                <span class="auto-trade-dot"></span>
+                <span id="auto-trade-label">AUTO TRADING ON</span>
+            </button>
+
+            <!-- Emergency Kill Switch -->
+            <button class="btn-kill-switch" onclick="openKillSwitchModal()" title="Emergency: Close all positions across all desks immediately">
+                <span>🛑</span>
+                <span>KILL SWITCH</span>
+            </button>
+
+            <!-- Live Clock -->
+            <div id="clock" class="stat-label font-mono" style="font-size:11px; color:var(--text-muted); display:none;">--:--:-- IST</div>
+        </div>
+    </div>
+</header>
+

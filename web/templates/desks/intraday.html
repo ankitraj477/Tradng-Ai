@@ -1,0 +1,111 @@
+<!-- TAB 2: INTRADAY MIS DESK -->
+<div id="tab-intraday" class="desk-section" style="display:none;">
+    <!-- Intraday Section Header & Square-Off Clock -->
+    <div class="section-header">
+        <div>
+            <div class="section-title">
+                <span>⚡</span> Intraday MIS Execution Desk
+                <span class="pill pill-amber">5x Leverage</span>
+            </div>
+            <div class="section-sub">High-probability Opening Range Breakout (ORB) and VWAP Pullback momentum strategies</div>
+        </div>
+        <!-- 15:15 IST Auto Square-Off Countdown Clock -->
+        <div class="clock-container">
+            <div>
+                <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Auto Square-off Target</div>
+                <div id="intraday-squareoff-label" class="clock-timer">15:15:00 IST</div>
+            </div>
+            <div style="text-align:right; margin-left:16px;">
+                <span id="intraday-clock-badge" class="pill pill-amber">ACTIVE SESSION</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Intraday KPI Grid -->
+    <div class="hero-stats-grid">
+        <div class="stat-item" style="border-left: 3px solid var(--amber);">
+            <div class="stat-header">
+                <span class="stat-label">⚡ Intraday Day P/L</span>
+                <span id="intra-pnl-pill" class="pill pill-emerald" style="font-size:9px;">MIS</span>
+            </div>
+            <div id="val-intra-pnl" class="stat-val text-up">+₹0.00</div>
+            <div class="stat-desc">Includes brokerage & intraday STT</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--cyan);">
+            <div class="stat-header">
+                <span class="stat-label">💵 MIS Margin Used</span>
+                <span class="pill pill-cyan" style="font-size:9px;">LEVERAGED</span>
+            </div>
+            <div id="val-intra-margin" class="stat-val">₹0.00</div>
+            <div class="stat-desc">Max 34% total capital allocated</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--indigo);">
+            <div class="stat-header">
+                <span class="stat-label">🎯 Active Strategy</span>
+                <span class="pill pill-indigo" style="font-size:9px;">REGIME-ALIGNED</span>
+            </div>
+            <div id="val-intra-strategy" class="stat-val" style="font-size:16px;">ORB + VWAP</div>
+            <div class="stat-desc">15-minute Opening Range + Anchored VWAP</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--emerald);">
+            <div class="stat-header">
+                <span class="stat-label">⏱️ Max Holding Duration</span>
+                <span class="pill pill-emerald" style="font-size:9px;">PROTECTION</span>
+            </div>
+            <div class="stat-val" style="font-size:16px;">390 Min Max</div>
+            <div class="stat-desc">Mandatory EOD settlement guarantee</div>
+        </div>
+    </div>
+
+    <!-- Open Intraday Positions -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">⚡ Live Open Intraday Positions (MIS)</div>
+                <div class="card-subtitle">Monitored continuously every 3 seconds for trailing stop & target exits</div>
+            </div>
+            <span id="intraday-open-count-badge" class="pill pill-amber">0 Positions</span>
+        </div>
+        <div id="intraday-cards-container" class="cards-grid">
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <div class="empty-state-icon">⚡</div>
+                <div>No intraday MIS positions currently open. The desk scans for momentum setups between 09:15 and 14:45 IST.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Intraday Closed Trades Journal -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">📋 Intraday Trade Journal (MIS Completed Trades)</div>
+                <div class="card-subtitle">Realized gains, slippage, and hold time in minutes</div>
+            </div>
+            <span id="intra-history-count-badge" class="pill pill-cyan">0 Trades</span>
+        </div>
+        <div class="table-responsive">
+            <table class="fin-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Symbol</th>
+                        <th>Action</th>
+                        <th>Qty</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>P&L (₹)</th>
+                        <th>P&L (%)</th>
+                        <th>Exit Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="intraday-trades-tbody">
+                    <tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No intraday trades completed yet today.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+

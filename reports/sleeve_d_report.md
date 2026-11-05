@@ -1,5 +1,5 @@
 # Sleeve D (Defined-Risk Premium Selling) Acceptance Report (Milestone 7)
-**Generated:** 2026-11-05 16:38:03
+**Generated:** 2026-11-05 19:10:53
 **Architecture:** Defined-Risk Iron Condor Strategy on NIFTY (Monthly Expiry, 30-45 DTE)
 **Execution Mode:** Fail-Closed Architecture (Section 8 Compliance)
 
@@ -11,7 +11,7 @@
 |---|---|---|---|
 | **Fail-Closed Rule** | Fail closed without option-chain snapshots | **Verified: `enabled=false` & fails closed when snapshot is missing** | **PASS** |
 | **Test 12: 1% Max Loss Rule** | `max_loss <= 1%` of option notional | **Verified: Condor violating 1% cap is skipped** | **PASS** |
-| **Test 12: Delta-Breach Exit** | Any short strike `abs(delta) >= 0.30` | **Verified: Delta breach triggers immediate exit** | **PASS** |
+| **Test 12: Delta-Breach Exit** | Any short strike `|delta| >= 0.30` | **Verified: Delta breach triggers immediate exit** | **PASS** |
 | **Test 12: DTE Exit Threshold** | Exit at `DTE <= 3` | **Verified: DTE threshold triggers exit** | **PASS** |
 | **Test 12: Expiry Day Guard** | Never hold into expiry day (`DTE == 0`) | **Verified: Expiry day exit guaranteed** | **PASS** |
 | **Test 2: Statutory Option STT** | 0.15% on SELL premium (65 @ 40 = 3.90 INR) | **Verified: STT calculates exact 3.90 INR** | **PASS** |

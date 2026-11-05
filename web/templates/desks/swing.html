@@ -1,0 +1,135 @@
+<!-- TAB 3: SWING CNC DESK -->
+<div id="tab-swing" class="desk-section" style="display:none;">
+    <!-- Swing Section Header -->
+    <div class="section-header">
+        <div>
+            <div class="section-title">
+                <span>📈</span> Stock Investment & Swing Desk (CNC Delivery)
+                <span class="pill pill-emerald">Zero Leverage · 100% Cash Covered</span>
+            </div>
+            <div class="section-sub">Multi-day trend-following & pullback positions in high-liquidity NSE stocks (₹2 Cr ADTV minimum)</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <span class="pill pill-cyan">ATR 2.5x Trailing Stop</span>
+            <span class="pill pill-emerald">Delivery Guard Active</span>
+        </div>
+    </div>
+
+    <!-- Swing KPI Grid -->
+    <div class="hero-stats-grid">
+        <div class="stat-item" style="border-left: 3px solid var(--emerald);">
+            <div class="stat-header">
+                <span class="stat-label">📈 Swing Portfolio P/L</span>
+                <span id="swing-pnl-pill" class="pill pill-emerald" style="font-size:9px;">CNC</span>
+            </div>
+            <div id="val-swing-pnl" class="stat-val text-up">+₹0.00</div>
+            <div class="stat-desc">Banked + Live Unrealized MTM</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--cyan);">
+            <div class="stat-header">
+                <span class="stat-label">💼 Invested Capital</span>
+                <span class="pill pill-cyan" style="font-size:9px;">DELIVERY</span>
+            </div>
+            <div id="val-swing-invested" class="stat-val">₹0.00</div>
+            <div class="stat-desc">Cash locked in stock inventory</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--indigo);">
+            <div class="stat-header">
+                <span class="stat-label">🛡️ Statutory Fees Tracked</span>
+                <span class="pill pill-indigo" style="font-size:9px;">SEBI FY26</span>
+            </div>
+            <div id="val-swing-costs" class="stat-val">₹0.00</div>
+            <div class="stat-desc">0.1% STT + ₹15.93 DP charges accounted</div>
+        </div>
+
+        <div class="stat-item" style="border-left: 3px solid var(--amber);">
+            <div class="stat-header">
+                <span class="stat-label">🔍 Liquidity Gate Floor</span>
+                <span class="pill pill-amber" style="font-size:9px;">INSTITUTIONAL</span>
+            </div>
+            <div class="stat-val" style="font-size:16px;">₹2,00,00,000</div>
+            <div class="stat-desc">Strict ADTV20 filter avoids illiquidity</div>
+        </div>
+    </div>
+
+    <!-- Live Open Swing Holdings -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">📈 Current Stock Holdings (CNC Delivery)</div>
+                <div class="card-subtitle">Protected with dynamic trailing stop loss and multi-tier profit targets</div>
+            </div>
+            <span id="swing-open-count-badge" class="pill pill-emerald">0 Holdings</span>
+        </div>
+        <div id="swing-cards-container" class="cards-grid">
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <div class="empty-state-icon">📈</div>
+                <div>No swing delivery positions currently open. Candidates are scanned daily post-market.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Swing Candidate Scanner Radar -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">🔭 NIFTY 500 Market Scanner Radar</div>
+                <div class="card-subtitle">Top institutional momentum & pullback candidates filtered by 200 EMA & volume</div>
+            </div>
+            <span class="pill pill-cyan">Automated Scan</span>
+        </div>
+        <div class="table-responsive">
+            <table class="fin-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Sector</th>
+                        <th>Price (₹)</th>
+                        <th>ADTV Turnover</th>
+                        <th>RSI (14)</th>
+                        <th>Trend (200 EMA)</th>
+                        <th>Strategy Signal</th>
+                        <th>Setup Status</th>
+                    </tr>
+                </thead>
+                <tbody id="swing-scanner-tbody">
+                    <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">Loading scanner radar...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Swing Trade History -->
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <div class="card-title">📜 Swing Delivery Trade Journal</div>
+                <div class="card-subtitle">Realized gains, holding period (days), and net statutory fee deduction</div>
+            </div>
+            <span id="swing-history-count-badge" class="pill pill-cyan">0 Trades</span>
+        </div>
+        <div class="table-responsive">
+            <table class="fin-table">
+                <thead>
+                    <tr>
+                        <th>Opened</th>
+                        <th>Closed</th>
+                        <th>Symbol</th>
+                        <th>Qty</th>
+                        <th>Entry (₹)</th>
+                        <th>Exit (₹)</th>
+                        <th>Net P&L (₹)</th>
+                        <th>Return (%)</th>
+                        <th>Exit Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="swing-trades-tbody">
+                    <tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No swing trades closed yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+

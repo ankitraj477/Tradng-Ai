@@ -1,0 +1,259 @@
+/* ==============================================================================
+   DESK-SPECIFIC STYLES & KPI WIDGETS
+   Multi-Desk Trading Workspace Layouts
+   ============================================================================== */
+
+/* Hero Banner & KPI Metric Jars */
+.hero-card {
+    background: linear-gradient(180deg, rgba(16, 25, 42, 0.95) 0%, rgba(12, 18, 30, 0.95) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-card);
+}
+
+.hero-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.hero-equity-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.hero-equity-val {
+    font-size: 42px;
+    font-weight: 900;
+    font-family: var(--font-mono);
+    color: var(--text-main);
+    letter-spacing: -1.5px;
+    line-height: 1.1;
+    margin: 4px 0;
+}
+
+.hero-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+}
+
+.stat-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.stat-item:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-hover);
+}
+
+.stat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-val {
+    font-size: 22px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--text-main);
+}
+
+.stat-desc {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+}
+
+/* Desk Section Layout */
+.desk-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 12px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Strategy & Position Cards Grid */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.position-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow-card);
+    transition: all 0.2s;
+}
+
+.position-card:hover {
+    border-color: var(--border-hover);
+}
+
+.position-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.position-symbol {
+    font-size: 16px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+}
+
+.position-strategy {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.position-pnl {
+    text-align: right;
+    font-family: var(--font-mono);
+}
+
+.position-pnl-val {
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.position-pnl-pct {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.position-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    background: var(--bg-card);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+}
+
+.meta-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+}
+
+.meta-val {
+    font-family: var(--font-mono);
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+/* Greeks & F&O Meters */
+.greeks-meter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+}
+
+.greek-meter {
+    text-align: center;
+}
+
+.greek-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.greek-value {
+    font-size: 15px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    margin-top: 2px;
+}
+
+/* Square-off Clock */
+.clock-container {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.clock-timer {
+    font-size: 20px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--amber);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    background: var(--bg-surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+    color: var(--text-muted);
+}
+
+.empty-state-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+}
+
