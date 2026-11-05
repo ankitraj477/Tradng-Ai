@@ -21,7 +21,7 @@ class SwingPositionManager:
 
         # Off-market hours safety gate:
         # Swing positions must NEVER be evaluated or stopped out when the exchange is closed.
-        from ..market_hours import market_open
+        from ..market_hours import market_open, now_ist
         enforce_hours = (
             self.cfg.get("execution", {}).get("enforce_market_hours", False)
             or self.cfg.get("enforce_market_hours", False)
