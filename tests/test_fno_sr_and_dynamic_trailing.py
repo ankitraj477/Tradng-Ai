@@ -35,6 +35,7 @@ def test_index_sr_calculator_levels():
 
 def test_fno_regime_gating_rejects_strong_trend():
     """Verify IronCondorStrategy rejects strong trending regimes to avoid wing blowout."""
+    IndexSRCalculator.clear_cache()
     chain = IndexChainManager(MockProvider(24850.0))
     strat = IronCondorStrategy(chain)
 
@@ -99,6 +100,7 @@ def test_fno_dynamic_trailing_stop_loss_tiers():
 
 def test_fno_dynamic_sr_defense_exit():
     """Verify early defense square-off triggers if spot severely violates S/R boundaries."""
+    IndexSRCalculator.clear_cache()
     db = DB(":memory:")
     db.init()
     db.ensure_account(50000.0, 100000.0)

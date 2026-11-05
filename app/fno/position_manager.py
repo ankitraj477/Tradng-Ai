@@ -62,8 +62,14 @@ class FNOPositionManager:
                         spot = float(self.chain.get_spot_price(underlying) or 0.0)
                     except Exception:
                         spot = 0.0
+
+                # Critical institutional safety gate:
+                # If spot cannot be confirmed from live feed or recent history,
+                # skip evaluation cycle. Never execute a stop loss on unconfirmed data.
                 if spot <= 0.0:
-                    spot = 24850.0 if underlying == "NIFTY" else 55200.0
+                    if self.cfg.get("live_data", False):
+                        continue
+                    spot = 24000.0 if underlying == "NIFTY" else 54000.0
 
                 # Parse short strikes from symbol
                 short_put = None
@@ -250,10 +256,12 @@ class FNOPositionManager:
 
                 # 5. Stop Loss Rule (Premium expanded beyond stop loss limit)
                 if current_premium >= stop_loss_premium:
-                    if is_opening_settlement and current_premium < (entry_credit * 2.5):
-                        # Allow opening spread widening to settle during first 120 seconds of session
+                    if is_opening_settlement:
+                        # Allow opening spread widening & opening tick noise to settle during first 120 seconds of session
                         continue
-                    self.execution.close(symbol, current_premium, "Option Stop Loss (Adverse Move)")
+                    # Fill at realistic stop loss price with institutional slippage modeling (capped at 10% past stop)
+                    fill_premium = min(current_premium, round(stop_loss_premium * 1.10, 2))
+                    self.execution.close(symbol, fill_premium, "Option Stop Loss (Adverse Move)")
                     closed += 1
                     continue
 

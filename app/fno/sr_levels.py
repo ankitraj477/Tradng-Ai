@@ -15,6 +15,12 @@ class IndexSRCalculator:
     _session_bars_cache: Dict[str, Any] = {}
     _session_bars_time: Dict[str, float] = {}
 
+    @classmethod
+    def clear_cache(cls):
+        cls._anchored_bars.clear()
+        cls._session_bars_cache.clear()
+        cls._session_bars_time.clear()
+
     def __init__(self, provider=None):
         self.provider = provider
 
@@ -60,16 +66,7 @@ class IndexSRCalculator:
         # 2. Anchor session baseline if provider does not have index history
         if not high or not low or not close or high <= low:
             if index_name.upper() in self._anchored_bars:
-                anchored_high, anchored_low, anchored_close = self._anchored_bars[index_name.upper()]
-                if spot_price and anchored_close and abs(spot_price - anchored_close) / anchored_close > 0.04:
-                    base_spot = spot_price
-                    daily_range_pct = 0.008 if index_name.upper() == "NIFTY" else 0.012
-                    high = round(base_spot * (1.0 + daily_range_pct), 2)
-                    low = round(base_spot * (1.0 - daily_range_pct), 2)
-                    close = base_spot
-                    self._anchored_bars[index_name.upper()] = (high, low, close)
-                else:
-                    high, low, close = anchored_high, anchored_low, anchored_close
+                high, low, close = self._anchored_bars[index_name.upper()]
             else:
                 base_spot = spot_price or (24850.0 if index_name.upper() == "NIFTY" else 54850.0)
                 daily_range_pct = 0.008 if index_name.upper() == "NIFTY" else 0.012
