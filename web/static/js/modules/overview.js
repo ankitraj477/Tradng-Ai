@@ -68,12 +68,12 @@ function updateOverviewTab(data) {
     if (!data) return;
 
     // 1. Total Portfolio Net Equity
-    const portVal = data.equity || (data.cash + (data.margin_locked || 0) + (data.unrealized_pnl || 0));
+    const portVal = Number(data.portfolio !== undefined ? data.portfolio : (data.equity !== undefined ? data.equity : (Number(data.cash || 0) + Number(data.long_value || 0))));
     const valPortEl = document.getElementById('val-portfolio');
     if (valPortEl) valPortEl.textContent = formatINR(portVal);
 
     // 2. Daily P/L
-    const dailyPnl = data.daily_pnl || 0;
+    const dailyPnl = Number(data.daily_pnl !== undefined ? data.daily_pnl : ((data.realized || 0) + (data.unrealized || 0)));
     const dailyEl = document.getElementById('val-daily-pnl');
     const dailyHeroEl = document.getElementById('val-daily-pnl-hero');
     const pnlPrefix = dailyPnl >= 0 ? '+' : '';
@@ -88,18 +88,22 @@ function updateOverviewTab(data) {
         dailyHeroEl.className = 'stat-val ' + pnlClass;
     }
 
-    const breakdownText = `Banked: ${formatINR(data.banked_pnl || 0)} · Live: ${formatINR(data.unrealized_pnl || 0)}`;
+    const realizedToday = Number(data.realized_today !== undefined ? data.realized_today : (data.realized !== undefined ? data.realized : (data.banked_pnl || 0)));
+    const unrealizedToday = Number(data.unrealized !== undefined ? data.unrealized : (data.unrealized_pnl || 0));
+    const breakdownText = `Banked: ${realizedToday >= 0 ? '+' : ''}${formatINR(realizedToday)} · Live: ${unrealizedToday >= 0 ? '+' : ''}${formatINR(unrealizedToday)}`;
     const b1 = document.getElementById('val-daily-pnl-breakdown');
     const b2 = document.getElementById('val-daily-breakdown-hero');
     if (b1) b1.textContent = breakdownText;
     if (b2) b2.textContent = breakdownText;
 
     // 3. Ready Cash & Margin
+    const cashVal = Number(data.available_cash !== undefined ? data.available_cash : (data.cash || 0));
     const cashEl = document.getElementById('val-cash');
-    if (cashEl) cashEl.textContent = formatINR(data.available_cash || data.cash || 0);
+    if (cashEl) cashEl.textContent = formatINR(cashVal);
 
+    const marginVal = Number(data.reserved_margin !== undefined ? data.reserved_margin : (data.margin_used !== undefined ? data.margin_used : (data.margin_locked || 0)));
     const marginEl = document.getElementById('val-margin');
-    if (marginEl) marginEl.textContent = formatINR(data.margin_locked || 0);
+    if (marginEl) marginEl.textContent = formatINR(marginVal);
 
     const positions = data.positions || [];
     const openCountEl = document.getElementById('val-open-count');
@@ -109,7 +113,7 @@ function updateOverviewTab(data) {
     if (allBadge) allBadge.textContent = `${positions.length} Open`;
 
     // 4. Return Badge
-    const retPct = data.return_pct || 0;
+    const retPct = Number(data.return_pct !== undefined ? data.return_pct : 0);
     const retBadge = document.getElementById('return-badge');
     if (retBadge) {
         retBadge.textContent = (retPct >= 0 ? '+' : '') + retPct.toFixed(2) + '%';

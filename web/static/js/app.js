@@ -137,16 +137,42 @@ async function fetchWithAuth(url, options = {}) {
 }
 
 async function toggleAutoTrading() {
+    const btn = document.getElementById('auto-trade-btn');
+    const label = document.getElementById('auto-trade-label');
+    const currentlyActive = btn ? btn.classList.contains('active') : true;
+    const targetState = !currentlyActive;
+
+    // Instant optimistic visual feedback
+    if (btn) {
+        btn.className = 'auto-trade-btn ' + (targetState ? 'active' : '');
+    }
+    if (label) {
+        label.textContent = targetState ? 'AUTO TRADING ON' : 'AUTO TRADING PAUSED';
+    }
+
     try {
-        const res = await fetchWithAuth('/api/auto-trading/toggle', { method: 'POST' });
+        const res = await fetchWithAuth('/api/auto-trading/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: targetState })
+        });
         if (res.status === 401) {
             alert('Authentication Required: Invalid or missing token.');
+            fetchState();
             return;
         }
         const result = await res.json();
+        const finalState = result.auto_trading !== undefined ? result.auto_trading : targetState;
+        if (btn) {
+            btn.className = 'auto-trade-btn ' + (finalState ? 'active' : '');
+        }
+        if (label) {
+            label.textContent = finalState ? 'AUTO TRADING ON' : 'AUTO TRADING PAUSED';
+        }
         fetchState();
     } catch (err) {
         alert('Failed to toggle auto trading: ' + err.message);
+        fetchState();
     }
 }
 
