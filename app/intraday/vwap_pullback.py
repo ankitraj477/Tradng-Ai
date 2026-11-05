@@ -17,7 +17,7 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
     - Requires rejection confirmation (wick bounce off VWAP).
     - Avoids early opening volatility (activates post-10:30 IST) and ends before square-off.
     """
-    def __init__(self, atr_stop_mult: float = 1.2, target_mult: float = 2.5):
+    def __init__(self, atr_stop_mult: float = 1.2, target_mult: float = 3.0):
         super().__init__(
             name="Intraday VWAP Pullback",
             desk="INTRADAY",
@@ -84,7 +84,7 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
             stop_px = max(low - (self.atr_stop_mult * atr), vwap - (self.atr_stop_mult * atr))
             risk = close - stop_px
             if risk <= 0: risk = close * 0.005
-            target_px = max(close + (self.target_mult * risk), round(close * 1.015, 2))
+            target_px = max(close + (self.target_mult * risk), round(close * 1.025, 2))
 
             rr = round(abs(target_px - close) / max(0.01, abs(close - stop_px)), 2)
             return {
@@ -108,7 +108,7 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
             stop_px = min(high + (self.atr_stop_mult * atr), vwap + (self.atr_stop_mult * atr))
             risk = stop_px - close
             if risk <= 0: risk = close * 0.005
-            target_px = min(close - (self.target_mult * risk), round(close * 0.985, 2))
+            target_px = min(close - (self.target_mult * risk), round(close * 0.975, 2))
 
             rr = round(abs(close - target_px) / max(0.01, abs(stop_px - close)), 2)
             return {

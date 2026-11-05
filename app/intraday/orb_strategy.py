@@ -17,7 +17,7 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
     4. Filters direction using macro daily bias (no long in downtrend, no short in uptrend).
     5. Fixed stop at ORB midpoint or ATR-based stop, with compulsory 15:10 square-off.
     """
-    def __init__(self, orb_minutes=15, min_rvol=1.2, atr_stop_mult=1.5, target_mult=2.5):
+    def __init__(self, orb_minutes=15, min_rvol=1.2, atr_stop_mult=1.5, target_mult=3.0):
         super().__init__("OpeningRangeBreakout", {
             "orb_minutes": orb_minutes,
             "min_rvol": min_rvol,
@@ -132,8 +132,8 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             risk = last_px - stop_px
             if risk <= 0: risk = last_px * 0.005
             target_px = last_px + (self.target_mult * risk)
-            # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
-            target_px = max(target_px, round(last_px * 1.018, 2))
+            # Enforce aggressive intraday target >= 2.5% to capture explosive expansion
+            target_px = max(target_px, round(last_px * 1.025, 2))
             rr = round(abs(target_px - last_px) / max(0.01, abs(last_px - stop_px)), 2)
             return {
                 "symbol": symbol,
@@ -160,8 +160,8 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             risk = stop_px - last_px
             if risk <= 0: risk = last_px * 0.005
             target_px = last_px - (self.target_mult * risk)
-            # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
-            target_px = min(target_px, round(last_px * 0.982, 2))
+            # Enforce aggressive intraday target >= 2.5% to capture explosive expansion
+            target_px = min(target_px, round(last_px * 0.975, 2))
             rr = round(abs(last_px - target_px) / max(0.01, abs(stop_px - last_px)), 2)
             return {
                 "symbol": symbol,

@@ -4,6 +4,8 @@
     "target": 10000.0
   },
   "micro_account": true,
+  "hyper_aggressive": true,
+  "daily_target_pct": 0.05,
   "capital_allocation": {
     "intraday": 100.0,
     "swing": 0.0,

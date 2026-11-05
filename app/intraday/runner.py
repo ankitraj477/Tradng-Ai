@@ -49,9 +49,14 @@ class IntradayDeskRunner:
         current_intraday = [p for p in self.db.positions() if p.get("product_type", "INTRADAY") == "INTRADAY"]
         account = self.db.account()
         starting = float(account.get("starting_capital", 100000.0) if account else 100000.0)
+        cash = float(account.get("cash", starting) if account else starting)
         cfg_max = int(self.cfg.get("market", {}).get("max_open_positions", 5))
-        # For micro-capital accounts (starting <= 5000), concentrate in at most 2 high-conviction positions
-        max_intra_positions = min(cfg_max, 2) if starting <= 5000.0 else cfg_max
+        is_hyper = bool(self.cfg.get("hyper_aggressive", True))
+        # For micro-capital accounts (starting <= 5000), hyper-aggressive runs 1 focused sniper trade at a time
+        if starting <= 5000.0:
+            max_intra_positions = 1 if is_hyper else min(cfg_max, 2)
+        else:
+            max_intra_positions = cfg_max
         if len(current_intraday) >= max_intra_positions:
             self.db.log("INFO", f"[Intraday Desk] Max open positions reached ({len(current_intraday)}/{max_intra_positions}). Monitoring active trades.")
             return
@@ -114,8 +119,11 @@ class IntradayDeskRunner:
                 if price <= 0:
                     continue
 
-                # Sized capital allocation
-                max_trade_cap = (starting * intra_alloc_pct) / float(max_intra_positions)
+                # Sized capital allocation: Hyper-aggressive sniper sizing deploys up to 88% cash on #1 setup
+                if is_hyper and starting <= 5000.0:
+                    max_trade_cap = min(cash * 0.88, starting * 0.90)
+                else:
+                    max_trade_cap = (starting * intra_alloc_pct) / float(max_intra_positions)
 
                 qty = int(max_trade_cap / price)
                 if qty <= 0:

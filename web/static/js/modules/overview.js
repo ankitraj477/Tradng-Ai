@@ -91,8 +91,8 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
         remValEl.textContent = `${formatINR(remaining)} remaining (+${remPct}%)`;
     }
 
-    // Daily target (1.5% of starting capital or current equity)
-    const dailyTargetRupees = Math.max(15, currEquity * 0.015);
+    // Hyper-Aggressive Daily target: +5.0% of starting capital or current equity
+    const dailyTargetRupees = Math.max(50, currEquity * 0.05);
     const dailyTargetEl = document.getElementById('roadmap-daily-target');
     if (dailyTargetEl) dailyTargetEl.textContent = '+' + formatINR(dailyTargetRupees);
 
@@ -113,12 +113,12 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
 
     if (currEquity < 3000) {
         if (tierBadge) {
-            tierBadge.textContent = 'TIER 1: MICRO MIS (₹1k → ₹3k)';
-            tierBadge.className = 'pill pill-amber';
+            tierBadge.textContent = '⚡ HYPER-AGGRESSIVE MIS (5% DAILY)';
+            tierBadge.className = 'pill pill-rose';
         }
         if (modeTitle) {
-            modeTitle.innerHTML = '⚡ 100% Intraday MIS Focus';
-            modeTitle.style.color = 'var(--amber)';
+            modeTitle.innerHTML = '⚡ Hyper-Aggressive Sniper MIS';
+            modeTitle.style.color = 'var(--rose)';
         }
         if (tier2Dot) tier2Dot.classList.remove('active');
         if (tier3Dot) tier3Dot.classList.remove('active');
@@ -161,13 +161,13 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
         if (targetDot) targetDot.classList.add('active');
     }
 
-    // Days remaining estimation: log(target/currEquity) / log(1 + 0.015)
+    // Days remaining estimation: log(target/currEquity) / log(1 + 0.05)
     const daysEl = document.getElementById('roadmap-est-days');
     if (daysEl) {
         if (currEquity >= target) {
             daysEl.textContent = '0 Days (Target Reached)';
         } else {
-            const days = Math.ceil(Math.log(target / currEquity) / Math.log(1.015));
+            const days = Math.ceil(Math.log(target / currEquity) / Math.log(1.05));
             daysEl.textContent = `~${days} Days`;
         }
     }

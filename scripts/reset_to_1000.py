@@ -103,3 +103,4 @@ def reset_database(db_path: str = "data/trader.db"):
 
 if __name__ == "__main__":
     reset_database()
+
