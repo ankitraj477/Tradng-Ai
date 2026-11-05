@@ -301,6 +301,27 @@ class TradingEngine:
         except Exception as exc:
             self.db.log("WARN", f"Dynamic config reload failed: {exc!r}")
 
+    def get_capital_tier(self) -> int:
+        """
+        Determines current bootstrapping capital tier:
+        - Tier 1: Micro-Account Bootstrapping (Equity < ₹3,000) -> 100% Intraday MIS only.
+        - Tier 2: Emerging Capital (₹3,000 - ₹7,000) -> Intraday MIS + Swing CNC breakouts.
+        - Tier 3: Multi-Desk Scale (> ₹7,000) -> Full Intraday, Swing, and F&O Spreads.
+        """
+        try:
+            acc = self.db.account()
+            if not acc:
+                return 1
+            cash = float(acc.get("cash", 1000.0) or 1000.0)
+            equity = cash + sum(float(p.get("current_price", p.get("entry_price", 0)) or 0) * float(p.get("qty", 1) or 1) for p in self.db.positions())
+            if equity < 3000.0:
+                return 1
+            elif equity < 7000.0:
+                return 2
+            return 3
+        except Exception:
+            return 1
+
     # ======================================================
     # LIVE DATA DIAGNOSTICS
     # ======================================================
@@ -701,6 +722,7 @@ class TradingEngine:
         # --------------------------------------------------
         desks_cfg = self.cfg.get("desks", {})
         if desks_cfg.get("enabled", False):
+            tier = self.get_capital_tier()
             if desks_cfg.get("intraday", False) and hasattr(self, "intraday_desk") and self.intraday_desk:
                 try:
                     self.intraday_desk.run_cycle()
@@ -708,10 +730,18 @@ class TradingEngine:
                     self.db.log("ERROR", f"Intraday desk cycle: {exc!r}")
 
             if desks_cfg.get("swing", False) and hasattr(self, "swing_desk") and self.swing_desk:
-                try:
-                    self.swing_desk.run_cycle()
-                except Exception as exc:
-                    self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
+                if tier >= 2:
+                    try:
+                        self.swing_desk.run_cycle()
+                    except Exception as exc:
+                        self.db.log("ERROR", f"Swing desk cycle: {exc!r}")
+                else:
+                    # In Tier 1 (< ₹3k), manage existing swing positions if any, but pause new entries
+                    try:
+                        if hasattr(self.swing_desk, "position_manager") and self.swing_desk.position_manager:
+                            self.swing_desk.position_manager.manage()
+                    except Exception as exc:
+                        self.db.log("ERROR", f"Swing desk position manage: {exc!r}")
 
         # --------------------------------------------------
         # SESSION TIMING & EOD SQUARE-OFF
@@ -940,11 +970,15 @@ class TradingEngine:
         # F&O fast protection trigger
         desks_cfg = self.cfg.get("desks", {})
         if desks_cfg.get("enabled", False) and desks_cfg.get("fno", False):
-            if hasattr(self, "fno_desk") and self.fno_desk:
-                try:
-                    self.fno_desk.run_cycle()
-                except Exception as exc:
-                    self.db.log("ERROR", f"F&O desk cycle: {exc!r}")
+            # Tier 1 & 2: Skip F&O scans unless existing F&O positions need risk management
+            tier = self.get_capital_tier()
+            fno_positions = [p for p in self.db.positions() if str(p.get("product_type", "")).upper() == "FNO"]
+            if tier >= 3 or len(fno_positions) > 0:
+                if hasattr(self, "fno_desk") and self.fno_desk:
+                    try:
+                        self.fno_desk.run_cycle()
+                    except Exception as exc:
+                        self.db.log("ERROR", f"F&O desk cycle: {exc!r}")
 
         # --------------------------------------------------
         # ACCOUNT SNAPSHOT

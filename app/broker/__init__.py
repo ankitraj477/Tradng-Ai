@@ -7,6 +7,7 @@ from .base import AbstractBrokerAdapter
 from .paper import PaperBrokerAdapter
 from .zerodha import ZerodhaKiteAdapter
 from .angel import AngelSmartApiAdapter
+from .shoonya import ShoonyaBrokerAdapter
 from .factory import get_broker_adapter
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "PaperBrokerAdapter",
     "ZerodhaKiteAdapter",
     "AngelSmartApiAdapter",
+    "ShoonyaBrokerAdapter",
     "get_broker_adapter"
 ]

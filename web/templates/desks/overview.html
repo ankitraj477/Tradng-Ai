@@ -58,6 +58,71 @@
         </div>
     </div>
 
+    <!-- Road to ₹10,000 Milestone Ladder Card -->
+    <div class="card roadmap-card">
+        <div class="card-header" style="border-bottom:none; padding-bottom:4px;">
+            <div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:18px;">🚀</span>
+                    <span class="card-title" style="font-size:16px;">Road to ₹10,000 Milestone Ladder</span>
+                    <span id="roadmap-tier-badge" class="pill pill-amber" style="font-weight:800; font-size:11px;">TIER 1: MICRO MIS (₹1k → ₹3k)</span>
+                </div>
+                <div class="card-subtitle" style="margin-top:2px;">
+                    Zero Brokerage & Zero DP drag bootstrapping · High-conviction Intraday MIS compounding
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Compounding Progress</div>
+                <div id="roadmap-progress-pct" style="font-size:20px; font-weight:900; font-family:var(--font-mono); color:var(--cyan);">0.0%</div>
+            </div>
+        </div>
+
+        <!-- Visual Milestone Progress Bar -->
+        <div class="roadmap-bar-wrap">
+            <div id="roadmap-bar-fill" class="roadmap-bar-fill" style="width: 0%;"></div>
+            <div class="roadmap-milestone-marker" style="left:0%;">
+                <span class="marker-dot active"></span>
+                <span class="marker-label">₹1,000 Start</span>
+            </div>
+            <div class="roadmap-milestone-marker" style="left:22.2%;">
+                <span id="marker-tier2-dot" class="marker-dot"></span>
+                <span class="marker-label">₹3,000 (Unlock Swing)</span>
+            </div>
+            <div class="roadmap-milestone-marker" style="left:66.7%;">
+                <span id="marker-tier3-dot" class="marker-dot"></span>
+                <span class="marker-label">₹7,000 (Unlock F&O)</span>
+            </div>
+            <div class="roadmap-milestone-marker" style="left:100%; transform:translateX(-100%);">
+                <span id="marker-target-dot" class="marker-dot"></span>
+                <span class="marker-label">₹10,000 Target 🎯</span>
+            </div>
+        </div>
+
+        <!-- Milestone Status Grid -->
+        <div class="roadmap-grid">
+            <div class="roadmap-cell">
+                <div class="roadmap-cell-label">Current Equity / Goal</div>
+                <div class="roadmap-cell-val font-mono"><span id="roadmap-curr-equity" style="color:var(--text-primary);">₹1,000.00</span> / <span style="color:var(--cyan);">₹10,000.00</span></div>
+                <div id="roadmap-remaining-val" class="roadmap-cell-sub">₹9,000.00 remaining (+900%)</div>
+            </div>
+            <div class="roadmap-cell">
+                <div class="roadmap-cell-label">Daily Target (+1.5%)</div>
+                <div id="roadmap-daily-target" class="roadmap-cell-val font-mono" style="color:var(--emerald);">+₹15.00</div>
+                <div id="roadmap-daily-achieved" class="roadmap-cell-sub">Today's Net: ₹0.00 (0.0%)</div>
+            </div>
+            <div class="roadmap-cell">
+                <div class="roadmap-cell-label">Active Strategy Mode</div>
+                <div id="roadmap-mode-title" class="roadmap-cell-val" style="color:var(--amber); font-size:13px;">⚡ 100% Intraday MIS Focus</div>
+                <div class="roadmap-cell-sub">₹0 DP Fee · 5x MIS Leverage · ₹40–₹450 Universe</div>
+            </div>
+            <div class="roadmap-cell">
+                <div class="roadmap-cell-label">Estimated Days to ₹10K</div>
+                <div id="roadmap-est-days" class="roadmap-cell-val font-mono" style="color:var(--indigo);">~154 Days</div>
+                <div class="roadmap-cell-sub">At ~1.5% net compounding per day</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Equity Curve & Desk Performance Grid -->
     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px;">
         <!-- Equity Chart Container -->
@@ -149,6 +214,7 @@
             <!-- Presets Row -->
             <div class="alloc-presets">
                 <span class="alloc-preset-label">Presets:</span>
+                <button type="button" class="alloc-preset-btn" style="border-color:var(--amber); color:var(--amber); font-weight:700;" onclick="applyAllocPreset(100, 0, 0)">🚀 Micro 100% Intraday (100 / 0 / 0)</button>
                 <button type="button" class="alloc-preset-btn" onclick="applyAllocPreset(34, 33, 33)">Balanced (34 / 33 / 33)</button>
                 <button type="button" class="alloc-preset-btn" onclick="applyAllocPreset(20, 60, 20)">Swing Heavy (20 / 60 / 20)</button>
                 <button type="button" class="alloc-preset-btn" onclick="applyAllocPreset(50, 25, 25)">Intraday Active (50 / 25 / 25)</button>

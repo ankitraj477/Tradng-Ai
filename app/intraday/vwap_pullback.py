@@ -17,7 +17,7 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
     - Requires rejection confirmation (wick bounce off VWAP).
     - Avoids early opening volatility (activates post-10:30 IST) and ends before square-off.
     """
-    def __init__(self, atr_stop_mult: float = 1.2, target_mult: float = 1.8):
+    def __init__(self, atr_stop_mult: float = 1.2, target_mult: float = 2.5):
         super().__init__(
             name="Intraday VWAP Pullback",
             desk="INTRADAY",
@@ -86,6 +86,7 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
             if risk <= 0: risk = close * 0.005
             target_px = max(close + (self.target_mult * risk), round(close * 1.015, 2))
 
+            rr = round(abs(target_px - close) / max(0.01, abs(close - stop_px)), 2)
             return {
                 "symbol": target,
                 "action": "BUY",
@@ -93,12 +94,13 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
                 "price": close,
                 "stop_loss": round(stop_px, 2),
                 "target": round(target_px, 2),
+                "risk_reward": rr,
                 "atr": round(atr, 2),
                 "vwap": round(vwap, 2),
                 "strategy": self.name,
                 "confidence": 75.0,
                 "product_type": "INTRADAY",
-                "reason": f"Bullish VWAP bounce at {vwap:.2f} (Low: {low:.2f}, Close: {close:.2f})"
+                "reason": f"Bullish VWAP bounce at {vwap:.2f} (Low: {low:.2f}, Close: {close:.2f}, RR {rr}:1)"
             }
 
         # Bearish VWAP Rejection: High touched VWAP, Close finished below VWAP
@@ -108,6 +110,7 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
             if risk <= 0: risk = close * 0.005
             target_px = min(close - (self.target_mult * risk), round(close * 0.985, 2))
 
+            rr = round(abs(close - target_px) / max(0.01, abs(stop_px - close)), 2)
             return {
                 "symbol": target,
                 "action": "SHORT",
@@ -115,12 +118,13 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
                 "price": close,
                 "stop_loss": round(stop_px, 2),
                 "target": round(target_px, 2),
+                "risk_reward": rr,
                 "atr": round(atr, 2),
                 "vwap": round(vwap, 2),
                 "strategy": self.name,
                 "confidence": 75.0,
                 "product_type": "INTRADAY",
-                "reason": f"Bearish VWAP rejection at {vwap:.2f} (High: {high:.2f}, Close: {close:.2f})"
+                "reason": f"Bearish VWAP rejection at {vwap:.2f} (High: {high:.2f}, Close: {close:.2f}, RR {rr}:1)"
             }
 
         return None

@@ -11,6 +11,7 @@ from .base import AbstractBrokerAdapter
 from .paper import PaperBrokerAdapter
 from .zerodha import ZerodhaKiteAdapter
 from .angel import AngelSmartApiAdapter
+from .shoonya import ShoonyaBrokerAdapter
 
 logger = logging.getLogger("tradng_ai.broker.factory")
 
@@ -54,6 +55,20 @@ def get_broker_adapter(cfg: Optional[Dict[str, Any]] = None, db=None) -> Abstrac
         if adapter.connect():
             return adapter
         logger.warning("Angel One connection failed; safely falling back to PaperBrokerAdapter.")
+        return PaperBrokerAdapter(db=db, cfg=cfg)
+
+    elif broker_type in ("shoonya", "finvasia", "zero_brokerage"):
+        logger.info("Initializing Shoonya Zero-Brokerage broker adapter...")
+        adapter = ShoonyaBrokerAdapter(
+            user_id=broker_cfg.get("user_id") or os.getenv("SHOONYA_USER_ID"),
+            password=broker_cfg.get("password") or os.getenv("SHOONYA_PASSWORD"),
+            totp_key=broker_cfg.get("totp_key") or os.getenv("SHOONYA_TOTP_KEY"),
+            vendor_code=broker_cfg.get("vendor_code") or os.getenv("SHOONYA_VENDOR_CODE"),
+            api_secret=broker_cfg.get("api_secret") or os.getenv("SHOONYA_API_SECRET")
+        )
+        if adapter.connect():
+            return adapter
+        logger.warning("Shoonya connection failed; safely falling back to PaperBrokerAdapter.")
         return PaperBrokerAdapter(db=db, cfg=cfg)
 
     # Default to Paper Broker Simulator

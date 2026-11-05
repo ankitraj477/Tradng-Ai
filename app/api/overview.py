@@ -250,6 +250,8 @@ def state():
         "daily_pnl": round(realized + (metrics["long_unrealized"] + metrics["short_unrealized"]), 2),
         "pnl": pnl,
         "return_pct": (pnl / account["starting_capital"] * 100),
+        "starting_capital": account["starting_capital"],
+        "target_capital": account["target_capital"],
         "target": account["target_capital"],
         "progress": (metrics["equity"] / account["target_capital"] * 100),
         "peak": account["peak_value"],

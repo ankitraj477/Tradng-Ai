@@ -64,6 +64,115 @@ function initEquityChart() {
     });
 }
 
+function updateRoadmapTracker(data, portVal, dailyPnl) {
+    const starting = Number(data.starting_capital || 1000);
+    const target = Number(data.target_capital || data.target || 10000);
+    const currEquity = Number(portVal || starting);
+
+    // Progress percentage from starting to target
+    const totalDist = Math.max(1, target - starting);
+    const achieved = Math.max(0, currEquity - starting);
+    const progressPct = Math.min(100, Math.max(0, (achieved / totalDist) * 100));
+
+    // Elements
+    const fillEl = document.getElementById('roadmap-bar-fill');
+    if (fillEl) fillEl.style.width = progressPct.toFixed(1) + '%';
+
+    const progPctEl = document.getElementById('roadmap-progress-pct');
+    if (progPctEl) progPctEl.textContent = progressPct.toFixed(1) + '%';
+
+    const currEqEl = document.getElementById('roadmap-curr-equity');
+    if (currEqEl) currEqEl.textContent = formatINR(currEquity);
+
+    const remValEl = document.getElementById('roadmap-remaining-val');
+    if (remValEl) {
+        const remaining = Math.max(0, target - currEquity);
+        const remPct = currEquity > 0 ? ((remaining / currEquity) * 100).toFixed(0) : 900;
+        remValEl.textContent = `${formatINR(remaining)} remaining (+${remPct}%)`;
+    }
+
+    // Daily target (1.5% of starting capital or current equity)
+    const dailyTargetRupees = Math.max(15, currEquity * 0.015);
+    const dailyTargetEl = document.getElementById('roadmap-daily-target');
+    if (dailyTargetEl) dailyTargetEl.textContent = '+' + formatINR(dailyTargetRupees);
+
+    const dailyAchievedEl = document.getElementById('roadmap-daily-achieved');
+    if (dailyAchievedEl) {
+        const todayPnl = Number(dailyPnl || 0);
+        const todayPct = currEquity > 0 ? ((todayPnl / currEquity) * 100).toFixed(1) : '0.0';
+        const prefix = todayPnl >= 0 ? '+' : '';
+        dailyAchievedEl.textContent = `Today's Net: ${prefix}${formatINR(todayPnl)} (${prefix}${todayPct}%)`;
+    }
+
+    // Tier badge, mode title, and milestone dots
+    const tierBadge = document.getElementById('roadmap-tier-badge');
+    const modeTitle = document.getElementById('roadmap-mode-title');
+    const tier2Dot = document.getElementById('marker-tier2-dot');
+    const tier3Dot = document.getElementById('marker-tier3-dot');
+    const targetDot = document.getElementById('marker-target-dot');
+
+    if (currEquity < 3000) {
+        if (tierBadge) {
+            tierBadge.textContent = 'TIER 1: MICRO MIS (₹1k → ₹3k)';
+            tierBadge.className = 'pill pill-amber';
+        }
+        if (modeTitle) {
+            modeTitle.innerHTML = '⚡ 100% Intraday MIS Focus';
+            modeTitle.style.color = 'var(--amber)';
+        }
+        if (tier2Dot) tier2Dot.classList.remove('active');
+        if (tier3Dot) tier3Dot.classList.remove('active');
+        if (targetDot) targetDot.classList.remove('active');
+    } else if (currEquity < 7000) {
+        if (tierBadge) {
+            tierBadge.textContent = 'TIER 2: EMERGING CAPITAL (₹3k → ₹7k)';
+            tierBadge.className = 'pill pill-emerald';
+        }
+        if (modeTitle) {
+            modeTitle.innerHTML = '📈 MIS + Swing CNC Breakouts';
+            modeTitle.style.color = 'var(--emerald)';
+        }
+        if (tier2Dot) tier2Dot.classList.add('active');
+        if (tier3Dot) tier3Dot.classList.remove('active');
+        if (targetDot) targetDot.classList.remove('active');
+    } else if (currEquity < 10000) {
+        if (tierBadge) {
+            tierBadge.textContent = 'TIER 3: MULTI-DESK SCALE (₹7k → ₹10k)';
+            tierBadge.className = 'pill pill-cyan';
+        }
+        if (modeTitle) {
+            modeTitle.innerHTML = '🎯 Full Multi-Desk (MIS + Swing + F&O)';
+            modeTitle.style.color = 'var(--cyan)';
+        }
+        if (tier2Dot) tier2Dot.classList.add('active');
+        if (tier3Dot) tier3Dot.classList.add('active');
+        if (targetDot) targetDot.classList.remove('active');
+    } else {
+        if (tierBadge) {
+            tierBadge.textContent = '🏆 10X MILESTONE REACHED (₹10,000+)';
+            tierBadge.className = 'pill pill-emerald';
+        }
+        if (modeTitle) {
+            modeTitle.innerHTML = '👑 10x Goal Completed!';
+            modeTitle.style.color = 'var(--emerald)';
+        }
+        if (tier2Dot) tier2Dot.classList.add('active');
+        if (tier3Dot) tier3Dot.classList.add('active');
+        if (targetDot) targetDot.classList.add('active');
+    }
+
+    // Days remaining estimation: log(target/currEquity) / log(1 + 0.015)
+    const daysEl = document.getElementById('roadmap-est-days');
+    if (daysEl) {
+        if (currEquity >= target) {
+            daysEl.textContent = '0 Days (Target Reached)';
+        } else {
+            const days = Math.ceil(Math.log(target / currEquity) / Math.log(1.015));
+            daysEl.textContent = `~${days} Days`;
+        }
+    }
+}
+
 function updateOverviewTab(data) {
     if (!data) return;
 
@@ -95,6 +204,9 @@ function updateOverviewTab(data) {
     const b2 = document.getElementById('val-daily-breakdown-hero');
     if (b1) b1.textContent = breakdownText;
     if (b2) b2.textContent = breakdownText;
+
+    // 2b. Road to ₹10K Milestone Ladder Update
+    updateRoadmapTracker(data, portVal, dailyPnl);
 
     // 3. Ready Cash & Margin
     const cashVal = Number(data.available_cash !== undefined ? data.available_cash : (data.cash || 0));

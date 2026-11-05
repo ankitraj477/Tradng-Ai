@@ -19,8 +19,14 @@ class IntradayScanner:
                 volume = float(quote.get("volume", 0) or 0)
                 change_pct = float(quote.get("change_pct", 0) or 0)
 
-                # Intraday filter: Active liquid equities (price >= 50)
-                if price >= 50:
+                # Micro-account affordability filter:
+                # When capital <= 5,000 INR, filter for unit price between 40 and 450 INR.
+                # Allows fractional sizing (10-50 shares per trade) with 5x leverage.
+                is_micro = float(self.cfg.get("capital", {}).get("starting", 100000)) <= 5000.0 or self.cfg.get("micro_account", False)
+                min_px = 40.0
+                max_px = 450.0 if is_micro else 50000.0
+
+                if min_px <= price <= max_px:
                     candidates.append({
                         "symbol": symbol,
                         "price": price,

@@ -47,7 +47,11 @@ class IntradayDeskRunner:
 
         # 3. Check max open intraday positions
         current_intraday = [p for p in self.db.positions() if p.get("product_type", "INTRADAY") == "INTRADAY"]
-        max_intra_positions = int(self.cfg.get("market", {}).get("max_open_positions", 5))
+        account = self.db.account()
+        starting = float(account.get("starting_capital", 100000.0) if account else 100000.0)
+        cfg_max = int(self.cfg.get("market", {}).get("max_open_positions", 5))
+        # For micro-capital accounts (starting <= 5000), concentrate in at most 2 high-conviction positions
+        max_intra_positions = min(cfg_max, 2) if starting <= 5000.0 else cfg_max
         if len(current_intraday) >= max_intra_positions:
             self.db.log("INFO", f"[Intraday Desk] Max open positions reached ({len(current_intraday)}/{max_intra_positions}). Monitoring active trades.")
             return
@@ -111,9 +115,7 @@ class IntradayDeskRunner:
                     continue
 
                 # Sized capital allocation
-                account = self.db.account()
-                starting = account.get("starting_capital", 100000.0) if account else 100000.0
-                max_trade_cap = (starting * intra_alloc_pct) / 5.0
+                max_trade_cap = (starting * intra_alloc_pct) / float(max_intra_positions)
 
                 qty = int(max_trade_cap / price)
                 if qty <= 0:
@@ -121,9 +123,11 @@ class IntradayDeskRunner:
                     continue
 
                 trade_notional = qty * price
-                # Allow single share purchases for high-value liquid equities (e.g. ₹2,000 - ₹5,000)
-                # while strictly enforcing min_notional on lower-priced stocks to prevent brokerage fee drag
-                effective_min_notional = min(min_notional, price) if price >= 2000.0 else min_notional
+                # For micro-capital accounts (starting <= 5000), bypass high min_notional barrier
+                if starting <= 5000.0:
+                    effective_min_notional = 0.0
+                else:
+                    effective_min_notional = min(min_notional, price) if price >= 2000.0 else min_notional
                 if trade_notional < effective_min_notional:
                     self.db.log("INFO", f"[Intraday Desk] SIZING GATE: Skipped {sym} (notional ₹{trade_notional:.2f} < minimum ₹{effective_min_notional:.2f})")
                     continue

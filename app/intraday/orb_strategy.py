@@ -17,7 +17,7 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
     4. Filters direction using macro daily bias (no long in downtrend, no short in uptrend).
     5. Fixed stop at ORB midpoint or ATR-based stop, with compulsory 15:10 square-off.
     """
-    def __init__(self, orb_minutes=15, min_rvol=1.2, atr_stop_mult=1.5, target_mult=2.0):
+    def __init__(self, orb_minutes=15, min_rvol=1.2, atr_stop_mult=1.5, target_mult=2.5):
         super().__init__("OpeningRangeBreakout", {
             "orb_minutes": orb_minutes,
             "min_rvol": min_rvol,
@@ -134,6 +134,7 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             target_px = last_px + (self.target_mult * risk)
             # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
             target_px = max(target_px, round(last_px * 1.018, 2))
+            rr = round(abs(target_px - last_px) / max(0.01, abs(last_px - stop_px)), 2)
             return {
                 "symbol": symbol,
                 "action": "BUY",
@@ -141,12 +142,13 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
                 "price": last_px,
                 "stop_loss": round(stop_px, 2),
                 "target": round(target_px, 2),
+                "risk_reward": rr,
                 "atr": round(atr, 2),
                 "vwap": round(current_vwap, 2),
                 "orb_high": round(orb["high"], 2),
                 "rvol": round(rvol, 2),
                 "strategy": self.name,
-                "reason": f"ORB breakout above {orb['high']:.2f} with {rvol:.1f}x RVOL & VWAP support"
+                "reason": f"ORB breakout above {orb['high']:.2f} with {rvol:.1f}x RVOL & VWAP support (RR {rr}:1)"
             }
 
         # Bearish Breakdown
@@ -160,6 +162,7 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             target_px = last_px - (self.target_mult * risk)
             # Enforce institutional intraday target >= 1.8% to capture meaningful expansion
             target_px = min(target_px, round(last_px * 0.982, 2))
+            rr = round(abs(last_px - target_px) / max(0.01, abs(stop_px - last_px)), 2)
             return {
                 "symbol": symbol,
                 "action": "SHORT",
@@ -167,12 +170,13 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
                 "price": last_px,
                 "stop_loss": round(stop_px, 2),
                 "target": round(target_px, 2),
+                "risk_reward": rr,
                 "atr": round(atr, 2),
                 "vwap": round(current_vwap, 2),
                 "orb_low": round(orb["low"], 2),
                 "rvol": round(rvol, 2),
                 "strategy": self.name,
-                "reason": f"ORB breakdown below {orb['low']:.2f} with {rvol:.1f}x RVOL & VWAP resistance"
+                "reason": f"ORB breakdown below {orb['low']:.2f} with {rvol:.1f}x RVOL & VWAP resistance (RR {rr}:1)"
             }
 
         return None
