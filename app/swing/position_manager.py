@@ -58,7 +58,13 @@ class SwingPositionManager:
                     self.db.log("WARN", f"[Swing Desk] ANOMALY PRICE TICK REJECTED: {symbol} ticked at {price:.2f} (Entry: {entry:.2f}). Rejecting corrupt tick.")
                     continue
 
+                now_ist_dt = now_ist()
+                is_opening_settlement = (now_ist_dt.hour == 9 and now_ist_dt.minute < 17)
+
                 if stop is not None and price <= stop:
+                    if is_opening_settlement:
+                        # Allow opening spread widening & noisy auction ticks to settle
+                        continue
                     exit_reason = "Swing Trailing Profit Lock" if price > entry else "Swing Stop Loss"
                     self.execution.close(symbol, price, exit_reason)
                     closed += 1

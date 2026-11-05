@@ -68,7 +68,16 @@ class IndexSRCalculator:
             if index_name.upper() in self._anchored_bars:
                 high, low, close = self._anchored_bars[index_name.upper()]
             else:
-                base_spot = spot_price or (24850.0 if index_name.upper() == "NIFTY" else 54850.0)
+                base_spot = spot_price
+                if (not base_spot or base_spot <= 0) and self.provider and hasattr(self.provider, "quote"):
+                    try:
+                        q = self.provider.quote(sym)
+                        if q and "price" in q and float(q["price"]) > 0:
+                            base_spot = float(q["price"])
+                    except Exception:
+                        pass
+                if not base_spot or base_spot <= 0:
+                    base_spot = 24000.0 if index_name.upper() == "NIFTY" else 54000.0
                 daily_range_pct = 0.008 if index_name.upper() == "NIFTY" else 0.012
                 high = round(base_spot * (1.0 + daily_range_pct), 2)
                 low = round(base_spot * (1.0 - daily_range_pct), 2)

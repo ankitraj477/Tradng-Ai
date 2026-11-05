@@ -61,7 +61,7 @@ class IntradayPositionManager:
                 if price is None:
                     price = float(p.get("current_price") or p["entry_price"])
 
-                self.execution.close(p["symbol"], price, "Catch-up close (missed EOD)", "")
+                self.execution.close(p["symbol"], price, "Catch-up close (missed EOD)", "", force=True)
                 closed += 1
                 self.db.log("WARN", f"[Intraday] CATCH-UP CLOSE: {p['symbol']} closed at {price:.2f}")
             except Exception as e:

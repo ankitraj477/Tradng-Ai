@@ -125,8 +125,18 @@ class FNOExecution:
         )
         return True
 
-    def close(self, symbol: str, current_premium: float, reason: str) -> bool:
+    def close(self, symbol: str, current_premium: float, reason: str, force: bool = False) -> bool:
         """Close an option spread and release margin + P&L."""
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        if enforce_hours and not force and not market_open():
+            self.db.log("WARN", f"[F&O Guard] Refused off-market close for {symbol}: Exchange is CLOSED.")
+            return False
+
         current_premium = round_to_tick(float(current_premium))
         with self.db.conn() as c:
             row = c.execute("SELECT * FROM positions WHERE symbol=? AND UPPER(product_type)='FNO'", (symbol,)).fetchone()

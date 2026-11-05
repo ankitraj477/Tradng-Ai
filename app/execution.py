@@ -119,7 +119,17 @@ class PaperExecution:
             for q in quotes:
                 c.execute("UPDATE positions SET current_price=? WHERE symbol=?", (round_to_tick(q['price']), q['symbol']))
 
-    def close(self, symbol, price, reason, regime):
+    def close(self, symbol, price, reason, regime, force: bool = False):
+        from .market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        if enforce_hours and not force and not market_open():
+            self.db.log("WARN", f"[Paper Guard] Refused off-market close for {symbol}: Exchange is CLOSED.")
+            return False
+
         with self.db.conn() as c:
             row = c.execute("SELECT * FROM positions WHERE symbol=?", (symbol,)).fetchone()
             if not row:

@@ -120,8 +120,18 @@ class SwingExecution:
         self.db.log("INFO", f"SWING BUY {symbol} x{qty} @ {price:.2f} (Target: ₹{proposal.get('target', 0):.2f})")
         return True
 
-    def close(self, symbol: str, price: float, reason: str) -> bool:
+    def close(self, symbol: str, price: float, reason: str, force: bool = False) -> bool:
         """Close a swing position."""
+        from ..market_hours import market_open
+        enforce_hours = (
+            self.cfg.get("execution", {}).get("enforce_market_hours", False)
+            or self.cfg.get("enforce_market_hours", False)
+            or self.cfg.get("live_data", False)
+        )
+        if enforce_hours and not force and not market_open():
+            self.db.log("WARN", f"[Swing Guard] Refused off-market close for {symbol}: Exchange is CLOSED.")
+            return False
+
         with self.db.conn() as c:
             row = c.execute("SELECT * FROM positions WHERE symbol=? AND UPPER(product_type)='SWING'", (symbol,)).fetchone()
             if not row:

@@ -234,11 +234,11 @@ class IntradayExecution:
         self.db.log("INFO", f"[Intraday] SHORT {symbol} x{qty} @ {price:.2f} (SL: {stop_loss:.2f}, TP: {target:.2f}, margin: {val * short_margin_pct:.2f})")
         return True
 
-    def close(self, symbol, exit_price, reason, category=""):
+    def close(self, symbol, exit_price, reason, category="", force: bool = False):
         from ..execution import PaperExecution
         exit_price = round_to_tick(float(exit_price))
         exec_engine = PaperExecution(self.db, self.cfg)
-        return exec_engine.close(symbol, exit_price, reason, category)
+        return exec_engine.close(symbol, exit_price, reason, category, force=force)
 
     def mark(self, quotes):
         from ..execution import PaperExecution
