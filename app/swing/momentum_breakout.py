@@ -91,3 +91,4 @@ class SwingMomentumBreakoutStrategy(BaseDeskStrategy):
             }
 
         return None
+

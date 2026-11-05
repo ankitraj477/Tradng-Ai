@@ -124,3 +124,4 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
             }
 
         return None
+

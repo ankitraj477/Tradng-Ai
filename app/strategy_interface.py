@@ -39,3 +39,4 @@ class BaseDeskStrategy(ABC):
         Returns None if no trade entry criteria are met.
         """
         pass
+
