@@ -56,6 +56,17 @@ class FNOPositionManager:
                 stop_loss_premium = float(p.get("stop_loss") or (entry_credit * 2.0))
                 expiry_date = str(p.get("expiry_date") or "")
                 underlying = "BANKNIFTY" if "BANKNIFTY" in symbol else "NIFTY"
+
+                # 1. Expiry Day / Past Expiry Final Square-Off
+                # Checked prior to spot gate so expired contracts never linger if spot is delayed
+                if expiry_date:
+                    is_past_expiry = expiry_date < today_str
+                    is_expiry_day = (expiry_date == today_str and is_expiry_square_off_time)
+                    if is_past_expiry or is_expiry_day:
+                        self.execution.close(symbol, current_premium, "Thursday Expiry Square-off")
+                        closed += 1
+                        continue
+
                 spot = 0.0
                 if self.chain and hasattr(self.chain, "get_spot_price"):
                     try:
@@ -224,11 +235,6 @@ class FNOPositionManager:
                     except Exception as val_err:
                         self.db.log("DEBUG", f"FNO valuation fallback for {symbol}: {val_err!r}")
 
-                # 2. Expiry Day Final Square-Off (at 15:15 IST on expiry date)
-                if expiry_date == today_str and is_expiry_square_off_time:
-                    self.execution.close(symbol, current_premium, "Thursday Expiry Square-off")
-                    closed += 1
-                    continue
 
                 # 3. Dynamic Multi-Tier Trailing Profit Locks:
                 # Tier 1: At +25% profit (premium decayed by 25%), move stop loss to entry credit (breakeven lock)

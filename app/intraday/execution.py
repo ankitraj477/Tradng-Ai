@@ -137,7 +137,7 @@ class IntradayExecution:
         self.costs = CostModel()
 
     def open_long(self, symbol, qty, price, stop_loss, target, atr=0.0):
-        if qty <= 0:
+        if qty <= 0 or any(p.get("symbol") == symbol for p in self.db.positions()):
             return False
         price = round_to_tick(float(price))
         stop_loss = round_to_tick(float(stop_loss)) if stop_loss is not None else 0.0
@@ -185,7 +185,7 @@ class IntradayExecution:
         return True
 
     def open_short(self, symbol, qty, price, stop_loss, target, atr=0.0):
-        if qty <= 0:
+        if qty <= 0 or any(p.get("symbol") == symbol for p in self.db.positions()):
             return False
         price = round_to_tick(float(price))
         stop_loss = round_to_tick(float(stop_loss)) if stop_loss is not None else 0.0

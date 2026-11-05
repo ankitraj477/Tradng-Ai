@@ -14,7 +14,7 @@ Every modification to the trading algorithms, execution pipelines, and backtesti
 - **Circuit Filters**: Stocks nearing upper or lower price circuit limits (5%, 10%, 20%) must be disqualified from entering new momentum breakouts (`app/eligibility.py`).
 
 ## 3. Statutory Regulatory Cost Model
-- **No Frictionless Backtests**: Never backtest or simulate paper trades with 0% slippage or 0 fees. All trade calculations must route through `app.costs.calculate_costs()`.
+- **No Frictionless Backtests**: Never backtest or simulate paper trades with 0% slippage or 0 fees. All trade calculations must route through `CostModel.calculate()` in `app/costs.py`.
 - **Statutory Charges**:
   - Delivery (CNC): STT 0.1% on buy and sell, Stamp Duty 0.015%, Exchange fee 0.00297%, SEBI turnover fee 0.0001%, GST 18% on (brokerage + exchange fee + SEBI fee), DP charges ₹15.93 per scrip debit.
   - Intraday (MIS): STT 0.025% on sell only, Stamp Duty 0.003%, Exchange fee 0.00297%, SEBI fee 0.0001%, GST 18%.

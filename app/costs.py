@@ -44,21 +44,38 @@ class CostModel:
             self.impact_coefficient = float(raw_costs.get("slippage_impact_factor", 0.10))
             self.max_adtv_order_pct = float(raw_costs.get("max_adtv_order_pct", 0.02))
         else:
-            e = (cfg or {}).get("execution", {})
-            self.brokerage_pct = float(e.get("brokerage_pct", e.get("brokerage", 0.0)))
-            self.brokerage_flat = float(e.get("brokerage_flat", 0.0))
-            self.exchange_pct = float(e.get("exchange_txn_fee_pct", 0.00297))
-            self.sebi_pct = float(e.get("sebi_turnover_fee_pct", 0.0001))
-            self.gst_pct = float(e.get("gst_pct", 0.18))
-            self.stamp_intraday_pct = float(e.get("stamp_duty_non_delivery_pct", 0.003))
-            self.stamp_delivery_pct = float(e.get("stamp_duty_delivery_pct", 0.015))
+            self.brokerage_pct = 0.0
+            self.brokerage_flat = 0.0
+            self.exchange_pct = 0.00297
+            self.sebi_pct = 0.0001
+            self.gst_pct = 0.18
+            self.stamp_intraday_pct = 0.003
+            self.stamp_delivery_pct = 0.015
             self.stamp_options_pct = 0.003
-            self.stt_intraday_sell_pct = float(e.get("stt_intraday_sell_pct", 0.025))
-            self.stt_delivery_pct = float(e.get("stt_delivery_pct", 0.10))
-            self.dp_charges = float(e.get("dp_charges", 15.93))
-            self.base_slippage_bps = float(e.get("base_slippage_bps", e.get("slippage_bps", 5.0)))
-            self.impact_coefficient = float(e.get("slippage_impact_coefficient", 0.10))
+            self.stt_intraday_sell_pct = 0.025
+            self.stt_delivery_pct = 0.10
+            self.dp_charges = 15.93
+            self.base_slippage_bps = 5.0
+            self.impact_coefficient = 0.10
             self.max_adtv_order_pct = 0.02
+
+        # Allow explicit user / test execution config overrides
+        if cfg and "execution" in cfg:
+            e = cfg["execution"]
+            if "brokerage_pct" in e: self.brokerage_pct = float(e["brokerage_pct"])
+            elif "brokerage" in e: self.brokerage_pct = float(e["brokerage"])
+            if "brokerage_flat" in e: self.brokerage_flat = float(e["brokerage_flat"])
+            if "exchange_txn_fee_pct" in e: self.exchange_pct = float(e["exchange_txn_fee_pct"])
+            if "sebi_turnover_fee_pct" in e: self.sebi_pct = float(e["sebi_turnover_fee_pct"])
+            if "gst_pct" in e: self.gst_pct = float(e["gst_pct"])
+            if "stamp_duty_non_delivery_pct" in e: self.stamp_intraday_pct = float(e["stamp_duty_non_delivery_pct"])
+            if "stamp_duty_delivery_pct" in e: self.stamp_delivery_pct = float(e["stamp_duty_delivery_pct"])
+            if "stt_intraday_sell_pct" in e: self.stt_intraday_sell_pct = float(e["stt_intraday_sell_pct"])
+            if "stt_delivery_pct" in e: self.stt_delivery_pct = float(e["stt_delivery_pct"])
+            if "dp_charges" in e: self.dp_charges = float(e["dp_charges"])
+            if "base_slippage_bps" in e: self.base_slippage_bps = float(e["base_slippage_bps"])
+            elif "slippage_bps" in e: self.base_slippage_bps = float(e["slippage_bps"])
+            if "slippage_impact_coefficient" in e: self.impact_coefficient = float(e["slippage_impact_coefficient"])
 
     def calculate_slippage_bps(self, value: float, adtv: Optional[float] = None, enforce_max_pct: bool = False) -> float:
         """

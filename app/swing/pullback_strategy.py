@@ -3,7 +3,8 @@ Swing Pullback Strategy.
 Generates structured swing trade proposals with 2:1 to 3:1 Risk-to-Reward,
 designed for 3-day to 20-day holding periods.
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
+import pandas as pd
 from ..strategy_interface import BaseDeskStrategy
 
 
@@ -40,10 +41,49 @@ class SwingPullbackStrategy(BaseDeskStrategy):
                 return prop
         return None
 
-    def propose(self, candidate: dict, market_regime: str = "Bullish") -> dict | None:
+    def propose(
+        self,
+        target: Union[dict, str],
+        market_regime: str = "Bullish",
+        context: Optional[Dict[str, Any]] = None
+    ) -> dict | None:
         """
-        Convert a swing candidate into an executable trade proposal.
+        Convert a swing candidate (or symbol string with context) into an executable trade proposal.
+        Conforms strictly to BaseDeskStrategy.propose(target, context=...).
         """
+        if not target:
+            return None
+
+        candidate = None
+        if isinstance(target, dict):
+            candidate = target
+        elif isinstance(target, str):
+            symbol = target
+            ctx = context or {}
+            if "candidate" in ctx:
+                candidate = ctx["candidate"]
+            elif self.provider:
+                from .scanner import SwingScanner
+                scanner = SwingScanner(self.provider)
+                candidate = scanner.scan_symbol(symbol)
+            else:
+                daily_df = ctx.get("daily_df")
+                if daily_df is not None and len(daily_df) >= 20:
+                    c = daily_df["Close"]
+                    h = daily_df["High"]
+                    l = daily_df["Low"]
+                    last_px = float(c.iloc[-1])
+                    ema20 = float(c.ewm(span=20, adjust=False).mean().iloc[-1])
+                    tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
+                    atr = float(tr.tail(14).mean()) if len(tr) >= 14 else float(last_px * 0.02)
+                    candidate = {
+                        "symbol": symbol,
+                        "price": last_px,
+                        "ema_20": ema20,
+                        "atr": atr,
+                        "score": 80.0
+                    }
+
         if not candidate:
             return None
 

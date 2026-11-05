@@ -3,12 +3,16 @@ Tests for F&O Dynamic Support & Resistance (S/R) Calculator,
 regime gating, 2-second price tracking, and dynamic trailing stop loss.
 """
 import pytest
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from app.db import DB
 from app.fno.index_chain import IndexChainManager
 from app.fno.sr_levels import IndexSRCalculator
 from app.fno.iron_condor import IronCondorStrategy
 from app.fno.execution import FNOExecution
 from app.fno.position_manager import FNOPositionManager
+
+IST = ZoneInfo("Asia/Kolkata")
 
 
 class MockProvider:
@@ -150,7 +154,7 @@ def test_fno_directional_drift_valuation_safe_within_wings():
         "strategy": "NIFTY Bull Put Spread",
         "strike_price": 22900.0,
         "option_type": "PE",
-        "expiry_date": "2026-11-05",
+        "expiry_date": (datetime.now(IST).date() + timedelta(days=7)).strftime("%Y-%m-%d"),
     }
     assert fno_exec.open_spread(proposal, lots=1, force_fill=True)
 

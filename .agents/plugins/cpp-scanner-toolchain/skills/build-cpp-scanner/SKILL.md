@@ -23,11 +23,11 @@ cl.exe /O2 /std:c++17 cpp/scanner.cpp /Fe:cpp/scanner.exe
 ```
 
 ## Configuration
-Once compiled, toggle C++ scanning in [config/default.json](file:///c:/Users/KIIT/Desktop/projects/Tradng-Ai/config/default.json):
+Once compiled, toggle C++ scanning in [config/default.json](file:///c:/Users/KIIT/Desktop/projects/Tradng-Ai/config/default.json) (on Windows use `"cpp/scanner.exe"`):
 ```json
 {
   "use_cpp_scanner": true,
-  "cpp_scanner_path": "cpp/scanner"  // On Windows: "cpp/scanner.exe"
+  "cpp_scanner_path": "cpp/scanner"
 }
 ```
 

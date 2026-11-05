@@ -260,8 +260,15 @@ class TradingEngine:
         """
         try:
             live = self.cfg.get("live_data", False)
+            existing_desks = dict(self.cfg.get("desks", {}))
+            existing_exec = dict(self.cfg.get("execution", {}))
             if new_cfg is None:
                 new_cfg = load_config()
+                # Preserve active runtime overrides for desks and execution parameters
+                if existing_desks:
+                    new_cfg.setdefault("desks", {}).update(existing_desks)
+                if existing_exec:
+                    new_cfg.setdefault("execution", {}).update(existing_exec)
             else:
                 new_cfg = dict(new_cfg)
             new_cfg["live_data"] = live or new_cfg.get("live_data", False)

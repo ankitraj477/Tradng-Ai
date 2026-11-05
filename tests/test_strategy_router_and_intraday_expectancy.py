@@ -163,3 +163,15 @@ def test_strategy_router_selection():
     # 3. Swing selection
     swing_trend = router.select_best_strategy("SWING", trend_ctx)
     assert swing_trend is not None
+
+    # 4. Verify route_swing conforms to BaseDeskStrategy.propose(symbol, context=...)
+    pullback_ctx = {
+        "regime": "Pullback", "adx": 20.0,
+        "candidate": {"symbol": "TCS.NS", "price": 4000.0, "ema_20": 3950.0, "atr": 40.0, "score": 85.0}
+    }
+    swing_prop = router.route_swing("TCS.NS", context=pullback_ctx)
+    assert swing_prop is not None
+    assert swing_prop["symbol"] == "TCS.NS"
+    assert swing_prop["action"] == "BUY"
+    assert swing_prop["stop_loss"] < 4000.0
+    assert swing_prop["target"] > 4000.0

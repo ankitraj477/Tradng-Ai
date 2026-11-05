@@ -93,7 +93,13 @@ class ZerodhaKiteAdapter(AbstractBrokerAdapter):
             }
 
         clean_symbol = symbol.replace(".NS", "").replace(".BO", "")
-        exchange = "NFO" if "CONDOR" in symbol or "CE" in symbol or "PE" in symbol else "NSE"
+        is_fno = (
+            product_type.upper() == "FNO"
+            or any(k in symbol for k in ("-CONDOR-", "-BPS-", "-BCS-", "-BCALL-", "-BPUT-"))
+            or symbol.endswith("CE")
+            or symbol.endswith("PE")
+        )
+        exchange = "NFO" if is_fno else "NSE"
 
         # Map internal product types to Kite product types
         product_map = {

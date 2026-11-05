@@ -129,23 +129,25 @@ class IntradayDeskRunner:
                     continue
 
                 if sig.action == "BUY":
-                    self.execution.open_long(
+                    ok = self.execution.open_long(
                         sym, qty, price,
                         sig.stop_loss or (price * 0.99),
                         sig.target or (price * 1.02),
                         sig.atr or (price * 0.01)
                     )
-                    self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f}){catalyst_info}")
-                    current_intraday.append({"symbol": sym})
+                    if ok:
+                        self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f}){catalyst_info}")
+                        current_intraday.append({"symbol": sym})
                 elif sig.action == "SHORT":
-                    self.execution.open_short(
+                    ok = self.execution.open_short(
                         sym, qty, price,
                         sig.stop_loss or (price * 1.01),
                         sig.target or (price * 0.98),
                         sig.atr or (price * 0.01)
                     )
-                    self.db.log("INFO", f"[Intraday Desk] ENTERED SHORT {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f})")
-                    current_intraday.append({"symbol": sym})
+                    if ok:
+                        self.db.log("INFO", f"[Intraday Desk] ENTERED SHORT {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f})")
+                        current_intraday.append({"symbol": sym})
 
 
 def run_intraday_standalone():

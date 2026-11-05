@@ -370,3 +370,32 @@ def test_swing_execution_registers_and_cancels_brackets(test_db):
     # Verify bracket cancelled
     active_after = se.bracket_manager.get_active_brackets("ITC.NS")
     assert len(active_after) == 0
+
+
+def test_broker_exchange_routing_for_tickers_with_ce_pe():
+    """Verifies tickers like RELIANCE, PERSISTENT, and SPENCERS route to NSE, not NFO."""
+    from app.broker.zerodha import ZerodhaKiteAdapter
+    from app.broker.angel import AngelSmartApiAdapter
+
+    k = ZerodhaKiteAdapter(api_key="fake", access_token="fake")
+    k._connected = True
+    placed = {}
+    class DummyKite:
+        VARIETY_REGULAR = "regular"
+        def place_order(self, **kwargs):
+            placed.update(kwargs)
+            return "12345"
+    k.kite = DummyKite()
+
+    # 1. RELIANCE (contains "CE") must route to NSE for equity MIS/CNC
+    k.place_order("RELIANCE.NS", "BUY", 10, 2500.0, product_type="SWING")
+    assert placed["exchange"] == "NSE", f"RELIANCE.NS should be NSE, got {placed['exchange']}"
+
+    # 2. PERSISTENT (contains "PE") must route to NSE for equity MIS/CNC
+    k.place_order("PERSISTENT.NS", "BUY", 5, 5000.0, product_type="INTRADAY")
+    assert placed["exchange"] == "NSE", f"PERSISTENT.NS should be NSE, got {placed['exchange']}"
+
+    # 3. FNO options contract must route to NFO
+    k.place_order("NIFTY24000CE", "BUY", 25, 150.0, product_type="FNO")
+    assert placed["exchange"] == "NFO", f"NIFTY option should be NFO, got {placed['exchange']}"
+
