@@ -51,9 +51,22 @@ class PortfolioManager:
         if equity <= 0:
             return 0
 
-        max_positions = self.cfg.get("market", {}).get("max_open_positions")
+        is_hyper = bool(self.cfg.get("hyper_aggressive", False))
+        is_micro = bool(equity <= 5000.0 or self.cfg.get("micro_account", False))
+        if is_micro and is_hyper:
+            max_positions = 2
+        else:
+            max_positions = self.cfg.get("market", {}).get("max_open_positions")
+
         if max_positions is not None and len(positions) >= int(max_positions):
             return 0
+
+        # In Hyper-Aggressive mode on micro capital (equity <= 5000), deploy up to 88% cash on #1 setup
+        if is_hyper and is_micro:
+            available_cash = self.metrics()["available_cash"]
+            max_trade_cap = min(available_cash * 0.88, equity * 0.90)
+            final_qty = max(0, int(max_trade_cap / proposal["price"]))
+            return final_qty
 
         # BUG-009: Scale position risk by regime size multiplier (e.g. 0.5 in High Volatility)
         mult = float(size_multiplier if size_multiplier is not None else 1.0)

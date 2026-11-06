@@ -72,20 +72,28 @@ class RiskManager:
         if any(x["symbol"] == p["symbol"] for x in positions):
             return "REJECT"
 
-        max_positions = self.cfg.get("market", {}).get("max_open_positions")
-        if max_positions is not None and len(positions) >= int(max_positions):
-            return "REJECT"
-
         equity = self.equity()
 
         if equity <= 0:
             return "REJECT"
 
+        is_micro = bool(equity <= 5000.0 or self.cfg.get("micro_account", False))
+        is_hyper = bool(self.cfg.get("hyper_aggressive", False))
+        max_positions = self.cfg.get("market", {}).get("max_open_positions")
+        if is_micro and is_hyper:
+            effective_max = 2
+        else:
+            effective_max = int(max_positions) if max_positions is not None else 5
+
+        if len(positions) >= effective_max:
+            return "REJECT"
+
         from .risk_engine import PortfolioHeatLimiter
-        # BUG-025: Use explicit config key with proper default
+        max_sec = 1.0 if is_micro else float(self.cfg.get("risk", {}).get("max_sector_exposure_pct", 0.40))
+        max_heat = 0.12 if (is_micro or is_hyper) else float(self.cfg.get("risk", {}).get("max_portfolio_heat_pct", 0.06))
         heat_limiter = PortfolioHeatLimiter(
-            max_heat_pct=self.cfg.get("risk", {}).get("max_portfolio_heat_pct", 0.06),
-            max_sector_pct=self.cfg.get("risk", {}).get("max_sector_exposure_pct", 0.40)
+            max_heat_pct=max_heat,
+            max_sector_pct=max_sec
         )
         ok_heat, _ = heat_limiter.check(equity, positions, p, qty)
         if not ok_heat:
