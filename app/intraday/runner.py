@@ -38,7 +38,8 @@ class IntradayDeskRunner:
 
         # 2. Check market hours and entry window (09:30 - 14:45 IST)
         enforce_hours = self.cfg.get("execution", {}).get("enforce_market_hours", True)
-        if enforce_hours and (not market_open(now) or not self.timing.can_enter(now)):
+        allow_midday = bool(self.cfg.get("hyper_aggressive", True))
+        if enforce_hours and (not market_open(now) or not self.timing.can_enter(now, allow_midday=allow_midday)):
             self.db.log("INFO", f"[Intraday Desk] Outside intraday entry window. Monitoring only.")
             return
 
