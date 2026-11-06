@@ -60,6 +60,11 @@ def create_app(db, cfg=None, provider=None, learning=None, news_archive=None):
         )
         return response
 
+    @flask_app.context_processor
+    def inject_version():
+        from .version import __version__
+        return dict(version=__version__, app_version=__version__)
+
     # Register all modular blueprints
     register_blueprints(flask_app)
 

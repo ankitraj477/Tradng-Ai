@@ -9,6 +9,7 @@ from flask import Blueprint, jsonify, render_template, request, current_app
 from ..accounting import portfolio_metrics
 from ..market_hours import market_phase, now_ist, holiday_name, market_open, IST
 from ..news_archive import NewsArchive
+from ..version import __version__
 from .auth import is_authorized
 
 overview_bp = Blueprint("overview", __name__)
@@ -89,7 +90,7 @@ def health():
         is_ready = bool(account and data_ok and auto_trading)
 
         return jsonify({
-            "version": "7.1",
+            "version": __version__,
             "status": "ok" if account else "degraded",
             "ready": is_ready,
             "paper_only": True,
@@ -226,7 +227,7 @@ def state():
         })
 
     return jsonify({
-        "version": "7.1",
+        "version": __version__,
         "paper_only": True,
         "auto_trading": db.is_auto_trading_enabled(),
         "total_pnl": pnl,

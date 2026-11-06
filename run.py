@@ -23,9 +23,10 @@ def main():
     p.add_argument("--port", default=int(os.getenv("APP_PORT", "5000")), type=int)
     args = p.parse_args()
 
+    from app.version import __version__
     setup_logging(log_level=args.log_level)
     print("=" * 60)
-    print("   TRADNG-AI PRO v7.1: UNIFIED MULTI-DESK TRADING ENGINE    ")
+    print(f"   TRADNG-AI PRO v{__version__}: UNIFIED MULTI-DESK TRADING ENGINE    ")
     print("   [1] Intraday Desk (MIS)           -> ACTIVE        ")
     print("   [2] Stocks / Swing Desk (CNC)     -> ACTIVE        ")
     print("   [3] Futures & Options Desk (F&O)  -> ACTIVE        ")

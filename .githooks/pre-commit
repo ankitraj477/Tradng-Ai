@@ -1,0 +1,9 @@
+#!/bin/sh
+# Tradng-Ai Pre-Commit Git Hook
+# Automatically increments the patch version on every commit unless already updated.
+
+if command -v python3 >/dev/null 2>&1; then
+    python3 scripts/bump_version.py --stage
+elif command -v python >/dev/null 2>&1; then
+    python scripts/bump_version.py --stage
+fi
