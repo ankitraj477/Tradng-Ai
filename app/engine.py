@@ -758,7 +758,8 @@ class TradingEngine:
                 self.snapshot()
                 return
 
-            if not self.timing.can_enter(current_ist):
+            is_hyper = bool(self.cfg.get("hyper_aggressive", False) or self.cfg.get("execution", {}).get("hyper_aggressive", False))
+            if not self.timing.can_enter(current_ist, allow_midday=is_hyper):
                 self.positions.manage(current_ist)
                 phase = self.timing.get_phase(current_ist)
                 self.db.log(
