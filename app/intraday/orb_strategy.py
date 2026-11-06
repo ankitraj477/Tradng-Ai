@@ -85,7 +85,7 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         current_time = intraday_df.index[-1]
 
         # 1. Timing Gate: must be in active trading window (09:30 - 14:45 IST)
-        if not self.timing.can_enter(current_time):
+        if not self.timing.can_enter(current_time, allow_midday=True):
             return None
 
         current_date = current_time.date()

@@ -11,6 +11,7 @@ from .timing import IntradayTimingManager
 from .position_manager import IntradayPositionManager
 from .execution import IntradayExecution
 from .orb_strategy import ORBDeskStrategy
+from .router import IntradayMultiStrategyRouter
 from .scanner import IntradayScanner
 
 
@@ -23,7 +24,7 @@ class IntradayDeskRunner:
         self.timing = IntradayTimingManager()
         self.execution = IntradayExecution(db, self.cfg)
         self.position_manager = IntradayPositionManager(db, self.execution, provider, self.cfg)
-        self.strategy = ORBDeskStrategy(provider, self.cfg)
+        self.strategy = IntradayMultiStrategyRouter(provider, self.cfg)
         self.scanner = IntradayScanner(provider, self.cfg)
 
     def run_cycle(self):
@@ -153,7 +154,8 @@ class IntradayDeskRunner:
                         sig.atr or (price * 0.01)
                     )
                     if ok:
-                        self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f}){catalyst_info}")
+                        strat_name = getattr(sig, "strategy", "Intraday")
+                        self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} [{strat_name}] (notional: ₹{trade_notional:.2f}){catalyst_info}")
                         current_intraday.append({"symbol": sym})
                 elif sig.action == "SHORT":
                     ok = self.execution.open_short(
@@ -163,7 +165,8 @@ class IntradayDeskRunner:
                         sig.atr or (price * 0.01)
                     )
                     if ok:
-                        self.db.log("INFO", f"[Intraday Desk] ENTERED SHORT {sym} qty={qty} at {price:.2f} (notional: ₹{trade_notional:.2f})")
+                        strat_name = getattr(sig, "strategy", "Intraday")
+                        self.db.log("INFO", f"[Intraday Desk] ENTERED SHORT {sym} qty={qty} at {price:.2f} [{strat_name}] (notional: ₹{trade_notional:.2f})")
                         current_intraday.append({"symbol": sym})
 
 

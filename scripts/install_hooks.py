@@ -18,3 +18,4 @@ def install_hooks():
 
 if __name__ == "__main__":
     install_hooks()
+

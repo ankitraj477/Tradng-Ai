@@ -40,3 +40,4 @@ def test_dashboard_version_endpoints(tmp_path):
     html = res_index.get_data(as_text=True)
     assert f"PRO v{__version__}" in html
     assert f"?v={__version__}" in html
+
