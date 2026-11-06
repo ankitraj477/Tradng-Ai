@@ -311,15 +311,24 @@ def learning_state():
 
 
 @overview_bp.route("/api/capital/allocation", methods=["GET", "POST"])
+@overview_bp.route("/api/capital-allocation", methods=["GET", "POST"])
 def handle_capital_allocation():
     db = current_app.config["DB"]
     if request.method == "POST":
         if not is_authorized():
             return jsonify({"error": "Unauthorized"}), 401
         payload = request.get_json(silent=True) or {}
-        intra = payload.get("intraday")
-        sw = payload.get("swing")
-        fno = payload.get("fno")
+        existing = db.get_capital_allocation()
+        try:
+            i_val = payload.get("intraday", existing.get("intraday", 40.0))
+            s_val = payload.get("swing", existing.get("swing", 40.0))
+            f_val = payload.get("fno", existing.get("fno", 20.0))
+            intra = max(0.0, float(i_val if i_val is not None else 0.0))
+            sw = max(0.0, float(s_val if s_val is not None else 0.0))
+            fno = max(0.0, float(f_val if f_val is not None else 0.0))
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid capital allocation numbers"}), 400
         updated = db.set_capital_allocation(intra, sw, fno)
+        db.log("INFO", f"Capital allocation updated: Intraday={updated['intraday']}%, Swing={updated['swing']}%, F&O={updated['fno']}%")
         return jsonify({"status": "ok", "capital_allocation": updated})
     return jsonify(db.get_capital_allocation())

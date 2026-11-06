@@ -66,6 +66,16 @@ class PortfolioManager:
             available_cash = self.metrics()["available_cash"]
             max_trade_cap = min(available_cash * 0.88, equity * 0.90)
             final_qty = max(0, int(max_trade_cap / proposal["price"]))
+            sector = proposal.get("sector")
+            if sector and sector != "Unknown" and "max_sector_exposure_pct" in self.cfg.get("risk", {}):
+                current_sector = sum(
+                    float(x["qty"]) * float(x.get("current_price", x.get("entry_price", 0)))
+                    for x in positions
+                    if x.get("sector") == sector
+                )
+                sector_limit = equity * self.cfg["risk"]["max_sector_exposure_pct"]
+                qty_by_sector = int(max(0.0, sector_limit - current_sector) / proposal["price"])
+                final_qty = min(final_qty, qty_by_sector)
             return final_qty
 
         # BUG-009: Scale position risk by regime size multiplier (e.g. 0.5 in High Volatility)

@@ -252,10 +252,11 @@ function updateOverviewTab(data) {
     // 8. Sync Capital Allocation if not actively editing
     lastPortfolioEquity = Number(data.portfolio || data.equity || 100000);
     if (!isUserEditingAlloc && data.capital_allocation) {
+        const ca = data.capital_allocation;
         currentAllocState = {
-            intraday: Math.round(Number(data.capital_allocation.intraday || 40)),
-            swing: Math.round(Number(data.capital_allocation.swing || 40)),
-            fno: Math.round(Number(data.capital_allocation.fno || 20))
+            intraday: Math.round(Number(ca.intraday !== undefined && ca.intraday !== null ? ca.intraday : 40)),
+            swing: Math.round(Number(ca.swing !== undefined && ca.swing !== null ? ca.swing : 40)),
+            fno: Math.round(Number(ca.fno !== undefined && ca.fno !== null ? ca.fno : 20))
         };
         updateCapitalAllocationUI(currentAllocState, lastPortfolioEquity);
     }
@@ -349,9 +350,9 @@ let allocResetTimer = null;
 
 function updateCapitalAllocationUI(alloc, totalEquity) {
     if (!alloc) return;
-    const intra = Math.max(0, Math.round(Number(alloc.intraday || 0)));
-    const swing = Math.max(0, Math.round(Number(alloc.swing || 0)));
-    const fno = Math.max(0, Math.round(Number(alloc.fno || 0)));
+    const intra = Math.max(0, Math.round(Number(alloc.intraday !== undefined && alloc.intraday !== null ? alloc.intraday : 0)));
+    const swing = Math.max(0, Math.round(Number(alloc.swing !== undefined && alloc.swing !== null ? alloc.swing : 0)));
+    const fno = Math.max(0, Math.round(Number(alloc.fno !== undefined && alloc.fno !== null ? alloc.fno : 0)));
     const sum = intra + swing + fno;
 
     // 1. Sync Segmented Bar
@@ -438,12 +439,12 @@ function applyAllocPreset(intra, swing, fno) {
 
 function normalizeAllocation() {
     isUserEditingAlloc = true;
-    let i = currentAllocState.intraday || 0;
-    let s = currentAllocState.swing || 0;
-    let f = currentAllocState.fno || 0;
+    let i = Math.max(0, Math.round(Number(currentAllocState.intraday !== undefined && currentAllocState.intraday !== null ? currentAllocState.intraday : 0)));
+    let s = Math.max(0, Math.round(Number(currentAllocState.swing !== undefined && currentAllocState.swing !== null ? currentAllocState.swing : 0)));
+    let f = Math.max(0, Math.round(Number(currentAllocState.fno !== undefined && currentAllocState.fno !== null ? currentAllocState.fno : 0)));
     const total = i + s + f;
     if (total <= 0) {
-        i = 34; s = 33; f = 33;
+        i = 40; s = 40; f = 20;
     } else {
         i = Math.round((i / total) * 100);
         s = Math.round((s / total) * 100);
@@ -472,9 +473,9 @@ async function saveCapitalAllocation() {
 
     try {
         const payload = {
-            intraday: currentAllocState.intraday,
-            swing: currentAllocState.swing,
-            fno: currentAllocState.fno
+            intraday: Math.max(0, Math.round(Number(currentAllocState.intraday !== undefined && currentAllocState.intraday !== null ? currentAllocState.intraday : 0))),
+            swing: Math.max(0, Math.round(Number(currentAllocState.swing !== undefined && currentAllocState.swing !== null ? currentAllocState.swing : 0))),
+            fno: Math.max(0, Math.round(Number(currentAllocState.fno !== undefined && currentAllocState.fno !== null ? currentAllocState.fno : 0)))
         };
 
         const res = await fetchWithAuth('/api/capital-allocation', {
@@ -491,8 +492,13 @@ async function saveCapitalAllocation() {
 
         const data = await res.json();
         const updated = data.capital_allocation || payload;
-        currentAllocState = updated;
+        currentAllocState = {
+            intraday: Math.round(Number(updated.intraday !== undefined && updated.intraday !== null ? updated.intraday : 0)),
+            swing: Math.round(Number(updated.swing !== undefined && updated.swing !== null ? updated.swing : 0)),
+            fno: Math.round(Number(updated.fno !== undefined && updated.fno !== null ? updated.fno : 0))
+        };
         isUserEditingAlloc = false;
+        updateCapitalAllocationUI(currentAllocState, lastPortfolioEquity);
 
         if (msg) {
             msg.textContent = `✅ Capital rebalanced: Intraday ${updated.intraday}%, Swing ${updated.swing}%, F&O ${updated.fno}%`;

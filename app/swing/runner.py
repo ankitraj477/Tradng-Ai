@@ -61,6 +61,9 @@ class SwingDeskRunner:
         # 4. Capital check for swing desk
         alloc = self.db.get_capital_allocation()
         swing_alloc_pct = alloc.get("swing", 40.0) / 100.0
+        if swing_alloc_pct <= 0.0:
+            self.db.log("INFO", "[Swing Desk] Swing capital allocation is 0%. New entries paused.")
+            return
         account = self.db.account()
         cash = float(account.get("cash", 0.0)) if account else 0.0
         starting = float(account.get("starting_capital", 100000.0)) if account else 100000.0

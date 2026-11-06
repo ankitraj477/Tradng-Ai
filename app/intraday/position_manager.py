@@ -178,7 +178,7 @@ class IntradayPositionManager:
 
                     if stop is not None and price <= stop:
                         gain_pct = (price - entry) / entry if entry > 0 else 0.0
-                        if gain_pct >= 0.008:
+                        if gain_pct > 0.01:
                             exit_reason = "Trailing profit lock"
                         elif gain_pct > 0.0:
                             exit_reason = "Breakeven cost-cover"
@@ -251,7 +251,7 @@ class IntradayPositionManager:
 
                     if stop is not None and price >= stop:
                         gain_pct = (entry - price) / entry if entry > 0 else 0.0
-                        if gain_pct >= 0.008:
+                        if gain_pct > 0.01:
                             exit_reason = "Trailing profit lock"
                         elif gain_pct > 0.0:
                             exit_reason = "Breakeven cost-cover"

@@ -52,7 +52,7 @@ class IntradayDeskRunner:
         starting = float(account.get("starting_capital", 100000.0) if account else 100000.0)
         cash = float(account.get("cash", starting) if account else starting)
         cfg_max = int(self.cfg.get("market", {}).get("max_open_positions", 5))
-        is_hyper = bool(self.cfg.get("hyper_aggressive", True))
+        is_hyper = bool(self.cfg.get("hyper_aggressive", False))
         # For micro-capital accounts (starting <= 5000), hyper-aggressive runs 1 focused sniper trade at a time
         if starting <= 5000.0:
             max_intra_positions = 1 if is_hyper else min(cfg_max, 2)
@@ -78,6 +78,10 @@ class IntradayDeskRunner:
         # 5. Scan candidates & evaluate ORB signals
         alloc = self.db.get_capital_allocation()
         intra_alloc_pct = alloc.get("intraday", 40.0) / 100.0
+        if intra_alloc_pct <= 0.0:
+            self.db.log("INFO", "[Intraday Desk] Intraday capital allocation is 0%. New entries paused.")
+            return
+
         min_notional = float(self.cfg.get("risk", {}).get("min_trade_notional", 5000.0))
 
         universe = get_universe_symbols()
@@ -122,7 +126,7 @@ class IntradayDeskRunner:
 
                 # Sized capital allocation: Hyper-aggressive sniper sizing deploys up to 88% cash on #1 setup
                 if is_hyper and starting <= 5000.0:
-                    max_trade_cap = min(cash * 0.88, starting * 0.90)
+                    max_trade_cap = min(cash * 0.88, starting * intra_alloc_pct * 0.90)
                 else:
                     max_trade_cap = (starting * intra_alloc_pct) / float(max_intra_positions)
 
@@ -132,8 +136,8 @@ class IntradayDeskRunner:
                     continue
 
                 trade_notional = qty * price
-                # For micro-capital accounts (starting <= 5000), bypass high min_notional barrier
-                if starting <= 5000.0:
+                # For micro-capital accounts in hyper-aggressive mode, bypass high min_notional barrier
+                if is_hyper and starting <= 5000.0:
                     effective_min_notional = 0.0
                 else:
                     effective_min_notional = min(min_notional, price) if price >= 2000.0 else min_notional

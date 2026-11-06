@@ -89,10 +89,14 @@ def handle_capital_allocation_alias():
         if not is_authorized():
             return jsonify({"error": "Unauthorized"}), 401
         data = request.get_json(silent=True) or {}
+        existing = db.get_capital_allocation()
         try:
-            intraday = max(0.0, float(data.get("intraday", 40.0)))
-            swing = max(0.0, float(data.get("swing", 40.0)))
-            fno = max(0.0, float(data.get("fno", 20.0)))
+            i_val = data.get("intraday", existing.get("intraday", 40.0))
+            s_val = data.get("swing", existing.get("swing", 40.0))
+            f_val = data.get("fno", existing.get("fno", 20.0))
+            intraday = max(0.0, float(i_val if i_val is not None else 0.0))
+            swing = max(0.0, float(s_val if s_val is not None else 0.0))
+            fno = max(0.0, float(f_val if f_val is not None else 0.0))
         except (ValueError, TypeError):
             return jsonify({"error": "Invalid capital allocation numbers"}), 400
         updated = db.set_capital_allocation(intraday, swing, fno)
