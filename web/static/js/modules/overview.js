@@ -65,8 +65,8 @@ function initEquityChart() {
 }
 
 function updateRoadmapTracker(data, portVal, dailyPnl) {
-    const starting = Number(data.starting_capital || 1000);
-    const target = Number(data.target_capital || data.target || 10000);
+    const starting = Number(data.starting_capital || 10000);
+    const target = Number(data.target_capital || data.target || 50000);
     const currEquity = Number(portVal || starting);
 
     // Progress percentage from starting to target
@@ -84,15 +84,18 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
     const currEqEl = document.getElementById('roadmap-curr-equity');
     if (currEqEl) currEqEl.textContent = formatINR(currEquity);
 
+    const targetEqEl = document.getElementById('roadmap-target-equity');
+    if (targetEqEl) targetEqEl.textContent = formatINR(target);
+
     const remValEl = document.getElementById('roadmap-remaining-val');
     if (remValEl) {
         const remaining = Math.max(0, target - currEquity);
-        const remPct = currEquity > 0 ? ((remaining / currEquity) * 100).toFixed(0) : 900;
+        const remPct = currEquity > 0 ? ((remaining / currEquity) * 100).toFixed(0) : Math.round((totalDist / starting) * 100);
         remValEl.textContent = `${formatINR(remaining)} remaining (+${remPct}%)`;
     }
 
     // Hyper-Aggressive Daily target: +5.0% of starting capital or current equity
-    const dailyTargetRupees = Math.max(50, currEquity * 0.05);
+    const dailyTargetRupees = Math.max(starting * 0.05, currEquity * 0.05);
     const dailyTargetEl = document.getElementById('roadmap-daily-target');
     if (dailyTargetEl) dailyTargetEl.textContent = '+' + formatINR(dailyTargetRupees);
 
@@ -104,6 +107,11 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
         dailyAchievedEl.textContent = `Today's Net: ${prefix}${formatINR(todayPnl)} (${prefix}${todayPct}%)`;
     }
 
+    // Dynamic Milestone thresholds (25% and 62.5% of progress journey)
+    const t2 = starting + (target - starting) * 0.25;
+    const t3 = starting + (target - starting) * 0.625;
+    const fmtK = (val) => (val >= 1000 ? `₹${(val / 1000).toFixed(0)}k` : `₹${val}`);
+
     // Tier badge, mode title, and milestone dots
     const tierBadge = document.getElementById('roadmap-tier-badge');
     const modeTitle = document.getElementById('roadmap-mode-title');
@@ -111,9 +119,9 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
     const tier3Dot = document.getElementById('marker-tier3-dot');
     const targetDot = document.getElementById('marker-target-dot');
 
-    if (currEquity < 3000) {
+    if (currEquity < t2) {
         if (tierBadge) {
-            tierBadge.textContent = '⚡ HYPER-AGGRESSIVE MIS (5% DAILY)';
+            tierBadge.textContent = `⚡ HYPER-AGGRESSIVE MIS (5% DAILY)`;
             tierBadge.className = 'pill pill-rose';
         }
         if (modeTitle) {
@@ -123,9 +131,9 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
         if (tier2Dot) tier2Dot.classList.remove('active');
         if (tier3Dot) tier3Dot.classList.remove('active');
         if (targetDot) targetDot.classList.remove('active');
-    } else if (currEquity < 7000) {
+    } else if (currEquity < t3) {
         if (tierBadge) {
-            tierBadge.textContent = 'TIER 2: EMERGING CAPITAL (₹3k → ₹7k)';
+            tierBadge.textContent = `TIER 2: EXPANDED CAPITAL (${fmtK(t2)} → ${fmtK(t3)})`;
             tierBadge.className = 'pill pill-emerald';
         }
         if (modeTitle) {
@@ -135,9 +143,9 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
         if (tier2Dot) tier2Dot.classList.add('active');
         if (tier3Dot) tier3Dot.classList.remove('active');
         if (targetDot) targetDot.classList.remove('active');
-    } else if (currEquity < 10000) {
+    } else if (currEquity < target) {
         if (tierBadge) {
-            tierBadge.textContent = 'TIER 3: MULTI-DESK SCALE (₹7k → ₹10k)';
+            tierBadge.textContent = `TIER 3: MULTI-DESK SCALE (${fmtK(t3)} → ${fmtK(target)})`;
             tierBadge.className = 'pill pill-cyan';
         }
         if (modeTitle) {
@@ -149,11 +157,11 @@ function updateRoadmapTracker(data, portVal, dailyPnl) {
         if (targetDot) targetDot.classList.remove('active');
     } else {
         if (tierBadge) {
-            tierBadge.textContent = '🏆 10X MILESTONE REACHED (₹10,000+)';
+            tierBadge.textContent = `🏆 GOAL REACHED (${fmtK(target)}+)`;
             tierBadge.className = 'pill pill-emerald';
         }
         if (modeTitle) {
-            modeTitle.innerHTML = '👑 10x Goal Completed!';
+            modeTitle.innerHTML = '👑 5x Milestone Goal Completed!';
             modeTitle.style.color = 'var(--emerald)';
         }
         if (tier2Dot) tier2Dot.classList.add('active');

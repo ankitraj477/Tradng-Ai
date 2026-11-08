@@ -78,3 +78,4 @@ def test_router_initialization_and_selection():
     assert sig.action == "BUY"
     assert sig.price > 0
     assert sig.target > sig.price
+

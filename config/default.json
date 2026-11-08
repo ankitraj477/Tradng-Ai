@@ -1,7 +1,7 @@
 {
   "capital": {
-    "starting": 1000.0,
-    "target": 10000.0
+    "starting": 10000.0,
+    "target": 50000.0
   },
   "micro_account": true,
   "hyper_aggressive": true,

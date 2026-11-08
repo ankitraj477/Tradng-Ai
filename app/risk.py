@@ -77,11 +77,11 @@ class RiskManager:
         if equity <= 0:
             return "REJECT"
 
-        is_micro = bool(equity <= 5000.0 or self.cfg.get("micro_account", False))
+        is_micro = bool(equity <= 15000.0 or self.cfg.get("micro_account", False))
         is_hyper = bool(self.cfg.get("hyper_aggressive", False))
         max_positions = self.cfg.get("market", {}).get("max_open_positions")
         if is_micro and is_hyper:
-            effective_max = 2
+            effective_max = 1 if equity <= 2500.0 else 2
         else:
             effective_max = int(max_positions) if max_positions is not None else 5
 

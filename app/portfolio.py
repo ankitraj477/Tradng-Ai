@@ -52,19 +52,21 @@ class PortfolioManager:
             return 0
 
         is_hyper = bool(self.cfg.get("hyper_aggressive", False))
-        is_micro = bool(equity <= 5000.0 or self.cfg.get("micro_account", False))
+        is_micro = bool(equity <= 15000.0 or self.cfg.get("micro_account", False))
         if is_micro and is_hyper:
-            max_positions = 2
+            max_positions = 1 if equity <= 2500.0 else 2
         else:
             max_positions = self.cfg.get("market", {}).get("max_open_positions")
 
         if max_positions is not None and len(positions) >= int(max_positions):
             return 0
 
-        # In Hyper-Aggressive mode on micro capital (equity <= 5000), deploy up to 88% cash on #1 setup
+        # In Hyper-Aggressive mode on micro/small capital (equity <= 15000), deploy cash across focused setups
         if is_hyper and is_micro:
             available_cash = self.metrics()["available_cash"]
-            max_trade_cap = min(available_cash * 0.88, equity * 0.90)
+            eff_slots = float(max_positions) if max_positions else 2.0
+            slot_alloc = (equity * 0.90) / eff_slots
+            max_trade_cap = min(available_cash * 0.88, slot_alloc)
             final_qty = max(0, int(max_trade_cap / proposal["price"]))
             sector = proposal.get("sector")
             if sector and sector != "Unknown" and "max_sector_exposure_pct" in self.cfg.get("risk", {}):

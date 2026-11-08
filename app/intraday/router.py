@@ -248,3 +248,4 @@ class IntradayMultiStrategyRouter:
 
         except Exception:
             return None
+

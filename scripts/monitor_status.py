@@ -15,7 +15,7 @@ def audit():
         return
 
     portfolio = float(data.get("portfolio", 0.0))
-    starting = float(data.get("starting_capital", 1000.0))
+    starting = float(data.get("starting_capital", 10000.0))
     daily_pnl = float(data.get("daily_pnl", 0.0))
     daily_pct = (daily_pnl / starting) * 100 if starting > 0 else 0.0
 

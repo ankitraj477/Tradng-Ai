@@ -303,20 +303,24 @@ class TradingEngine:
 
     def get_capital_tier(self) -> int:
         """
-        Determines current bootstrapping capital tier:
-        - Tier 1: Micro-Account Bootstrapping (Equity < ₹3,000) -> 100% Intraday MIS only.
-        - Tier 2: Emerging Capital (₹3,000 - ₹7,000) -> Intraday MIS + Swing CNC breakouts.
-        - Tier 3: Multi-Desk Scale (> ₹7,000) -> Full Intraday, Swing, and F&O Spreads.
+        Determines current bootstrapping capital tier dynamically:
+        - Tier 1: Initial Bootstrapping (Equity < starting + 25% of goal) -> 100% Intraday MIS.
+        - Tier 2: Emerging Capital (25% to 62.5% of goal) -> Intraday MIS + Swing CNC breakouts.
+        - Tier 3: Multi-Desk Scale (> 62.5% of goal) -> Full Intraday, Swing, and F&O Spreads.
         """
         try:
             acc = self.db.account()
             if not acc:
                 return 1
-            cash = float(acc.get("cash", 1000.0) or 1000.0)
+            starting = float(acc.get("starting_capital", 10000.0) or 10000.0)
+            target = float(acc.get("target_capital", 50000.0) or 50000.0)
+            cash = float(acc.get("cash", starting) or starting)
             equity = cash + sum(float(p.get("current_price", p.get("entry_price", 0)) or 0) * float(p.get("qty", 1) or 1) for p in self.db.positions())
-            if equity < 3000.0:
+            t2 = starting + (target - starting) * 0.25
+            t3 = starting + (target - starting) * 0.625
+            if equity < t2:
                 return 1
-            elif equity < 7000.0:
+            elif equity < t3:
                 return 2
             return 3
         except Exception:

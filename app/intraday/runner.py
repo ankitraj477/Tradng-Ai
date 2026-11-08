@@ -54,9 +54,11 @@ class IntradayDeskRunner:
         cash = float(account.get("cash", starting) if account else starting)
         cfg_max = int(self.cfg.get("market", {}).get("max_open_positions", 5))
         is_hyper = bool(self.cfg.get("hyper_aggressive", False))
-        # For micro-capital accounts (starting <= 5000), hyper-aggressive runs 1 focused sniper trade at a time
-        if starting <= 5000.0:
+        # For micro-capital accounts (<= 2500), run 1 sniper trade; for small capital (<= 15000), run 2 focused trades
+        if starting <= 2500.0:
             max_intra_positions = 1 if is_hyper else min(cfg_max, 2)
+        elif starting <= 15000.0:
+            max_intra_positions = 2 if is_hyper else min(cfg_max, 3)
         else:
             max_intra_positions = cfg_max
         if len(current_intraday) >= max_intra_positions:
@@ -125,9 +127,10 @@ class IntradayDeskRunner:
                 if price <= 0:
                     continue
 
-                # Sized capital allocation: Hyper-aggressive sniper sizing deploys up to 88% cash on #1 setup
-                if is_hyper and starting <= 5000.0:
-                    max_trade_cap = min(cash * 0.88, starting * intra_alloc_pct * 0.90)
+                # Sized capital allocation: Hyper-aggressive sniper sizing deploys up to 88% cash across focused setups
+                if is_hyper and starting <= 15000.0:
+                    slot_alloc = (starting * intra_alloc_pct * 0.90) / float(max_intra_positions)
+                    max_trade_cap = min(cash * 0.88, slot_alloc)
                 else:
                     max_trade_cap = (starting * intra_alloc_pct) / float(max_intra_positions)
 
@@ -137,8 +140,8 @@ class IntradayDeskRunner:
                     continue
 
                 trade_notional = qty * price
-                # For micro-capital accounts in hyper-aggressive mode, bypass high min_notional barrier
-                if is_hyper and starting <= 5000.0:
+                # For micro/small-capital accounts in hyper-aggressive mode, bypass high min_notional barrier
+                if is_hyper and starting <= 15000.0:
                     effective_min_notional = 0.0
                 else:
                     effective_min_notional = min(min_notional, price) if price >= 2000.0 else min_notional
