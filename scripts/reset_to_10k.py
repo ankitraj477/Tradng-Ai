@@ -106,3 +106,4 @@ if __name__ == "__main__":
     import sys
     db_file = sys.argv[1] if len(sys.argv) > 1 else "data/trader.db"
     reset_database(db_file)
+

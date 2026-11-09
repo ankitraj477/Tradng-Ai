@@ -128,9 +128,9 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             # Reject if breakout candle has a large upper rejection wick (> 45% of bar range)
             if ((bar_high - last_px) / candle_range) > 0.45:
                 return None
-            stop_px = max(orb["mid"], last_px - (self.atr_stop * atr))
-            risk = last_px - stop_px
-            if risk <= 0: risk = last_px * 0.005
+            stop_dist = max(last_px * 0.008, self.atr_stop * atr)
+            stop_px = min(orb["mid"], last_px - stop_dist)
+            risk = max(last_px - stop_px, last_px * 0.008)
             target_px = last_px + (self.target_mult * risk)
             # Enforce aggressive intraday target >= 2.5% to capture explosive expansion
             target_px = max(target_px, round(last_px * 1.025, 2))
@@ -156,9 +156,9 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             # Reject if breakdown candle has a large lower rejection wick (> 45% of bar range)
             if ((last_px - bar_low) / candle_range) > 0.45:
                 return None
-            stop_px = min(orb["mid"], last_px + (self.atr_stop * atr))
-            risk = stop_px - last_px
-            if risk <= 0: risk = last_px * 0.005
+            stop_dist = max(last_px * 0.008, self.atr_stop * atr)
+            stop_px = max(orb["mid"], last_px + stop_dist)
+            risk = max(stop_px - last_px, last_px * 0.008)
             target_px = last_px - (self.target_mult * risk)
             # Enforce aggressive intraday target >= 2.5% to capture explosive expansion
             target_px = min(target_px, round(last_px * 0.975, 2))

@@ -58,9 +58,9 @@ class IntradayMomentumBreakoutStrategy:
 
         # Bullish Breakout: 20-candle high break, Close > VWAP, RVOL >= 1.2, not bearish daily bias
         if close > prior_high_20 and close > vwap and rvol >= 1.15 and daily_bias != "BEARISH":
-            stop_px = max(prior_low_20, close - (self.atr_stop_mult * atr))
-            risk = close - stop_px
-            if risk <= 0: risk = close * 0.005
+            stop_dist = max(close * 0.008, self.atr_stop_mult * atr)
+            stop_px = min(prior_low_20, close - stop_dist)
+            risk = max(close - stop_px, close * 0.008)
             target_px = max(close + (self.target_mult * risk), round(close * 1.025, 2))
             rr = round(abs(target_px - close) / max(0.01, abs(close - stop_px)), 2)
 
@@ -81,9 +81,9 @@ class IntradayMomentumBreakoutStrategy:
 
         # Bearish Breakdown: 20-candle low break, Close < VWAP, RVOL >= 1.2, not bullish daily bias
         elif close < prior_low_20 and close < vwap and rvol >= 1.15 and daily_bias != "BULLISH":
-            stop_px = min(prior_high_20, close + (self.atr_stop_mult * atr))
-            risk = stop_px - close
-            if risk <= 0: risk = close * 0.005
+            stop_dist = max(close * 0.008, self.atr_stop_mult * atr)
+            stop_px = max(prior_high_20, close + stop_dist)
+            risk = max(stop_px - close, close * 0.008)
             target_px = min(close - (self.target_mult * risk), round(close * 0.975, 2))
             rr = round(abs(close - target_px) / max(0.01, abs(stop_px - close)), 2)
 
@@ -147,9 +147,9 @@ class IntradayMeanReversionStrategy:
 
         # Bullish Pullback: Price > 50 EMA, RSI(2) < 18, Daily bias not bearish
         if close > ema50 and rsi2 <= 18.0 and daily_bias != "BEARISH":
-            stop_px = max(float(l.tail(5).min()), close - (self.atr_stop_mult * atr))
-            risk = close - stop_px
-            if risk <= 0: risk = close * 0.005
+            stop_dist = max(close * 0.008, self.atr_stop_mult * atr)
+            stop_px = min(float(l.tail(5).min()), close - stop_dist)
+            risk = max(close - stop_px, close * 0.008)
             target_px = max(close + (self.target_mult * risk), round(close * 1.020, 2))
             rr = round(abs(target_px - close) / max(0.01, abs(close - stop_px)), 2)
 

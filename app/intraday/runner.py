@@ -149,27 +149,46 @@ class IntradayDeskRunner:
                     self.db.log("INFO", f"[Intraday Desk] SIZING GATE: Skipped {sym} (notional ₹{trade_notional:.2f} < minimum ₹{effective_min_notional:.2f})")
                     continue
 
+                # Institutional Breathing Room Gate:
+                # Stop loss must be at least 0.8% or 1.2x ATR away from entry price to prevent noise stop-outs.
+                min_sl_dist = max(price * 0.008, 1.2 * float(getattr(sig, "atr", 0.0) or (price * 0.01)))
+                max_sl_dist = price * 0.020 # Cap maximum initial risk at 2.0%
+
                 if sig.action == "BUY":
+                    raw_sl = float(sig.stop_loss or (price * 0.99))
+                    effective_sl = min(raw_sl, price - min_sl_dist)
+                    effective_sl = max(effective_sl, price - max_sl_dist)
+                    risk = price - effective_sl
+                    raw_tp = float(sig.target or (price * 1.025))
+                    effective_tp = max(raw_tp, price + (2.0 * risk), round(price * 1.020, 2))
+
                     ok = self.execution.open_long(
                         sym, qty, price,
-                        sig.stop_loss or (price * 0.99),
-                        sig.target or (price * 1.02),
+                        effective_sl,
+                        effective_tp,
                         sig.atr or (price * 0.01)
                     )
                     if ok:
                         strat_name = getattr(sig, "strategy", "Intraday")
-                        self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} [{strat_name}] (notional: ₹{trade_notional:.2f}){catalyst_info}")
+                        self.db.log("INFO", f"[Intraday Desk] ENTERED LONG {sym} qty={qty} at {price:.2f} [{strat_name}] (SL: ₹{effective_sl:.2f}, TP: ₹{effective_tp:.2f}, notional: ₹{trade_notional:.2f}){catalyst_info}")
                         current_intraday.append({"symbol": sym})
                 elif sig.action == "SHORT":
+                    raw_sl = float(sig.stop_loss or (price * 1.01))
+                    effective_sl = max(raw_sl, price + min_sl_dist)
+                    effective_sl = min(effective_sl, price + max_sl_dist)
+                    risk = effective_sl - price
+                    raw_tp = float(sig.target or (price * 0.975))
+                    effective_tp = min(raw_tp, price - (2.0 * risk), round(price * 0.980, 2))
+
                     ok = self.execution.open_short(
                         sym, qty, price,
-                        sig.stop_loss or (price * 1.01),
-                        sig.target or (price * 0.98),
+                        effective_sl,
+                        effective_tp,
                         sig.atr or (price * 0.01)
                     )
                     if ok:
                         strat_name = getattr(sig, "strategy", "Intraday")
-                        self.db.log("INFO", f"[Intraday Desk] ENTERED SHORT {sym} qty={qty} at {price:.2f} [{strat_name}] (notional: ₹{trade_notional:.2f})")
+                        self.db.log("INFO", f"[Intraday Desk] ENTERED SHORT {sym} qty={qty} at {price:.2f} [{strat_name}] (SL: ₹{effective_sl:.2f}, TP: ₹{effective_tp:.2f}, notional: ₹{trade_notional:.2f})")
                         current_intraday.append({"symbol": sym})
 
 
