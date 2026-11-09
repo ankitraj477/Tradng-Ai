@@ -635,10 +635,13 @@ class TradingEngine:
                         self.db.log("ERROR", f"Swing desk off-market cycle: {exc!r}")
 
                 if desks_cfg.get("fno", False):
-                    try:
-                        self.fno_desk.run_cycle()
-                    except Exception as exc:
-                        self.db.log("ERROR", f"F&O desk off-market cycle: {exc!r}")
+                    tier = self.get_capital_tier()
+                    fno_positions = [p for p in self.db.positions() if str(p.get("product_type", "")).upper() == "FNO"]
+                    if tier >= 3 or len(fno_positions) > 0:
+                        try:
+                            self.fno_desk.run_cycle()
+                        except Exception as exc:
+                            self.db.log("ERROR", f"F&O desk off-market cycle: {exc!r}")
 
             self.snapshot()
             return

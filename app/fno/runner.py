@@ -81,6 +81,10 @@ class FnoDeskRunner:
         if enforce_hours and not market_open():
             return
 
+        alloc = self.db.get_capital_allocation()
+        if (alloc.get("fno", 0.0) / 100.0) <= 0.0:
+            return
+
         pending = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
         market_info = self.db.market()
         current_regime = str(market_info.get("regime", "Neutral"))
@@ -134,6 +138,14 @@ class FnoDeskRunner:
 
         # 2. Check if auto trading is enabled
         if not self.db.is_auto_trading_enabled():
+            return
+
+        # 2b. Capital Allocation Gate: Respect user's desk allocation percentage
+        alloc = self.db.get_capital_allocation()
+        fno_alloc_pct = alloc.get("fno", 0.0) / 100.0
+        if fno_alloc_pct <= 0.0:
+            if not is_fast_tick:
+                self.db.log("INFO", "[F&O Desk] F&O capital allocation is 0%. New entries paused.")
             return
 
         # 3. Capital check for F&O desk (active positions + pending AMOs)

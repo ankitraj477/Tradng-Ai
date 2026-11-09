@@ -37,3 +37,4 @@ def widen_stops(db_path="data/trader.db"):
 if __name__ == "__main__":
     db_file = sys.argv[1] if len(sys.argv) > 1 else "data/trader.db"
     widen_stops(db_file)
+
