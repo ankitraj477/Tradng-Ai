@@ -61,9 +61,9 @@ def reset_database(db_path: str = "data/trader.db"):
     except Exception:
         pass
 
-    # Ensure system_settings has 100% Intraday allocation
-    print("[RESET] Setting capital allocation to 100% Intraday MIS (Tier 1)...")
-    alloc_json = json.dumps({"intraday": 100.0, "swing": 0.0, "fno": 0.0})
+    # Set multi-desk allocation for 10k: 40% Intraday, 30% Swing, 30% F&O
+    print("[RESET] Setting capital allocation to 40% Intraday, 30% Swing, 30% F&O...")
+    alloc_json = json.dumps({"intraday": 40.0, "swing": 30.0, "fno": 30.0})
     cur.execute("""
         INSERT OR REPLACE INTO system_settings (key, value)
         VALUES ('capital_allocation', ?);

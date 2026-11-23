@@ -293,8 +293,8 @@ class TradingEngine:
                     self.fno_desk.start_fast_monitor()
             if "capital" in new_cfg:
                 self.db.ensure_account(
-                    float(new_cfg["capital"].get("starting", 100000.0)),
-                    float(new_cfg["capital"].get("target", 5000000.0))
+                    float(new_cfg["capital"].get("starting", 10000.0)),
+                    float(new_cfg["capital"].get("target", 50000.0))
                 )
 
 
@@ -307,16 +307,20 @@ class TradingEngine:
         - Tier 1: Initial Bootstrapping (Equity < starting + 25% of goal) -> 100% Intraday MIS.
         - Tier 2: Emerging Capital (25% to 62.5% of goal) -> Intraday MIS + Swing CNC breakouts.
         - Tier 3: Multi-Desk Scale (> 62.5% of goal) -> Full Intraday, Swing, and F&O Spreads.
+        When desks.allow_all_tiers is enabled, returns Tier 3 to allow all multi-desk strategies on 10k capital.
         """
         try:
             cfg = getattr(self, "cfg", {}) or {}
+            desks_cfg = cfg.get("desks", {}) if isinstance(cfg, dict) else {}
+            if desks_cfg.get("allow_all_tiers", False):
+                return 3
             acc = self.db.account()
             if not acc:
                 return 3
-            starting = float(acc.get("starting_capital", 100000.0) or 100000.0)
+            starting = float(acc.get("starting_capital", 10000.0) or 10000.0)
             if starting >= 50000.0:
                 return 3
-            target = float(acc.get("target_capital", 5000000.0) or 5000000.0)
+            target = float(acc.get("target_capital", 50000.0) or 50000.0)
             cash = float(acc.get("cash", starting) or starting)
             equity = cash + sum(float(p.get("current_price", p.get("entry_price", 0)) or 0) * float(p.get("qty", 1) or 1) for p in self.db.positions())
             t2 = starting + (target - starting) * 0.25

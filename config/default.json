@@ -1,15 +1,15 @@
 {
   "capital": {
-    "starting": 100000.0,
-    "target": 5000000.0
+    "starting": 10000.0,
+    "target": 50000.0
   },
   "micro_account": false,
   "hyper_aggressive": false,
   "daily_target_pct": 0.03,
   "capital_allocation": {
-    "intraday": 25.0,
-    "swing": 40.0,
-    "fno": 35.0
+    "intraday": 40.0,
+    "swing": 30.0,
+    "fno": 30.0
   },
 
   "risk": {
@@ -22,7 +22,7 @@
     "kill_switch": false,
     "daily_loss_limit_pct": 0.05,
     "max_portfolio_heat_pct": 0.06,
-    "min_trade_notional": 10000.0
+    "min_trade_notional": 2000.0
   },
 
   "execution": {
@@ -103,6 +103,7 @@
     "enabled": true,
     "intraday": true,
     "swing": true,
-    "fno": true
+    "fno": true,
+    "allow_all_tiers": true
   }
 }

@@ -1,5 +1,5 @@
 # Sleeve D (Defined-Risk Premium Selling) Acceptance Report (Milestone 7)
-**Generated:** 2026-11-05 19:10:53
+**Generated:** 2026-11-23 12:24:14
 **Architecture:** Defined-Risk Iron Condor Strategy on NIFTY (Monthly Expiry, 30-45 DTE)
 **Execution Mode:** Fail-Closed Architecture (Section 8 Compliance)
 
