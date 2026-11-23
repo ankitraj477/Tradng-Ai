@@ -78,6 +78,8 @@ def home():
 
 
 @overview_bp.route("/health", methods=["GET"])
+@overview_bp.route("/api/health", methods=["GET"])
+@overview_bp.route("/api/status", methods=["GET"])
 def health():
     """BUG-031: Expose engine liveness, cycle heartbeat, and trading readiness."""
     db = current_app.config.get("DB")
@@ -293,6 +295,32 @@ def get_orders():
         "pending": db.pending_orders(),
         "market_open": market_open()
     })
+
+
+@overview_bp.route("/api/account", methods=["GET"])
+def get_account():
+    db = current_app.config["DB"]
+    return jsonify(db.account() or {})
+
+
+@overview_bp.route("/api/positions", methods=["GET"])
+def get_positions():
+    db = current_app.config["DB"]
+    return jsonify({"positions": db.positions()})
+
+
+@overview_bp.route("/api/trades", methods=["GET"])
+def get_trades():
+    db = current_app.config["DB"]
+    raw_trades = db.trades(50)
+    enriched = [_enrich_trade(t) for t in raw_trades]
+    return jsonify({"trades": enriched, "count": len(enriched)})
+
+
+@overview_bp.route("/api/equity", methods=["GET"])
+def get_equity():
+    db = current_app.config["DB"]
+    return jsonify({"equity_curve": db.equity()})
 
 
 @overview_bp.route("/api/runtime", methods=["GET"])

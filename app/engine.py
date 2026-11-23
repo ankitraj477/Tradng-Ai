@@ -309,11 +309,14 @@ class TradingEngine:
         - Tier 3: Multi-Desk Scale (> 62.5% of goal) -> Full Intraday, Swing, and F&O Spreads.
         """
         try:
+            cfg = getattr(self, "cfg", {}) or {}
             acc = self.db.account()
             if not acc:
-                return 1
-            starting = float(acc.get("starting_capital", 10000.0) or 10000.0)
-            target = float(acc.get("target_capital", 50000.0) or 50000.0)
+                return 3
+            starting = float(acc.get("starting_capital", 100000.0) or 100000.0)
+            if starting >= 50000.0:
+                return 3
+            target = float(acc.get("target_capital", 5000000.0) or 5000000.0)
             cash = float(acc.get("cash", starting) or starting)
             equity = cash + sum(float(p.get("current_price", p.get("entry_price", 0)) or 0) * float(p.get("qty", 1) or 1) for p in self.db.positions())
             t2 = starting + (target - starting) * 0.25
@@ -324,7 +327,7 @@ class TradingEngine:
                 return 2
             return 3
         except Exception:
-            return 1
+            return 3
 
     # ======================================================
     # LIVE DATA DIAGNOSTICS

@@ -178,7 +178,7 @@ class IntradayPositionManager:
 
                     if stop is not None and price <= stop:
                         gain_pct = (price - entry) / entry if entry > 0 else 0.0
-                        if gain_pct > 0.01:
+                        if gain_pct > 0.015:
                             exit_reason = "Trailing profit lock"
                         elif gain_pct > 0.0:
                             exit_reason = "Breakeven cost-cover"
@@ -220,12 +220,12 @@ class IntradayPositionManager:
                             closed += 1
                             continue
 
-                    # Breakeven lock when price reaches >= 65% of target or gain >= +1.8%
-                    # Sets stop to entry + 0.8% buffer to guarantee meaningful profit and prevent premature noise stop-outs
+                    # Breakeven lock when price reaches >= 60% of target or gain >= +2.2%
+                    # Sets stop to entry + 1.2% buffer to guarantee meaningful profit and prevent premature noise stop-outs
                     if target is not None and target > entry:
                         halfway_trigger = entry + breakeven_lock_ratio * target_step
-                        if (price >= halfway_trigger or (price - entry) / entry >= 0.018) and (stop is None or stop < entry):
-                            be_stop = round(entry * 1.008, 2)
+                        if (price >= halfway_trigger or (price - entry) / entry >= 0.022) and (stop is None or stop < entry):
+                            be_stop = round(entry * 1.012, 2)
                             new_stop = max(stop if stop is not None else 0.0, be_stop)
                             if stop is None or new_stop > stop:
                                 self.db.update_stop(p["symbol"], new_stop)
@@ -233,11 +233,11 @@ class IntradayPositionManager:
                                 self.db.log("INFO", f"[Intraday] BREAKEVEN LOCK: {p['symbol']} at {price:.2f}. SL moved to {new_stop:.2f}")
                                 stop = new_stop
 
-                    # Continuous ATR trailing stop with breathing room (3.2x ATR) for runners up >= 1.8%
+                    # Continuous ATR trailing stop with breathing room (3.2x ATR) for runners up >= 2.2%
                     if atr > 0 and stop is not None:
                         gain_pct = (price - entry) / entry
-                        if gain_pct >= 0.018:
-                            trail_dist = max(mult * atr, entry * 0.012)
+                        if gain_pct >= 0.022:
+                            trail_dist = max(mult * atr, entry * 0.015)
                             new_stop = max(stop, round(price - trail_dist, 2))
                             if new_stop > stop:
                                 self.db.update_stop(p["symbol"], new_stop)
@@ -251,7 +251,7 @@ class IntradayPositionManager:
 
                     if stop is not None and price >= stop:
                         gain_pct = (entry - price) / entry if entry > 0 else 0.0
-                        if gain_pct > 0.01:
+                        if gain_pct > 0.015:
                             exit_reason = "Trailing profit lock"
                         elif gain_pct > 0.0:
                             exit_reason = "Breakeven cost-cover"
@@ -293,12 +293,12 @@ class IntradayPositionManager:
                             closed += 1
                             continue
 
-                    # Breakeven lock when price reaches >= 65% of target or gain >= +1.8%
-                    # Sets stop to entry - 0.8% buffer to guarantee meaningful profit and prevent premature noise stop-outs
+                    # Breakeven lock when price reaches >= 60% of target or gain >= +2.2%
+                    # Sets stop to entry - 1.2% buffer to guarantee meaningful profit and prevent premature noise stop-outs
                     if target is not None and target < entry:
                         halfway_trigger = entry - breakeven_lock_ratio * target_step
-                        if (price <= halfway_trigger or (entry - price) / entry >= 0.018) and (stop is None or stop > entry):
-                            be_stop = round(entry * 0.992, 2)
+                        if (price <= halfway_trigger or (entry - price) / entry >= 0.022) and (stop is None or stop > entry):
+                            be_stop = round(entry * 0.988, 2)
                             new_stop = min(stop if stop is not None else float("inf"), be_stop)
                             if stop is None or new_stop < stop:
                                 self.db.update_stop(p["symbol"], new_stop)
@@ -306,11 +306,11 @@ class IntradayPositionManager:
                                 self.db.log("INFO", f"[Intraday] BREAKEVEN LOCK: {p['symbol']} at {price:.2f}. SL moved to {new_stop:.2f}")
                                 stop = new_stop
 
-                    # Continuous ATR trailing stop with breathing room (3.2x ATR) for runners up >= 1.8%
+                    # Continuous ATR trailing stop with breathing room (3.2x ATR) for runners up >= 2.2%
                     if atr > 0 and stop is not None:
                         gain_pct = (entry - price) / entry
-                        if gain_pct >= 0.018:
-                            trail_dist = max(mult * atr, entry * 0.012)
+                        if gain_pct >= 0.022:
+                            trail_dist = max(mult * atr, entry * 0.015)
                             new_stop = min(stop, round(price + trail_dist, 2))
                             if new_stop < stop:
                                 self.db.update_stop(p["symbol"], new_stop)

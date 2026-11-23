@@ -1,15 +1,15 @@
 {
   "capital": {
-    "starting": 10000.0,
-    "target": 50000.0
+    "starting": 100000.0,
+    "target": 5000000.0
   },
-  "micro_account": true,
-  "hyper_aggressive": true,
-  "daily_target_pct": 0.05,
+  "micro_account": false,
+  "hyper_aggressive": false,
+  "daily_target_pct": 0.03,
   "capital_allocation": {
-    "intraday": 100.0,
-    "swing": 0.0,
-    "fno": 0.0
+    "intraday": 25.0,
+    "swing": 40.0,
+    "fno": 35.0
   },
 
   "risk": {
@@ -22,7 +22,7 @@
     "kill_switch": false,
     "daily_loss_limit_pct": 0.05,
     "max_portfolio_heat_pct": 0.06,
-    "min_trade_notional": 0.0
+    "min_trade_notional": 10000.0
   },
 
   "execution": {
@@ -39,12 +39,12 @@
     "dp_charges": 15.93,
     "base_slippage_bps": 5.0,
     "short_margin_pct": 0.25,
-    "trailing_stop_atr": 1.5,
+    "trailing_stop_atr": 2.5,
     "max_hold_minutes": 390,
     "stop_loss_pct": 0.02,
-    "target_pct": 0.04,
+    "target_pct": 0.05,
     "dynamic_target_expansion": true,
-    "breakeven_lock_ratio": 0.65,
+    "breakeven_lock_ratio": 0.60,
     "trailing_buffer_ratio": 0.3333333333
   },
 
@@ -86,7 +86,7 @@
   },
 
   "fno": {
-    "profit_target_ratio": 0.40,
+    "profit_target_ratio": 0.50,
     "stop_loss_multiple": 2.0,
     "breakeven_decay_pct": 0.25,
     "max_loss_per_spread": 4000.0
@@ -105,4 +105,4 @@
     "swing": true,
     "fno": true
   }
-}
+}

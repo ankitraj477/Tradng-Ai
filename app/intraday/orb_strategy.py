@@ -128,12 +128,12 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             # Reject if breakout candle has a large upper rejection wick (> 45% of bar range)
             if ((bar_high - last_px) / candle_range) > 0.45:
                 return None
-            stop_dist = max(last_px * 0.008, self.atr_stop * atr)
+            stop_dist = max(last_px * 0.015, self.atr_stop * atr)
             stop_px = min(orb["mid"], last_px - stop_dist)
-            risk = max(last_px - stop_px, last_px * 0.008)
+            risk = max(last_px - stop_px, last_px * 0.015)
             target_px = last_px + (self.target_mult * risk)
-            # Enforce aggressive intraday target >= 2.5% to capture explosive expansion
-            target_px = max(target_px, round(last_px * 1.025, 2))
+            # Enforce institutional intraday target >= 4.5% to capture explosive expansion
+            target_px = max(target_px, round(last_px * 1.045, 2))
             rr = round(abs(target_px - last_px) / max(0.01, abs(last_px - stop_px)), 2)
             return {
                 "symbol": symbol,
@@ -156,12 +156,12 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
             # Reject if breakdown candle has a large lower rejection wick (> 45% of bar range)
             if ((last_px - bar_low) / candle_range) > 0.45:
                 return None
-            stop_dist = max(last_px * 0.008, self.atr_stop * atr)
+            stop_dist = max(last_px * 0.015, self.atr_stop * atr)
             stop_px = max(orb["mid"], last_px + stop_dist)
-            risk = max(stop_px - last_px, last_px * 0.008)
+            risk = max(stop_px - last_px, last_px * 0.015)
             target_px = last_px - (self.target_mult * risk)
-            # Enforce aggressive intraday target >= 2.5% to capture explosive expansion
-            target_px = min(target_px, round(last_px * 0.975, 2))
+            # Enforce institutional intraday target >= 4.5% to capture explosive expansion
+            target_px = min(target_px, round(last_px * 0.955, 2))
             rr = round(abs(last_px - target_px) / max(0.01, abs(stop_px - last_px)), 2)
             return {
                 "symbol": symbol,

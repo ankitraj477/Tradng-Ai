@@ -81,10 +81,10 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
 
         # Bullish VWAP Bounce: Low touched VWAP, Close finished above VWAP
         if (low <= vwap + tolerance) and (close > vwap) and (close >= low + (high - low) * 0.5):
-            stop_dist = max(close * 0.008, self.atr_stop_mult * atr)
+            stop_dist = max(close * 0.015, self.atr_stop_mult * atr)
             stop_px = min(low - stop_dist, vwap - stop_dist)
-            risk = max(close - stop_px, close * 0.008)
-            target_px = max(close + (self.target_mult * risk), round(close * 1.025, 2))
+            risk = max(close - stop_px, close * 0.015)
+            target_px = max(close + (self.target_mult * risk), round(close * 1.045, 2))
 
             rr = round(abs(target_px - close) / max(0.01, abs(close - stop_px)), 2)
             return {
@@ -105,10 +105,10 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
 
         # Bearish VWAP Rejection: High touched VWAP, Close finished below VWAP
         elif (high >= vwap - tolerance) and (close < vwap) and (close <= high - (high - low) * 0.5):
-            stop_dist = max(close * 0.008, self.atr_stop_mult * atr)
+            stop_dist = max(close * 0.015, self.atr_stop_mult * atr)
             stop_px = max(high + stop_dist, vwap + stop_dist)
-            risk = max(stop_px - close, close * 0.008)
-            target_px = min(close - (self.target_mult * risk), round(close * 0.975, 2))
+            risk = max(stop_px - close, close * 0.015)
+            target_px = min(close - (self.target_mult * risk), round(close * 0.955, 2))
 
             rr = round(abs(close - target_px) / max(0.01, abs(stop_px - close)), 2)
             return {
