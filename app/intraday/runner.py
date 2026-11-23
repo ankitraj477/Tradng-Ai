@@ -56,9 +56,9 @@ class IntradayDeskRunner:
         is_hyper = bool(self.cfg.get("hyper_aggressive", False))
         # For micro-capital accounts (<= 2500), run 1 sniper trade; for small capital (<= 15000), run 2 focused trades
         if starting <= 2500.0:
-            max_intra_positions = 1 if is_hyper else min(cfg_max, 2)
+            max_intra_positions = 1
         elif starting <= 15000.0:
-            max_intra_positions = 2 if is_hyper else min(cfg_max, 3)
+            max_intra_positions = 2
         else:
             max_intra_positions = cfg_max
         if len(current_intraday) >= max_intra_positions:
@@ -135,14 +135,17 @@ class IntradayDeskRunner:
                     max_trade_cap = (starting * intra_alloc_pct) / float(max_intra_positions)
 
                 qty = int(max_trade_cap / price)
+                # Institutional Affordability: For small capital (<= 15k), allow 1 share of high-conviction leader stocks up to desk allocation
+                if qty <= 0 and starting <= 15000.0 and price <= (starting * intra_alloc_pct) and price <= cash:
+                    qty = 1
                 if qty <= 0:
                     self.db.log("INFO", f"[Intraday Desk] SIZING GATE: Skipped {sym} (price ₹{price:.2f} exceeds per-trade allocation ₹{max_trade_cap:.2f})")
                     continue
 
                 trade_notional = qty * price
-                # For micro/small-capital accounts in hyper-aggressive mode, bypass high min_notional barrier
-                if is_hyper and starting <= 15000.0:
-                    effective_min_notional = 0.0
+                # For micro/small-capital accounts, bypass high min_notional barrier for eligible single-share leader trades
+                if starting <= 15000.0:
+                    effective_min_notional = min(min_notional, price) if price >= 500.0 else min_notional
                 else:
                     effective_min_notional = min(min_notional, price) if price >= 2000.0 else min_notional
                 if trade_notional < effective_min_notional:
