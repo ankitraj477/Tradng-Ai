@@ -321,12 +321,16 @@ class FNOPositionManager:
             pts_move = (spot - baseline_spot) if option_type == "CE" else (baseline_spot - spot)
             move_pct = pts_move / baseline_spot
 
-            # Realistic ATM Delta (~0.55) + Gamma acceleration on strong moves
-            base_delta = 0.55
+            # Realistic Moneyness-Scaled Delta:
+            # Prevents 0.09% index wicks on high-priced indices (e.g. BANKNIFTY 63k) from triggering false -28% stops
+            # while still expanding Gamma strongly on real 0.4%-1.0% breakouts.
+            atm_ref = baseline_spot * 0.0055
+            moneyness_scale = min(1.0, max(0.32, entry_premium / max(1.0, atm_ref)))
+            base_delta = 0.55 * moneyness_scale  # ~0.20 on ₹115 BANKNIFTY, ~0.23 on ₹58 NIFTY
             if move_pct > 0.002:
-                eff_delta = min(0.85, base_delta + (move_pct * 18.0))
+                eff_delta = min(0.75, base_delta + (move_pct * 22.0))
             elif move_pct < -0.002:
-                eff_delta = max(0.25, base_delta + (move_pct * 15.0))
+                eff_delta = max(0.12, base_delta + (move_pct * 10.0))
             else:
                 eff_delta = base_delta
 
@@ -342,21 +346,23 @@ class FNOPositionManager:
                 current_premium = est_premium
                 self.db.update_current_price(symbol, current_premium)
 
-        # 2. Institutional Trailing Profit Locks (never choke at +1-2rs!)
-        # Tier 1: At +25% gain, trail stop up to entry * 1.05 (covers brokerage/taxes + small lock)
-        # Tier 2: At +45% gain, trail stop up to entry * 1.25 (locks +25% big profit!)
-        if current_premium >= entry_premium * 1.45 and stop_loss_premium < entry_premium * 1.25:
-            stop_loss_premium = round(entry_premium * 1.25, 2)
+        # 2. Institutional Trailing Profit Locks (guarantee substantial profit, never ₹7 exits!)
+        # Tier 1: At +35% gain, trail stop up to entry * 1.18 (locks +18% clear net profit after fees!)
+        # Tier 2: At +55% gain, trail stop up to entry * 1.35 (locks +35% big profit!)
+        tier2_sl = round(entry_premium * 1.35, 2)
+        tier1_sl = round(entry_premium * 1.18, 2)
+        if current_premium >= round(entry_premium * 1.55, 2) and stop_loss_premium < (tier2_sl - 0.01):
+            stop_loss_premium = tier2_sl
             try:
                 self.db.update_position_stops(symbol, stop_loss=stop_loss_premium, target=target_premium)
-                self.db.log("INFO", f"[F&O Option Buy Trail] {symbol} +45% gained -> SL trailed to ₹{stop_loss_premium:.2f} (+25% locked)")
+                self.db.log("INFO", f"[F&O Option Buy Trail] {symbol} +55% gained -> SL trailed to ₹{stop_loss_premium:.2f} (+35% locked)")
             except Exception:
                 pass
-        elif current_premium >= entry_premium * 1.25 and stop_loss_premium < entry_premium * 1.05:
-            stop_loss_premium = round(entry_premium * 1.05, 2)
+        elif current_premium >= round(entry_premium * 1.35, 2) and stop_loss_premium < (tier1_sl - 0.01):
+            stop_loss_premium = tier1_sl
             try:
                 self.db.update_position_stops(symbol, stop_loss=stop_loss_premium, target=target_premium)
-                self.db.log("INFO", f"[F&O Option Buy Trail] {symbol} +25% gained -> SL trailed to ₹{stop_loss_premium:.2f} (Cost+5% locked)")
+                self.db.log("INFO", f"[F&O Option Buy Trail] {symbol} +35% gained -> SL trailed to ₹{stop_loss_premium:.2f} (+18% locked)")
             except Exception:
                 pass
 

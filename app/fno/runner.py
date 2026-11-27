@@ -29,6 +29,9 @@ class FnoDeskRunner:
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._fast_thread = None
+        self._last_entry_scan_ts = 0.0
+        self._last_close_ts: dict[str, float] = {}
+        self._last_cash_warn_ts: dict[str, float] = {}
 
     def start_fast_monitor(self):
         """Start the continuous 2-second S/R, price analysis, and dynamic trailing loop."""
@@ -140,9 +143,14 @@ class FnoDeskRunner:
 
         closed = 0
         if is_open:
+            before_syms = {p["symbol"] for p in self.db.positions_by_product("FNO")}
             closed = self.position_manager.manage(now)
             if closed > 0:
-                self.db.log("INFO", f"[F&O Desk] Managed and closed {closed} option spreads")
+                after_syms = {p["symbol"] for p in self.db.positions_by_product("FNO")}
+                for closed_sym in (before_syms - after_syms):
+                    idx_key = "BANKNIFTY" if "BANKNIFTY" in closed_sym else "NIFTY"
+                    self._last_close_ts[idx_key] = time.time()
+                self.db.log("INFO", f"[F&O Desk] Managed and closed {closed} option positions")
 
         # 1b. If market is open, fill any pending F&O AMOs
         self._fill_pending_amos()
@@ -150,6 +158,12 @@ class FnoDeskRunner:
         # 2. Check if auto trading is enabled
         if not self.db.is_auto_trading_enabled():
             return
+
+        # Throttle new entry scans on the 2s fast monitor to once every 15s (stops decision/log spam)
+        now_ts = time.time()
+        if is_fast_tick and (now_ts - self._last_entry_scan_ts) < 15.0:
+            return
+        self._last_entry_scan_ts = now_ts
 
         # 2b. Capital Allocation Gate: Respect user's desk allocation percentage
         alloc = self.db.get_capital_allocation()
@@ -226,17 +240,29 @@ class FnoDeskRunner:
                 _matches_index(o.get("symbol", ""), index_sym) for o in pending_buys
             )
             if not has_buy and (len(active_buys) + len(pending_buys)) < 2:
+                # 5-minute cooldown after closing a position on the same index to avoid whip-saw flips
+                if (now_ts - self._last_close_ts.get(index_sym, 0.0)) < 300.0:
+                    continue
                 opt_buy = self.option_buyer.propose(index_sym, market_regime=current_regime)
                 if opt_buy:
-                    self.db.add_decision({
-                        "symbol": opt_buy["symbol"],
-                        "action": f"BUY_{opt_buy['option_type']}",
-                        "confidence": opt_buy["confidence"],
-                        "strategy": opt_buy["strategy"],
-                        "reason": opt_buy["reason"],
-                        "risk_decision": "APPROVED" if is_open else "QUEUED_AMO"
-                    })
-                    self.execution.open_option_buy(opt_buy, lots=1)
+                    acc_now = self.db.account() or {}
+                    cash_now = float(acc_now.get("cash", 0.0) or 0.0)
+                    req_cost = float(opt_buy.get("margin_required", 1500.0)) + 25.0
+                    if is_open and cash_now < req_cost:
+                        if (now_ts - self._last_cash_warn_ts.get(index_sym, 0.0)) >= 300.0:
+                            self.db.log("INFO", f"[F&O Option Buy] Insufficient cash for {opt_buy['symbol']}: need ₹{req_cost:.2f}, avail ₹{cash_now:.2f}")
+                            self._last_cash_warn_ts[index_sym] = now_ts
+                        continue
+                    ok_buy = self.execution.open_option_buy(opt_buy, lots=1)
+                    if ok_buy:
+                        self.db.add_decision({
+                            "symbol": opt_buy["symbol"],
+                            "action": f"BUY_{opt_buy['option_type']}",
+                            "confidence": opt_buy["confidence"],
+                            "strategy": opt_buy["strategy"],
+                            "reason": opt_buy["reason"],
+                            "risk_decision": "APPROVED" if is_open else "QUEUED_AMO"
+                        })
                 elif not is_fast_tick:
                     self.db.log("INFO", f"[F&O Option Buy] No qualified CE/PE candlestick setup on {index_sym} (Regime: {current_regime}).")
 

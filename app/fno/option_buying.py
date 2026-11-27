@@ -171,13 +171,13 @@ class OptionBuyingStrategy(BaseDeskStrategy):
         setup_label = ""
         confidence = strength
 
-        # Bullish Call (CE) Entry Qualification
-        if bias == "BULLISH" and strength >= 70.0:
-            near_support = abs(spot - s1) / spot <= 0.005 or abs(spot - pivot) / spot <= 0.004
-            above_trend = (spot >= vwap_val * 0.999) or (ema_fast >= ema_slow) or (structure == "BULLISH_BREAKOUT")
-            # Guard against buying Calls in strong crash unless high-conviction reversal at S1 support
-            regime_ok = ("strong bear" not in regime_lower) or (near_support and strength >= 74.0)
-            if regime_ok and (near_support or above_trend) and rsi <= 78.0:
+        # Bullish Call (CE) Entry Qualification (strict trend + RSI confirmation to avoid falling-knife traps)
+        if bias == "BULLISH" and strength >= 74.0:
+            near_support = abs(spot - s1) / spot <= 0.004 or abs(spot - pivot) / spot <= 0.003
+            trend_aligned = (ema_fast >= ema_slow) or (spot >= vwap_val and spot >= pivot) or (structure == "BULLISH_BREAKOUT")
+            strong_reversal = near_support and strength >= 84.0 and rvol >= 1.25
+            regime_ok = ("strong bear" not in regime_lower) or strong_reversal
+            if regime_ok and (trend_aligned or strong_reversal) and 42.0 <= rsi <= 76.0:
                 option_type = "CE"
                 setup_label = f"Candlestick {pattern}"
 
@@ -187,13 +187,13 @@ class OptionBuyingStrategy(BaseDeskStrategy):
             setup_label = "S/R Breakout + EMA9/VWAP"
             confidence = 78.0
 
-        # Bearish Put (PE) Entry Qualification
-        elif bias == "BEARISH" and strength >= 70.0:
-            near_resistance = abs(spot - r1) / spot <= 0.005 or abs(spot - pivot) / spot <= 0.004
-            below_trend = (spot <= vwap_val * 1.001) or (ema_fast <= ema_slow) or (structure == "BEARISH_BREAKDOWN")
-            # Guard against buying Puts in strong rally unless high-conviction rejection at R1 resistance
-            regime_ok = ("strong bull" not in regime_lower) or (near_resistance and strength >= 74.0)
-            if regime_ok and (near_resistance or below_trend) and rsi >= 22.0:
+        # Bearish Put (PE) Entry Qualification (strict trend + RSI confirmation)
+        elif bias == "BEARISH" and strength >= 74.0:
+            near_resistance = abs(spot - r1) / spot <= 0.004 or abs(spot - pivot) / spot <= 0.003
+            trend_aligned = (ema_fast <= ema_slow) or (spot <= vwap_val and spot <= pivot) or (structure == "BEARISH_BREAKDOWN")
+            strong_reversal = near_resistance and strength >= 84.0 and rvol >= 1.25
+            regime_ok = ("strong bull" not in regime_lower) or strong_reversal
+            if regime_ok and (trend_aligned or strong_reversal) and 24.0 <= rsi <= 58.0:
                 option_type = "PE"
                 setup_label = f"Candlestick {pattern}"
 

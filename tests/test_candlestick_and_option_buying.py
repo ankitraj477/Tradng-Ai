@@ -169,12 +169,12 @@ def test_long_option_execution_accounting_and_overview_pnl(tmp_path):
     assert pos_fno["pnl"] == pytest.approx(625.0)
     assert pos_fno["pnl_pct"] == pytest.approx(41.67, abs=0.1)
 
-    # Trailing stop escalation and close
-    prov = _MockOptionProvider(25880.0, _make_bars(_base_neutral_bars(20, 25880.0)))
+    # Trailing stop escalation and close (with 200-pt index rally for moneyness-scaled delta)
+    prov = _MockOptionProvider(26000.0, _make_bars(_base_neutral_bars(20, 26000.0)))
     pm = FNOPositionManager(db, exe, IndexChainManager(prov), cfg)
     now_dt = datetime.now(timezone.utc) + timedelta(minutes=20)
     closed = pm.manage(dt=now_dt)
-    assert closed == 1  # Target hit via delta move (80 pts * ~0.6 = +48 pts -> 108 >= 99)
+    assert closed == 1  # Target hit via delta+gamma expansion
 
     trades = db.trades(10)
     assert len(trades) == 1
