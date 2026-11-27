@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional, List
 from .strategy_interface import BaseDeskStrategy
 from .fno.iron_condor import IronCondorStrategy
 from .fno.debit_spreads import DirectionalDebitSpreadStrategy
+from .fno.option_buying import OptionBuyingStrategy
 from .intraday.orb_strategy import OpeningRangeBreakoutStrategy
 from .intraday.vwap_pullback import VWAPPullbackStrategy
 from .swing.pullback_strategy import SwingPullbackStrategy
@@ -32,6 +33,7 @@ class DeskStrategyRouter:
         """Register institutional strategies for each desk."""
         # F&O Strategies
         self.register_strategy(IronCondorStrategy(cfg=self.cfg))
+        self.register_strategy(OptionBuyingStrategy(cfg=self.cfg))
         self.register_strategy(DirectionalDebitSpreadStrategy(cfg=self.cfg))
 
         # Intraday Strategies

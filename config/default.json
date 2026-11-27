@@ -89,7 +89,9 @@
     "profit_target_ratio": 0.50,
     "stop_loss_multiple": 2.0,
     "breakeven_decay_pct": 0.25,
-    "max_loss_per_spread": 4000.0
+    "max_loss_per_spread": 4000.0,
+    "option_buy_sl_ratio": 0.72,
+    "option_buy_target_ratio": 1.65
   },
 
   "dashboard": {

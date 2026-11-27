@@ -6,6 +6,7 @@ from .timing import IntradayTimingManager
 from .vwap import calculate_session_vwap
 from ..multitimeframe import MultiTimeframeAnalyzer
 from ..pattern_strategies import BaseStrategy
+from ..candlestick_patterns import CandlestickAnalyzer
 
 
 class OpeningRangeBreakoutStrategy(BaseStrategy):
@@ -118,15 +119,17 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
         atr = float(tr.tail(14).mean()) if len(tr) >= 14 else float(last_px * 0.005)
 
-        # 5. Signal Evaluation
+        # 5. Signal Evaluation & Candlestick Pattern Filter
         bar_high = float(current_bar["High"])
         bar_low = float(current_bar["Low"])
         candle_range = max(bar_high - bar_low, 0.01)
+        candle = CandlestickAnalyzer.analyze(intraday_df, min_bars=5)
+        candle_tag = f" + Candle: {candle['pattern']}" if candle["pattern"] != "None" else ""
 
         # Bullish Breakout
         if last_px > orb["high"] and last_px > current_vwap and daily_bias != "BEARISH":
-            # Reject if breakout candle has a large upper rejection wick (> 45% of bar range)
-            if ((bar_high - last_px) / candle_range) > 0.45:
+            # Reject if breakout candle has a large upper rejection wick (> 45% of bar range) or strong bearish reversal pattern
+            if ((bar_high - last_px) / candle_range) > 0.45 or (candle["bias"] == "BEARISH" and candle["strength"] >= 78.0):
                 return None
             stop_dist = max(last_px * 0.015, self.atr_stop * atr)
             stop_px = min(orb["mid"], last_px - stop_dist)
@@ -147,14 +150,15 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
                 "vwap": round(current_vwap, 2),
                 "orb_high": round(orb["high"], 2),
                 "rvol": round(rvol, 2),
+                "candlestick": candle["pattern"],
                 "strategy": self.name,
-                "reason": f"ORB breakout above {orb['high']:.2f} with {rvol:.1f}x RVOL & VWAP support (RR {rr}:1)"
+                "reason": f"ORB breakout above {orb['high']:.2f} with {rvol:.1f}x RVOL & VWAP support{candle_tag} (RR {rr}:1)"
             }
 
         # Bearish Breakdown
         elif last_px < orb["low"] and last_px < current_vwap and daily_bias != "BULLISH":
-            # Reject if breakdown candle has a large lower rejection wick (> 45% of bar range)
-            if ((last_px - bar_low) / candle_range) > 0.45:
+            # Reject if breakdown candle has a large lower rejection wick (> 45% of bar range) or strong bullish reversal pattern
+            if ((last_px - bar_low) / candle_range) > 0.45 or (candle["bias"] == "BULLISH" and candle["strength"] >= 78.0):
                 return None
             stop_dist = max(last_px * 0.015, self.atr_stop * atr)
             stop_px = max(orb["mid"], last_px + stop_dist)
@@ -175,8 +179,9 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
                 "vwap": round(current_vwap, 2),
                 "orb_low": round(orb["low"], 2),
                 "rvol": round(rvol, 2),
+                "candlestick": candle["pattern"],
                 "strategy": self.name,
-                "reason": f"ORB breakdown below {orb['low']:.2f} with {rvol:.1f}x RVOL & VWAP resistance (RR {rr}:1)"
+                "reason": f"ORB breakdown below {orb['low']:.2f} with {rvol:.1f}x RVOL & VWAP resistance{candle_tag} (RR {rr}:1)"
             }
 
         return None

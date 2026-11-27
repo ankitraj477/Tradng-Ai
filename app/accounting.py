@@ -1,4 +1,24 @@
 
+def is_long_option_position(p: dict) -> bool:
+    """
+    Return True when an FNO position is a directional Long Call/Put Option Buy
+    (target > entry, side LONG/BUY, not a legacy spread/condor row).
+    """
+    if str(p.get("product_type", "")).upper() != "FNO":
+        return False
+    side = str(p.get("side", "SELL")).upper()
+    if side not in ("LONG", "BUY"):
+        return False
+    strat = str(p.get("strategy") or "").lower()
+    if "spread" in strat or "condor" in strat:
+        return False
+    entry = float(p.get("entry_price") or 0.0)
+    target = float(p.get("target") or 0.0)
+    if target > 0 and entry > 0 and target < entry:
+        return False
+    return True
+
+
 def portfolio_metrics(account, positions, short_margin_pct=0.25):
     account = account or {}
     cash = float(account.get("cash", 0) or 0)
@@ -10,10 +30,14 @@ def portfolio_metrics(account, positions, short_margin_pct=0.25):
                         for p in positions if p["side"] == "LONG")
     reserved_margin = sum(float(p["entry_price"]) * float(p["qty"]) * short_margin_pct
                         for p in positions if p["side"] == "SHORT")
-    # For FNO positions, margin was deducted directly from cash on open.
-    # We track that locked capital to ensure equity accurately reflects account value.
-    fno_margin = sum(float(p.get("entry_cost") or 2500.0)
-                     for p in positions if str(p.get("product_type", "")).upper() == "FNO")
+    # For FNO spreads/condors, margin was deducted directly from cash on open.
+    # For FNO directional LONG option buys, current market value is already included in long_value.
+    fno_margin = sum(
+        float(p.get("entry_cost") or 2500.0)
+        for p in positions
+        if str(p.get("product_type", "")).upper() == "FNO"
+        and not is_long_option_position(p)
+    )
     equity = cash + long_value + short_unrealized + fno_margin
     gross = long_value + short_notional
     net = long_value - short_notional

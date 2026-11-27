@@ -6,6 +6,7 @@ Trades high-probability tests of the Volume-Weighted Average Price with confirma
 from typing import Dict, Any, Optional
 import pandas as pd
 from ..strategy_interface import BaseDeskStrategy
+from ..candlestick_patterns import CandlestickAnalyzer
 from .timing import IntradayTimingManager
 from .vwap import calculate_session_vwap
 
@@ -78,9 +79,15 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
 
         # Tolerance band for VWAP touch: 0.3% of price or 0.5x ATR
         tolerance = max(close * 0.003, 0.5 * atr)
+        candle = CandlestickAnalyzer.analyze(intraday_df, min_bars=5)
+        candle_note = f" + {candle['pattern']}" if candle["pattern"] != "None" else ""
+        bull_boost = 8.0 if candle["bias"] == "BULLISH" else 0.0
+        bear_boost = 8.0 if candle["bias"] == "BEARISH" else 0.0
 
         # Bullish VWAP Bounce: Low touched VWAP, Close finished above VWAP
         if (low <= vwap + tolerance) and (close > vwap) and (close >= low + (high - low) * 0.5):
+            if candle["bias"] == "BEARISH" and candle["strength"] >= 78.0:
+                return None
             stop_dist = max(close * 0.015, self.atr_stop_mult * atr)
             stop_px = min(low - stop_dist, vwap - stop_dist)
             risk = max(close - stop_px, close * 0.015)
@@ -97,14 +104,17 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
                 "risk_reward": rr,
                 "atr": round(atr, 2),
                 "vwap": round(vwap, 2),
+                "candlestick": candle["pattern"],
                 "strategy": self.name,
-                "confidence": 75.0,
+                "confidence": min(95.0, 75.0 + bull_boost),
                 "product_type": "INTRADAY",
-                "reason": f"Bullish VWAP bounce at {vwap:.2f} (Low: {low:.2f}, Close: {close:.2f}, RR {rr}:1)"
+                "reason": f"Bullish VWAP bounce at {vwap:.2f}{candle_note} (Low: {low:.2f}, Close: {close:.2f}, RR {rr}:1)"
             }
 
         # Bearish VWAP Rejection: High touched VWAP, Close finished below VWAP
         elif (high >= vwap - tolerance) and (close < vwap) and (close <= high - (high - low) * 0.5):
+            if candle["bias"] == "BULLISH" and candle["strength"] >= 78.0:
+                return None
             stop_dist = max(close * 0.015, self.atr_stop_mult * atr)
             stop_px = max(high + stop_dist, vwap + stop_dist)
             risk = max(stop_px - close, close * 0.015)
@@ -121,10 +131,11 @@ class VWAPPullbackStrategy(BaseDeskStrategy):
                 "risk_reward": rr,
                 "atr": round(atr, 2),
                 "vwap": round(vwap, 2),
+                "candlestick": candle["pattern"],
                 "strategy": self.name,
-                "confidence": 75.0,
+                "confidence": min(95.0, 75.0 + bear_boost),
                 "product_type": "INTRADAY",
-                "reason": f"Bearish VWAP rejection at {vwap:.2f} (High: {high:.2f}, Close: {close:.2f}, RR {rr}:1)"
+                "reason": f"Bearish VWAP rejection at {vwap:.2f}{candle_note} (High: {high:.2f}, Close: {close:.2f}, RR {rr}:1)"
             }
 
         return None

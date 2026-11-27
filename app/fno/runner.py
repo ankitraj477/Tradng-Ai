@@ -11,6 +11,7 @@ from datetime import datetime
 from ..market_hours import now_ist
 from .index_chain import IndexChainManager
 from .iron_condor import IronCondorStrategy
+from .option_buying import OptionBuyingStrategy
 from .execution import FnoExecution
 from .position_manager import FnoPositionManager
 
@@ -24,6 +25,7 @@ class FnoDeskRunner:
         self.execution = FnoExecution(db, self.cfg)
         self.position_manager = FnoPositionManager(db, self.execution, self.chain_manager, self.cfg)
         self.strategy = IronCondorStrategy(chain_manager=self.chain_manager, cfg=self.cfg)
+        self.option_buyer = OptionBuyingStrategy(chain_manager=self.chain_manager, cfg=self.cfg)
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._fast_thread = None
@@ -92,25 +94,34 @@ class FnoDeskRunner:
         for order in pending:
             sym = order["symbol"]
             strat = order.get("strategy", "Iron Condor")
+            order_side = str(order.get("side", "SHORT")).upper()
 
             # Check max concurrent F&O positions
-            if len(self.db.positions_by_product("FNO")) >= 3:
+            if len(self.db.positions_by_product("FNO")) >= 4:
                 break
 
             underlying = "BANKNIFTY" if "BANKNIFTY" in sym else "NIFTY"
-            spread = self.strategy.propose(underlying, market_regime=current_regime)
-            if not spread:
-                self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Market Open S/R / Regime Mismatch")
-                self.db.log("WARN", f"[F&O AMO CANCELLED] Market Open (09:15 IST): Cancelled {strat} on {sym} due to adverse morning gap / regime change.")
-                continue
+            if order_side in ("LONG", "BUY"):
+                proposal = self.option_buyer.propose(underlying, market_regime=current_regime)
+                if not proposal:
+                    self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Market Open Candlestick / Regime Mismatch")
+                    self.db.log("WARN", f"[F&O AMO CANCELLED] Market Open (09:15 IST): Cancelled {strat} on {sym} due to pattern/regime change.")
+                    continue
+                success = self.execution.open_option_buy(proposal, lots=1, force_fill=True)
+            else:
+                spread = self.strategy.propose(underlying, market_regime=current_regime)
+                if not spread:
+                    self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Market Open S/R / Regime Mismatch")
+                    self.db.log("WARN", f"[F&O AMO CANCELLED] Market Open (09:15 IST): Cancelled {strat} on {sym} due to adverse morning gap / regime change.")
+                    continue
+                success = self.execution.open_spread(spread, lots=1, force_fill=True)
 
-            success = self.execution.open_spread(spread, lots=1, force_fill=True)
             if success:
                 self.db.update_order_status(order["id"], "FILLED")
-                self.db.log("INFO", f"[F&O AMO FILLED] Market Open (09:15 IST): Executed F&O AMO for {strat} on {sym} into Active Spreads.")
+                self.db.log("INFO", f"[F&O AMO FILLED] Market Open (09:15 IST): Executed F&O AMO for {strat} on {sym}.")
             else:
-                self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Insufficient Margin")
-                self.db.log("WARN", f"[F&O AMO CANCELLED] Could not execute F&O AMO for {sym} (insufficient margin).")
+                self.db.update_order_status(order["id"], "CANCELLED", rejection_reason="Insufficient Margin/Cash")
+                self.db.log("WARN", f"[F&O AMO CANCELLED] Could not execute F&O AMO for {sym} (insufficient cash/margin).")
 
     def _run_iteration(self, is_fast_tick: bool = False):
         """Execute one evaluation iteration for the F&O Options Desk."""
@@ -151,12 +162,12 @@ class FnoDeskRunner:
         # 3. Capital check for F&O desk (active positions + pending AMOs)
         active_fno = self.db.positions_by_product("FNO")
         pending_fno = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
-        if (len(active_fno) + len(pending_fno)) >= 3:
+        if (len(active_fno) + len(pending_fno)) >= 4:
             if not is_fast_tick:
-                self.db.log("INFO", f"[F&O Desk] Max concurrent F&O spreads reached ({len(active_fno)} active, {len(pending_fno)} queued). Monitoring decay.")
+                self.db.log("INFO", f"[F&O Desk] Max concurrent F&O positions reached ({len(active_fno)} active, {len(pending_fno)} queued). Monitoring decay & momentum.")
             return
 
-        # 4. Generate defined-risk spreads on Nifty 50 & Bank Nifty with S/R validation
+        # 4. Generate defined-risk spreads AND Candlestick-confirmed Call/Put Option Buys
         from ..market_hours import market_open
         enforce_hours = (
             self.cfg.get("execution", {}).get("enforce_market_hours", False)
@@ -167,44 +178,67 @@ class FnoDeskRunner:
         market_info = self.db.market()
         current_regime = str(market_info.get("regime", "Neutral"))
 
+        def _matches_index(symbol_str: str, idx: str) -> bool:
+            s = str(symbol_str or "").upper()
+            if idx == "NIFTY":
+                return "NIFTY" in s and "BANKNIFTY" not in s
+            return "BANKNIFTY" in s
+
         for index_sym in ("NIFTY", "BANKNIFTY"):
             active_fno = self.db.positions_by_product("FNO")
             pending_fno = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
-            if (len(active_fno) + len(pending_fno)) >= 3:
+            if (len(active_fno) + len(pending_fno)) >= 4:
                 break
-            if index_sym == "NIFTY":
-                existing = [p for p in active_fno if "NIFTY" in p["symbol"] and "BANKNIFTY" not in p["symbol"]]
-                already_queued = [o for o in pending_fno if "NIFTY" in o.get("symbol", "") and "BANKNIFTY" not in o.get("symbol", "")]
-            else:
-                existing = [p for p in active_fno if "BANKNIFTY" in p["symbol"]]
-                already_queued = [o for o in pending_fno if "BANKNIFTY" in o.get("symbol", "")]
-            if existing:
-                continue
-            if already_queued:
-                continue
 
-            spread = self.strategy.propose(index_sym, market_regime=current_regime)
-            if not spread:
-                if not is_fast_tick:
-                    self.db.log("INFO", f"[F&O Research] Stand down on {index_sym}: S/R boundary or market regime ({current_regime}) did not qualify.")
-                continue
+            # 4a. Option Selling (Defined-Risk Spreads / Iron Condor) — max 1 spread per index, max 2 total spreads
+            active_spreads = [p for p in active_fno if str(p.get("side", "SELL")).upper() in ("SELL", "SHORT")]
+            pending_spreads = [o for o in pending_fno if str(o.get("side", "SHORT")).upper() in ("SELL", "SHORT")]
+            has_spread = any(_matches_index(p["symbol"], index_sym) for p in active_spreads) or any(
+                _matches_index(o.get("symbol", ""), index_sym) for o in pending_spreads
+            )
+            if not has_spread and (len(active_spreads) + len(pending_spreads)) < 2:
+                spread = self.strategy.propose(index_sym, market_regime=current_regime)
+                if spread:
+                    self.db.add_decision({
+                        "symbol": index_sym,
+                        "action": "SELL_SPREAD",
+                        "confidence": 85.0,
+                        "strategy": spread["strategy"],
+                        "reason": (
+                            f"F&O Defined Risk Setup: {spread['strategy']} on {index_sym}. "
+                            f"Net Credit: ₹{spread['price']:.2f}, Max Loss: ₹{spread['max_loss']:.2f}, "
+                            f"50% Target: ₹{spread['target']:.2f}, Expiry: {spread['expiry_date']}"
+                        ),
+                        "risk_decision": "APPROVED" if is_open else "QUEUED_AMO"
+                    })
+                    self.execution.open_spread(spread, lots=1)
+                elif not is_fast_tick:
+                    self.db.log("INFO", f"[F&O Research] Spread stand-down on {index_sym}: S/R boundary or market regime ({current_regime}) did not qualify.")
 
-            # Record AI Decision & Research for Dashboard
-            self.db.add_decision({
-                "symbol": index_sym,
-                "action": "SELL_SPREAD",
-                "confidence": 85.0,
-                "strategy": spread["strategy"],
-                "reason": (
-                    f"F&O Defined Risk Setup: {spread['strategy']} on {index_sym}. "
-                    f"Net Credit: ₹{spread['price']:.2f}, Max Loss: ₹{spread['max_loss']:.2f}, "
-                    f"50% Target: ₹{spread['target']:.2f}, Expiry: {spread['expiry_date']}"
-                ),
-                "risk_decision": "APPROVED" if is_open else "QUEUED_AMO"
-            })
-
-            # Open spread directly or queue AMO if market is closed
-            self.execution.open_spread(spread, lots=1)
+            # 4b. Option Buying (Directional Call CE / Put PE with Candlestick Pattern Analysis) — max 1 per index, max 2 total buys
+            active_fno = self.db.positions_by_product("FNO")
+            pending_fno = [o for o in self.db.pending_orders() if str(o.get("product_type", "")).upper() == "FNO"]
+            if (len(active_fno) + len(pending_fno)) >= 4:
+                break
+            active_buys = [p for p in active_fno if str(p.get("side", "")).upper() in ("LONG", "BUY")]
+            pending_buys = [o for o in pending_fno if str(o.get("side", "")).upper() in ("LONG", "BUY")]
+            has_buy = any(_matches_index(p["symbol"], index_sym) for p in active_buys) or any(
+                _matches_index(o.get("symbol", ""), index_sym) for o in pending_buys
+            )
+            if not has_buy and (len(active_buys) + len(pending_buys)) < 2:
+                opt_buy = self.option_buyer.propose(index_sym, market_regime=current_regime)
+                if opt_buy:
+                    self.db.add_decision({
+                        "symbol": opt_buy["symbol"],
+                        "action": f"BUY_{opt_buy['option_type']}",
+                        "confidence": opt_buy["confidence"],
+                        "strategy": opt_buy["strategy"],
+                        "reason": opt_buy["reason"],
+                        "risk_decision": "APPROVED" if is_open else "QUEUED_AMO"
+                    })
+                    self.execution.open_option_buy(opt_buy, lots=1)
+                elif not is_fast_tick:
+                    self.db.log("INFO", f"[F&O Option Buy] No qualified CE/PE candlestick setup on {index_sym} (Regime: {current_regime}).")
 
     def run_cycle(self):
         """Execute one complete cycle for the F&O Options Desk from the engine loop."""

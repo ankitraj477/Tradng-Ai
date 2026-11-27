@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from flask import Blueprint, jsonify, render_template, request, current_app
 
-from ..accounting import portfolio_metrics
+from ..accounting import portfolio_metrics, is_long_option_position
 from ..market_hours import market_phase, now_ist, holiday_name, market_open, IST
 from ..news_archive import NewsArchive
 from ..version import __version__
@@ -140,7 +140,9 @@ def state():
         curr = float(position.get("current_price", entry) or entry)
         side = str(position.get("side", "LONG")).upper()
         p_type = str(position.get("product_type", "INTRADAY")).upper()
-        if p_type == "FNO" or side in ("SHORT", "SELL"):
+        if is_long_option_position(position):
+            pos_pnl = (curr - entry) * qty
+        elif p_type == "FNO" or side in ("SHORT", "SELL"):
             pos_pnl = (entry - curr) * qty
         else:
             pos_pnl = (curr - entry) * qty

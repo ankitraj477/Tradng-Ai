@@ -17,9 +17,14 @@ function updateFnoTab(data) {
 
     fnoPositions.forEach(pos => {
         fnoPnl += Number(pos.pnl || 0);
-        fnoMargin += Number(pos.entry_cost || 0);
-        // Estimate daily theta decay: ~1.5% of entry credit per day
-        netTheta += Math.abs(Number(pos.entry_price || 0) * 0.015 * Number(pos.qty || 1));
+        const side = String(pos.side || 'SELL').toUpperCase();
+        const isLongBuy = (side === 'LONG' || side === 'BUY');
+        fnoMargin += isLongBuy
+            ? (Number(pos.entry_price || 0) * Number(pos.qty || 1))
+            : Number(pos.entry_cost || 0);
+        // Theta decay positive for credit spreads, negative carry for long option buys
+        const thetaAmt = Math.abs(Number(pos.entry_price || 0) * 0.015 * Number(pos.qty || 1));
+        netTheta += isLongBuy ? -thetaAmt : thetaAmt;
     });
 
     const allTrades = data.trades || [];
@@ -106,18 +111,23 @@ function renderFnoSpreads(positions) {
         const pnlPrefix = pnl >= 0 ? '+' : '';
         const entryPrem = Number(pos.entry_price || 0);
         const curPrem = Number(pos.current_price || entryPrem);
-        const maxProfit = entryPrem * Number(pos.qty || 1);
-        const marginReq = Number(pos.entry_cost || 0);
+        const side = String(pos.side || 'SELL').toUpperCase();
+        const isLongBuy = (side === 'LONG' || side === 'BUY');
+        const optType = String(pos.option_type || 'CE').toUpperCase();
+        const badgeText = isLongBuy ? `Long ${optType} Buy` : 'Defined-Risk';
+        const badgeCls = isLongBuy ? (optType === 'CE' ? 'pill-emerald' : 'pill-rose') : 'pill-cyan';
+        const capUsed = isLongBuy ? (entryPrem * Number(pos.qty || 1)) : Number(pos.entry_cost || 0);
+        const targetDisp = pos.target ? formatINR(pos.target) : formatINR(entryPrem * (isLongBuy ? 1.65 : 0.5));
 
         return `
-            <div class="position-card" style="border-left: 3px solid var(--cyan);">
+            <div class="position-card" style="border-left: 3px solid ${isLongBuy ? 'var(--emerald)' : 'var(--cyan)'};">
                 <div class="position-card-top">
                     <div>
                         <div class="position-symbol">${pos.symbol}</div>
                         <div class="position-strategy">${pos.strategy || 'Bull Put Spread'}</div>
                     </div>
                     <div style="text-align:right;">
-                        <span class="pill pill-cyan">Defined-Risk</span>
+                        <span class="pill ${badgeCls}">${badgeText}</span>
                         <div class="position-pnl ${pnlClass}" style="margin-top:4px;">
                             <span class="position-pnl-val">${pnlPrefix}${formatINR(pnl)}</span>
                         </div>
@@ -127,8 +137,8 @@ function renderFnoSpreads(positions) {
                     <div class="meta-row"><span>Quantity:</span> <span class="meta-val">${pos.qty}</span></div>
                     <div class="meta-row"><span>Entry Premium:</span> <span class="meta-val">${formatINR(entryPrem)}</span></div>
                     <div class="meta-row"><span>Live Premium:</span> <span class="meta-val font-mono">${formatINR(curPrem)}</span></div>
-                    <div class="meta-row"><span>Max Potential Profit:</span> <span class="meta-val text-up">${formatINR(maxProfit)}</span></div>
-                    <div class="meta-row"><span>Margin Reserved:</span> <span class="meta-val">${formatINR(marginReq)}</span></div>
+                    <div class="meta-row"><span>Target / SL:</span> <span class="meta-val text-up">${targetDisp} / ${formatINR(pos.stop_loss || 0)}</span></div>
+                    <div class="meta-row"><span>${isLongBuy ? 'Cost Deployed:' : 'Margin Reserved:'}</span> <span class="meta-val">${formatINR(capUsed)}</span></div>
                     <div class="meta-row"><span>Expiry Date:</span> <span class="meta-val font-mono">${pos.expiry_date || 'Thursday'}</span></div>
                 </div>
             </div>`;

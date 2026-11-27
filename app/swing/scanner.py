@@ -5,6 +5,7 @@ with Volume Dry-Up confirmation for high-probability swing setups.
 """
 import pandas as pd
 import numpy as np
+from ..candlestick_patterns import CandlestickAnalyzer
 
 
 class SwingScanner:
@@ -78,12 +79,16 @@ class SwingScanner:
             avg_vol_20 = float(volume.rolling(20).mean().iloc[-1]) if len(volume) >= 20 else last_vol
             is_volume_dry = (last_vol <= avg_vol_20 * 1.5)  # No institutional dumping
 
-            # 5. Bullish Price Action at Support:
-            # Reversal candle (close near high, hammer tail, or green candle)
+            # 5. Bullish Price Action & Candlestick Pattern Analysis at Support
             body = abs(last_close - last_open)
             candle_range = max(last_high - last_low, 0.01)
             lower_wick = min(last_open, last_close) - last_low
-            is_bullish_reaction = (last_close >= last_open) or (lower_wick >= 0.35 * candle_range)
+            candle_intel = CandlestickAnalyzer.analyze(df, min_bars=5)
+            is_bullish_candle = candle_intel["bias"] == "BULLISH"
+            is_bearish_reversal = candle_intel["bias"] == "BEARISH" and candle_intel["strength"] >= 78.0
+            if is_bearish_reversal:
+                return None
+            is_bullish_reaction = is_bullish_candle or (last_close >= last_open) or (lower_wick >= 0.35 * candle_range)
 
             # ATR for risk sizing
             tr1 = high - low
@@ -92,10 +97,11 @@ class SwingScanner:
             tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
             atr_14 = float(tr.rolling(14).mean().iloc[-1]) if len(tr) >= 14 else last_close * 0.02
 
-            # Scoring: 70 to 95 scale
+            # Scoring: 70 to 100 scale
             score = 70.0
             if last_close > e20: score += 5.0
             if is_bullish_reaction: score += 10.0
+            if is_bullish_candle: score += 5.0
             if is_volume_dry: score += 5.0
             if last_close >= 0.85 * high_52w: score += 5.0
 
@@ -108,8 +114,9 @@ class SwingScanner:
                 "high_52w": round(high_52w, 2),
                 "dist_to_ema20_pct": round(dist_to_ema20 * 100, 2),
                 "atr": round(atr_14, 2),
-                "score": round(score, 1),
+                "score": round(min(100.0, score), 1),
                 "is_bullish_reaction": is_bullish_reaction,
+                "candlestick": candle_intel["pattern"],
                 "product_type": "SWING",
             }
         except Exception:
