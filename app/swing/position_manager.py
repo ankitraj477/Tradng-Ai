@@ -5,12 +5,16 @@ CRITICAL RULE: Swing positions are EXEMPT from 15:10 IST intraday square-off.
 Implements multi-day breakeven locks and dynamic target expansions.
 """
 
+import time
+
+
 class SwingPositionManager:
     def __init__(self, db, execution, provider, cfg=None):
         self.db = db
         self.execution = execution
         self.provider = provider
         self.cfg = cfg or {}
+        self._last_stale_warn: dict[str, float] = {}
 
     def manage(self) -> int:
         """
@@ -115,6 +119,13 @@ class SwingPositionManager:
                             )
 
             except Exception as e:
-                self.db.log("ERROR", f"Swing manager error for {symbol}: {e!r}")
+                err_msg = str(e)
+                if "stale data" in err_msg or "no fresh live data" in err_msg:
+                    now_ts = time.time()
+                    if (now_ts - self._last_stale_warn.get(symbol, 0.0)) >= 300.0:
+                        self.db.log("WARN", f"[Swing Desk] Delayed quote skipped for {symbol} ({err_msg})")
+                        self._last_stale_warn[symbol] = now_ts
+                else:
+                    self.db.log("ERROR", f"Swing manager error for {symbol}: {e!r}")
 
         return closed
